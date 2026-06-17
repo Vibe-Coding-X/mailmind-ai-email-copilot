@@ -152,3 +152,58 @@ class LLMClient:
 5. `new_mail_preview` 失败时，允许返回新邮件列表但不附带 AI 预览。
 
 ---
+
+### 6 LLMClient Factory 与 Provider 配置（MVP → V1）
+
+#### 6.1 MVP 阶段
+
+`LLMClient` 从 `.env` 读取配置初始化：
+
+```text
+.env: LLM_PROVIDER=anthropic
+      LLM_API_KEY=sk-...
+      LLM_MODEL=claude-sonnet-4-20250514
+        ↓
+LLMClientFactory.create()
+        ↓
+AnthropicClient(api_key=..., model=...)
+```
+
+#### 6.2 V1 阶段
+
+V1 引入 `ai_provider_configs` 后，factory 改为从数据库读取配置：
+
+```text
+ai_provider_configs (user_id, provider, api_key_encrypted, base_url)
+        ↓
+LLMClientFactory.create(provider_config_id=...)
+        ↓
+AnthropicClient / OpenAIClient / GeminiClient / OllamaClient
+```
+
+- Factory 根据 `ai_provider_configs.provider` 字段选择对应的 adapter 实现；
+- API Key 解密后传入 adapter；
+- 自定义 `base_url` 传入 adapter（如 Ollama 本地部署）；
+- Fallback：若用户未配置 provider，回退到 `.env` 默认值；
+- 每次 AI 调用记录 `ai_runs.ai_provider_config_id` 外键。
+
+#### 6.3 V2 阶段
+
+V2 引入 `ai_model_profiles` 后，factory 增加 profile 层：
+
+```text
+ai_routing_policies (task_type → primary_profile_id)
+        ↓
+ai_model_profiles (model_name, temperature, max_tokens)
+        ↓
+ai_provider_configs (API Key, base_url)
+        ↓
+LLMClientFactory.create(profile_id=...)
+        ↓
+具体 LLM adapter
+```
+
+#### 6.4 分类边界
+
+- **LLM Provider**：OpenAI、Anthropic、Google、Ollama 等 → `ai_provider_configs`
+- **Coding Agent**：Codex、Claude Code → V2 单独管理，**不属于** `ai_provider_configs` 的 provider 类型

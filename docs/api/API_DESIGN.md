@@ -189,3 +189,41 @@ source=current_digest|all
 1. `PATCH /me` 支持更新 `users.timezone`（IANA 格式）、显示偏好等；
 2. 更新时区后，Digest 的日期窗口计算必须即时生效；
 3. 密码修改需要当前密码验证。
+
+---
+
+### 9 AI Provider API（V1 预留）
+
+> 本节为 V1 阶段预留设计。MVP 阶段不实现这些 API，AI Provider 仅通过 `.env` 配置。
+
+```text
+/api/settings/ai-providers
+  GET    /                        获取当前用户的 AI Provider 列表（返回 masked key）
+  POST   /                        添加 AI Provider
+  GET    /{provider_config_id}    获取单个 Provider 详情
+  PATCH  /{provider_config_id}    更新 Provider（API Key 为写-only）
+  DELETE /{provider_config_id}    删除 Provider
+  POST   /{provider_config_id}/test  测试 API Key 连接性
+
+/api/settings/ai-routing          （V2 预留）
+  GET    /                        获取各任务的 model 路由配置
+  PATCH  /{task_type}             更新某任务的默认 model
+```
+
+安全规则：
+
+1. 所有路由必须按 `user_id` 从 JWT/session 上下文过滤，禁止越权访问；
+2. 不存在的或属于其他用户的 resource 统一返回 `404`（防止枚举攻击）；
+3. `GET /` / `GET /{id}` 返回 masked key（`前7字符 + **** + 后4字符`），**不得**包含 `api_key_encrypted`；
+4. `POST /{id}/test` 必须限流（每用户每分钟最多 5 次），仅返回 `success: boolean`；
+5. 自定义 `base_url` 必须通过 SSRF 防护校验（禁止内网 IP / metadata 地址 / 强制 HTTPS）；
+6. `DELETE` 使用 `ON DELETE SET NULL` 保护 `ai_runs` 审计历史。
+
+错误码补充：
+
+| 错误码 | HTTP | 说明 |
+|--------|------|------|
+| `PROVIDER_CONFIG_NOT_FOUND` | 404 | Provider 不存在或无权访问 |
+| `INVALID_BASE_URL` | 400 | base_url 未通过 SSRF 防护校验 |
+| `PROVIDER_TEST_FAILED` | 400 | API Key 测试连接失败 |
+| `PROVIDER_TEST_RATE_LIMITED` | 429 | 测试端点调用频率超限 |

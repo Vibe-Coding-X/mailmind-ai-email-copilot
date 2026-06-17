@@ -856,3 +856,67 @@ v1.3 数据库设计以 `daily_digests + digest_items + ai_runs + user_actions` 
 5. `user_actions` 保存用户真实行为与 Provider 同步结果。
 
 该设计满足 MVP 当前 Gmail 场景，同时为 Outlook、IMAP、多邮箱与未来更严格的生产部署留出了清晰扩展边界。
+
+---
+
+## 13. V1 预留：AI Provider 配置表
+
+> 本节为 V1 阶段预留设计。MVP 阶段**不创建**以下表，仅在文档层面定义 DDL，便于 V1 实现时直接使用。
+> MVP 阶段 AI Provider 通过 `.env` 配置，`ai_runs.model_provider` / `model_name` 已满足追踪需求。
+
+### 13.1 `ai_provider_configs`（V1 创建）
+
+用户配置的 AI Provider 表。每条记录代表一个用户添加的 AI 服务配置。
+
+| 字段 | 类型 | 约束 | 说明 |
+|---|---|---|---|
+| `id` | `UUID` | PK | 主键 |
+| `user_id` | `UUID` | NOT NULL, FK → `users(id)` | 所属用户 |
+| `provider` | `VARCHAR(50)` | NOT NULL, CHECK | `openai` / `anthropic` / `google` / `azure_openai` / `openrouter` / `ollama` / `custom` |
+| `display_name` | `VARCHAR(100)` | NULL | 用户自定义名称 |
+| `base_url` | `TEXT` | NULL | 自定义 endpoint（V1 必须通过 SSRF 防护校验） |
+| `api_key_encrypted` | `TEXT` | NULL | 加密后的 API Key |
+| `encryption_key_version` | `VARCHAR(20)` | NOT NULL DEFAULT `'v1'` | 密钥版本，便于未来轮换 |
+| `capabilities` | `JSONB` | NOT NULL DEFAULT `'{}'::jsonb` | 支持的能力（json_mode、tool_use 等） |
+| `status` | `VARCHAR(20)` | NOT NULL DEFAULT `'active'`, CHECK | `active` / `disabled` |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | 创建时间 |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `NOW()` | 更新时间 |
+
+约束与索引：
+
+1. `CHECK (jsonb_typeof(capabilities) = 'object')`；
+2. `CHECK (status IN ('active', 'disabled'))`；
+3. `CHECK (provider IN ('openai', 'anthropic', 'google', 'azure_openai', 'openrouter', 'ollama', 'custom'))`；
+4. `UNIQUE (user_id, provider)` — 同一用户同类型 provider 仅一个；
+5. 索引：`INDEX ai_provider_configs_user_status_idx (user_id, status)`。
+
+实现说明：
+
+1. **MVP 不创建此表**，仅作为 V1 DDL 预留；
+2. API Key 加密复用 `APP_ENCRYPTION_KEY` + `encryption_key_version` 模式，与 `mailbox_credentials` 一致；
+3. 自定义 `base_url` 必须通过 SSRF 防护（禁止内网 IP / metadata 地址 / 强制 HTTPS）；
+4. **Codex / Claude Code 不属于此表的 provider 类型**，V2 需单独管理。
+
+### 13.2 `ai_runs` 外键增强（V1 添加列）
+
+V1 需要在 `ai_runs` 表增加以下外键列（`NULLABLE`，`ON DELETE SET NULL`）：
+
+```sql
+ALTER TABLE ai_runs
+  ADD COLUMN ai_provider_config_id UUID NULL
+    REFERENCES ai_provider_configs(id) ON DELETE SET NULL;
+```
+
+- MVP 期间这些列为 `NULL`，使用 `.env` 默认 provider；
+- V1 开始记录每次 AI 调用的 provider 来源；
+- 保留现有 `model_provider` / `model_name` VARCHAR 字段作为历史快照（不可变事实）。
+
+### 13.3 V2 预留表（仅描述，不给 DDL）
+
+以下表在 V2 阶段评估是否需要，MVP / V1 不创建：
+
+| 表名 | 用途 | 状态 |
+|------|------|------|
+| `ai_model_profiles` | 用户为不同任务配置不同模型参数 | V2 评估 |
+| `ai_routing_policies` | 按任务类型路由到不同 model profile | V2 评估 |
+| `ai_usage_records` | AI 使用量与成本追踪（可由 `ai_runs` 聚合替代） | V2 评估 |

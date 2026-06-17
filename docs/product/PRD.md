@@ -531,11 +531,57 @@ AI Email Copilot 的 MVP 定义为：
 
 ---
 
+## 13. AI Provider 配置路线图
+
+### 13.1 MVP 阶段（当前）
+
+MVP 使用 `.env` 环境变量配置 AI Provider，通过 `LLMClient` 接口抽象实现 provider 切换能力：
+
+1. 系统通过 `.env` 中的 `LLM_PROVIDER` 和 `LLM_API_KEY` 配置唯一 AI Provider；
+2. `LLMClient` 工厂根据环境变量初始化对应的 provider 实例（Anthropic / OpenAI 等）；
+3. 所有 AI 调用通过 `ai_runs` 表的 `model_provider` 和 `model_name` 字段记录；
+4. **用户不可配置**，无需 UI，无需数据库存储。
+
+### 13.2 V1 阶段：用户可配置 AI Provider
+
+V1 引入用户级 AI Provider 配置能力：
+
+1. 新增 `ai_provider_configs` 表，存储用户配置的 provider（provider type、加密 API Key、base_url 等）；
+2. 用户可通过 `/settings/ai` 页面添加、编辑、测试、启用/禁用 provider；
+3. 支持 OpenAI、Anthropic Claude、Google Gemini、Azure OpenAI、Ollama / 本地模型；
+4. API Key 加密存储（复用 `APP_ENCRYPTION_KEY` + `encryption_key_version` 模式）；
+5. `ai_runs` 增加 `ai_provider_config_id` 外键，追踪每次 AI 调用使用的 provider；
+6. 前端仅返回 masked key，禁止明文返回；
+7. 自定义 `base_url` 必须通过 SSRF 防护校验（禁止内网 IP / metadata 地址）。
+
+### 13.3 V2 阶段：Model Profile 与 Agent 配置
+
+V2 引入多模型切换和 Coding Agent 配置：
+
+1. 新增 `ai_model_profiles` 表，支持用户为不同任务（digest / reply_draft / risk_detection）配置不同模型；
+2. 支持 Codex、Claude Code、Coding Plan 等 Agent 工具的凭据配置（与 LLM provider 分离管理）；
+3. 支持 fallback chain：主 provider 失败时自动切换到备用 provider；
+4. AI 使用量追踪与成本估算。
+
+### 13.4 分类原则
+
+以下分类在本项目中严格区分：
+
+| 分类 | 示例 | 存储位置 | 说明 |
+|------|------|---------|------|
+| **LLM Provider** | OpenAI、Anthropic、Google、Ollama | `ai_provider_configs` | AI 推理服务 |
+| **Coding Agent** | Codex、Claude Code | V2 单独表或 config_json | 开发工具，不属于 LLM provider |
+| **Email Provider** | Gmail、Outlook、IMAP | `mailboxes.provider` | 邮箱服务 |
+
+Codex 和 Claude Code **不得**作为 `ai_provider_configs` 的 provider 类型值。它们是消费 LLM 的工具层，不是 LLM 推理服务本身。
+
+---
+
 ## 附录：后续规划路线
 
 | 阶段 | 主要能力 |
 |---|---|
 | MVP | Gmail 接入、AI 日报、基础邮件操作 |
-| V1 | Outlook / IMAP 接入、AI 回复草稿、邮件线程总结、语义搜索 |
-| V2 | 多邮箱统一收件箱、增量 AI 分析、桌面客户端、自动归档 |
+| V1 | Outlook / IMAP 接入、AI 回复草稿、邮件线程总结、语义搜索、用户可配置 AI Provider |
+| V2 | 多邮箱统一收件箱、增量 AI 分析、桌面客户端、自动归档、Model Profile 与 Agent 配置 |
 | V3 | SaaS 化、多租户、数据隐私合规、团队协作功能 |

@@ -187,3 +187,52 @@ APP_ENCRYPTION_KEY
 6. 未来商业化时需重新评估是否保留 AI 原始输出。
 
 ---
+
+### 6 AI API Key 安全规则（V1 实现）
+
+本节规则在 V1 引入 `ai_provider_configs` 时生效。MVP 阶段 AI Key 仅在 `.env` 中管理。
+
+#### 6.1 加密存储
+
+1. AI API Key 必须使用 `APP_ENCRYPTION_KEY` + AES-256-GCM（或 Fernet）加密存储；
+2. `ai_provider_configs` 必须包含 `encryption_key_version` 字段，与 `mailbox_credentials` 保持一致；
+3. 未来密钥轮换时，通过 `encryption_key_version` 识别需要重新加密的记录；
+4. 加密/解密复用 `mailbox_credentials` 同一工具模块，不创建独立加密路径。
+
+#### 6.2 SSRF 防护
+
+1. MVP 阶段不允许自定义 `base_url`，仅支持预定义 provider 的固定 endpoint；
+2. V1 若支持自定义 `base_url`（如 Ollama 本地部署），必须：
+   - 拒绝所有 RFC 1918 私有 IP（10.x.x.x、172.16-31.x.x、192.168.x.x）；
+   - 拒绝 loopback（127.0.0.1、localhost）和 link-local（169.254.x.x）；
+   - 拒绝云 metadata 地址（169.254.169.254 等）；
+   - 强制 HTTPS；
+   - 实现 DNS rebinding 防护。
+
+#### 6.3 前端回显
+
+1. API 返回 AI Key 时必须 mask，格式为 `前7字符 + **** + 后4字符`；
+2. API 的 GET / LIST 响应**不得**包含 `api_key_encrypted` 字段；
+3. 返回 `has_key: boolean` 标识是否存在已配置的 Key；
+4. Key 更新（PATCH）为写-only 操作，不提供解密回读路径。
+
+#### 6.4 日志脱敏
+
+1. 禁止在日志中记录：AI API Key、解密后的凭据、完整 Prompt、完整 AI Response；
+2. `ai_runs` 和未来的 `ai_usage_records` 仅允许记录元数据（timestamp、model、token 数、latency、status code、cost）；
+3. 异常堆栈、HTTP 请求/响应日志必须经过脱敏过滤器。
+
+#### 6.5 测试连接端点
+
+1. `POST /api/ai-providers/{id}/test` 用于验证 API Key 有效性；
+2. 必须限流：每用户每分钟最多 5 次；
+3. 仅返回 `success: boolean`，不暴露详细错误信息；
+4. 使用与主请求相同的 SSRF 防护规则。
+
+#### 6.6 Coding Agent 凭据
+
+Codex / Claude Code / 其他 Coding Agent 的 Token / API Key 属于敏感凭据，安全要求与 AI API Key 同等：
+- 加密存储
+- 不进日志
+- 前端 masked 回显
+- V2 阶段实现
