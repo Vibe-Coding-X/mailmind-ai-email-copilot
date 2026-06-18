@@ -32,11 +32,31 @@ class Settings(BaseSettings):
     digest_auto_generate: bool = True
     digest_generate_time: str = "08:00"
 
+    # Local-dev frontend CORS origins (T010a). Comma-separated when set via the
+    # CORS_ALLOWED_ORIGINS env var. Defaults cover the Next.js dev server on both
+    # localhost and 127.0.0.1. Stored as a raw string and exposed as a parsed
+    # list via `cors_allowed_origins` so pydantic-settings does not try to JSON
+    # decode the env value. Credentialed CORS (allow_credentials=True) requires
+    # explicit origins, so a wildcard "*" is intentionally not used.
+    cors_allowed_origins_raw: str = Field(
+        default="http://localhost:3000,http://127.0.0.1:3000",
+        alias="cors_allowed_origins",
+    )
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins_raw.split(",")
+            if origin.strip()
+        ]
+
     model_config = SettingsConfigDict(
         env_file=None,
         env_prefix="",
         extra="ignore",
         case_sensitive=False,
+        populate_by_name=True,
     )
 
 

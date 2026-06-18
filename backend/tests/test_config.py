@@ -33,3 +33,17 @@ def test_secret_values_are_redacted_from_model_repr() -> None:
     assert "test-encryption-key" not in rendered
     assert "test-google-secret" not in rendered
     assert "test-llm-key" not in rendered
+
+
+def test_cors_allowed_origins_reads_comma_separated_environment(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000, http://127.0.0.1:3000",
+    )
+
+    settings = Settings()
+
+    assert settings.cors_allowed_origins == [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]

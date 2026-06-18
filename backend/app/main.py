@@ -1,11 +1,26 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.core.config import get_settings
 
 
 app = FastAPI(title="MailMind Backend")
+
+# Local-dev CORS for the Next.js frontend (T010a). Credentialed requests
+# (Cookie session) require explicit origins, so origins are listed rather than
+# wildcarded. Origins are configurable via the CORS_ALLOWED_ORIGINS env var.
+_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_settings.cors_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth_router)
 
 
