@@ -1,4 +1,8 @@
 # MailMind Backend
 
-This directory is reserved for the MailMind backend implementation.
-Business code will be added in later tasks according to `docs/engineering/TASK_BREAKDOWN.md`.
+This directory contains the MailMind backend foundation.
+
+Current scope is limited to the FastAPI app shell, configuration loading,
+database connection wiring, Alembic setup, and foundation tests. Business APIs,
+models, migrations, Gmail OAuth, AI pipeline, and async workers are added only
+by later tasks in `docs/engineering/TASK_BREAKDOWN.md`.
