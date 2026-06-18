@@ -1,0 +1,43 @@
+/*
+ * MailMind frontend global styles (T005 scaffold).
+ *
+ * This file intentionally uses plain CSS only. The structure is left
+ * Tailwind-ready: a later task may add `@tailwind base; @tailwind components;
+ * @tailwind utilities;` here once Tailwind + shadcn/ui dependencies and config
+ * are intentionally introduced. Do not treat any styling here as final UI.
+ */
+
+:root {
+  color-scheme: light dark;
+  --mm-bg: #0b0c10;
+  --mm-surface: #15171e;
+  --mm-border: #262932;
+  --mm-text: #e6e8ee;
+  --mm-muted: #9aa0ad;
+  --mm-accent: #5b8cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--mm-bg);
+  color: var(--mm-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--mm-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
