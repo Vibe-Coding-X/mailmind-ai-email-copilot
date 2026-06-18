@@ -6,6 +6,10 @@
  * Every method is an unimplemented placeholder so that page components cannot
  * accidentally rely on fake success states. Real wiring (fetch + TanStack
  * Query) is the responsibility of later, in-scope tasks.
+ *
+ * The design-preview round intentionally kept this as a safe placeholder: no
+ * page in the preview imports or calls it. Wire real fetch here only during a
+ * dedicated integration task, strictly following docs/api/API_DESIGN.md.
  */
 
 import { API_ROUTES } from "./api-routes";

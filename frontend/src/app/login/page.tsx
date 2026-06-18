@@ -1,17 +1,69 @@
-import { RouteHeading, StatusPlaceholder } from "@/components/placeholders";
+import { Badge } from "@/components/ui/badge";
+import { Field } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
 
 /**
- * /login (T005 scaffold). System login page placeholder.
- * Login/register workflow is explicitly out of scope for T005.
+ * /login (design preview).
+ *
+ * Static visual skeleton only. No submit logic, no API call, no cookie, no
+ * localStorage. Inputs are disabled/read-only and the button is non-functional.
+ * System login is separate from Gmail authorization.
  */
 export default function LoginPage() {
   return (
-    <main style={{ padding: "48px 40px", maxWidth: 480, margin: "0 auto" }}>
-      <RouteHeading
-        title="Sign in to MailMind"
-        description="System login is separate from Gmail authorization."
-      />
-      <StatusPlaceholder feature="Login workflow" />
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: "40px 20px",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div className="mm-brand-name" style={{ fontSize: 22 }}>
+            MailMind
+          </div>
+          <div className="mm-brand-sub">AI Email Copilot</div>
+        </div>
+
+        <section className="mm-card" style={{ padding: "24px 24px 22px" }}>
+          <div className="mm-spread" style={{ marginBottom: 16 }}>
+            <h1 style={{ fontSize: 18 }}>Sign in</h1>
+            <Badge tone="warn" dot>
+              Design Preview
+            </Badge>
+          </div>
+
+          <Field
+            label="Email"
+            type="email"
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+          <Field
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            autoComplete="current-password"
+          />
+
+          <Button type="button" variant="primary" disabled>
+            Sign in
+          </Button>
+
+          <p className="mm-muted" style={{ fontSize: 12, marginTop: 14 }}>
+            Authentication backend is not connected. This form is a static design
+            preview and does not submit, store, or authenticate anything.
+          </p>
+
+          <hr className="mm-divider" style={{ margin: "16px 0" }} />
+
+          <p className="mm-muted" style={{ fontSize: 13 }}>
+            No account yet? <a href="/register">Create one</a>
+          </p>
+        </section>
+      </div>
     </main>
   );
 }

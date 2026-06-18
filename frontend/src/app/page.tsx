@@ -1,37 +1,26 @@
 import { AppShell } from "@/components/app-shell";
-import {
-  PlaceholderPanel,
-  RouteHeading,
-  StatusPlaceholder,
-} from "@/components/placeholders";
+import { StatusBanner } from "@/components/status-banner";
+import { PageFrame } from "@/components/page-frame";
+import { DashboardPreview } from "@/components/dashboard-preview";
 
 /**
- * Root page (T005 scaffold).
+ * Root page (design preview).
  *
- * Reflects MailMind's dashboard-first positioning as an AI Email Copilot
- * without implementing the actual Daily Digest workflow. It points users at
- * the documented /dashboard entry point. No data is loaded here.
+ * MailMind is dashboard-first, so the landing page renders the Daily Digest
+ * dashboard preview directly. This is a static design preview: no digest is
+ * generated, no api-client is called, and no data is loaded.
  */
 export default function HomePage() {
   return (
     <AppShell>
-      <RouteHeading
-        title="MailMind"
-        description="AI Email Copilot — a dashboard-first decision layer on top of your email."
-      />
-
-      <PlaceholderPanel title="Dashboard-first product direction">
-        MailMind&apos;s primary entry point is the Daily Digest dashboard, not a
-        raw inbox list. The dashboard will surface what needs attention today.
-        This scaffold does not generate or display any digest data.
-        <div style={{ marginTop: 12 }}>
-          <a href="/dashboard">Go to Daily Digest →</a>
-        </div>
-      </PlaceholderPanel>
-
-      <PlaceholderPanel title="Build status">
-        <StatusPlaceholder feature="Product UI" />
-      </PlaceholderPanel>
+      <StatusBanner />
+      <div style={{ height: 20 }} />
+      <PageFrame
+        title="Daily Digest"
+        description="Your action-oriented inbox summary. MailMind shows what needs attention today instead of a raw inbox."
+      >
+        <DashboardPreview />
+      </PageFrame>
     </AppShell>
   );
 }

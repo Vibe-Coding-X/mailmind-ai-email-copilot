@@ -1,20 +1,48 @@
 /*
- * MailMind frontend global styles (T005 scaffold).
+ * MailMind frontend global styles (design preview layer).
  *
- * This file intentionally uses plain CSS only. The structure is left
- * Tailwind-ready: a later task may add `@tailwind base; @tailwind components;
- * @tailwind utilities;` here once Tailwind + shadcn/ui dependencies and config
- * are intentionally introduced. Do not treat any styling here as final UI.
+ * Plain CSS only — no Tailwind/shadcn (intentionally out of scope this round).
+ * This defines a small design-system: tokens (CSS variables) plus a handful of
+ * reusable presentational classes used by the preview components. Nothing here
+ * loads data, talks to a backend, or implies a connected state.
  */
 
 :root {
-  color-scheme: light dark;
-  --mm-bg: #0b0c10;
-  --mm-surface: #15171e;
-  --mm-border: #262932;
-  --mm-text: #e6e8ee;
-  --mm-muted: #9aa0ad;
-  --mm-accent: #5b8cff;
+  color-scheme: dark;
+
+  /* Surfaces */
+  --mm-bg: #0a0b0f;
+  --mm-bg-elevated: #101218;
+  --mm-surface: #14161d;
+  --mm-surface-2: #1a1d26;
+  --mm-border: #262a35;
+  --mm-border-strong: #333949;
+
+  /* Text */
+  --mm-text: #e7e9f0;
+  --mm-text-soft: #b8bdca;
+  --mm-muted: #868d9c;
+  --mm-faint: #5b6271;
+
+  /* Accents */
+  --mm-accent: #6b8cff;
+  --mm-accent-soft: rgba(107, 140, 255, 0.14);
+  --mm-success: #57c98a;
+  --mm-warn: #e0a850;
+  --mm-danger: #e0676b;
+  --mm-success-soft: rgba(87, 201, 138, 0.13);
+  --mm-warn-soft: rgba(224, 168, 80, 0.13);
+  --mm-danger-soft: rgba(224, 103, 107, 0.13);
+
+  /* Radii & spacing */
+  --mm-radius-sm: 6px;
+  --mm-radius: 10px;
+  --mm-radius-lg: 14px;
+  --mm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.18);
+
+  --mm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * {
@@ -28,9 +56,9 @@ body {
   min-height: 100%;
   background: var(--mm-bg);
   color: var(--mm-text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  font-family: var(--mm-font);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -40,4 +68,327 @@ a {
 
 a:hover {
   text-decoration: underline;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+/* ---------- Layout primitives ---------- */
+
+.mm-shell {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  min-height: 100vh;
+}
+
+.mm-sidebar {
+  border-right: 1px solid var(--mm-border);
+  background: var(--mm-bg-elevated);
+  padding: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.mm-main {
+  padding: 32px 40px 64px;
+  width: 100%;
+  max-width: 1180px;
+}
+
+.mm-brand-name {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.mm-brand-sub {
+  color: var(--mm-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.mm-nav-label {
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--mm-faint);
+  margin-bottom: 8px;
+}
+
+.mm-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mm-nav-link {
+  display: block;
+  padding: 7px 10px;
+  border-radius: var(--mm-radius-sm);
+  color: var(--mm-text-soft);
+  font-size: 14px;
+}
+
+.mm-nav-link:hover {
+  background: var(--mm-surface);
+  text-decoration: none;
+  color: var(--mm-text);
+}
+
+/* ---------- Cards & sections ---------- */
+
+.mm-card {
+  border: 1px solid var(--mm-border);
+  border-radius: var(--mm-radius);
+  background: var(--mm-surface);
+  padding: 18px 20px;
+}
+
+.mm-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mm-card-muted {
+  color: var(--mm-muted);
+  font-size: 13.5px;
+}
+
+.mm-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.mm-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mm-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 880px) {
+  .mm-grid-2,
+  .mm-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Badges, chips, banners ---------- */
+
+.mm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--mm-border-strong);
+  color: var(--mm-muted);
+  background: var(--mm-surface-2);
+  white-space: nowrap;
+}
+
+.mm-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mm-faint);
+}
+
+.mm-badge--info {
+  color: var(--mm-accent);
+  border-color: transparent;
+  background: var(--mm-accent-soft);
+}
+.mm-badge--info .mm-badge-dot {
+  background: var(--mm-accent);
+}
+.mm-badge--warn {
+  color: var(--mm-warn);
+  border-color: transparent;
+  background: var(--mm-warn-soft);
+}
+.mm-badge--warn .mm-badge-dot {
+  background: var(--mm-warn);
+}
+.mm-badge--danger {
+  color: var(--mm-danger);
+  border-color: transparent;
+  background: var(--mm-danger-soft);
+}
+.mm-badge--danger .mm-badge-dot {
+  background: var(--mm-danger);
+}
+.mm-badge--ok {
+  color: var(--mm-success);
+  border-color: transparent;
+  background: var(--mm-success-soft);
+}
+.mm-badge--ok .mm-badge-dot {
+  background: var(--mm-success);
+}
+
+.mm-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--mm-border);
+  border-left: 3px solid var(--mm-warn);
+  background: var(--mm-bg-elevated);
+  border-radius: var(--mm-radius);
+  padding: 12px 16px;
+  font-size: 13.5px;
+  color: var(--mm-text-soft);
+}
+
+.mm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mm-border-strong);
+  background: var(--mm-surface-2);
+  color: var(--mm-text-soft);
+}
+
+/* ---------- Skeleton lines ---------- */
+
+.mm-skel {
+  background: linear-gradient(
+    90deg,
+    var(--mm-surface-2) 0%,
+    var(--mm-border) 50%,
+    var(--mm-surface-2) 100%
+  );
+  border-radius: var(--mm-radius-sm);
+  height: 12px;
+  width: 100%;
+}
+
+.mm-skel + .mm-skel {
+  margin-top: 8px;
+}
+
+/* ---------- Forms (static, non-functional) ---------- */
+
+.mm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.mm-label {
+  font-size: 12.5px;
+  color: var(--mm-text-soft);
+}
+
+.mm-input {
+  background: var(--mm-bg);
+  border: 1px solid var(--mm-border-strong);
+  border-radius: var(--mm-radius-sm);
+  padding: 9px 12px;
+  color: var(--mm-text);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.mm-input:focus {
+  outline: none;
+  border-color: var(--mm-accent);
+}
+
+.mm-input::placeholder {
+  color: var(--mm-faint);
+}
+
+.mm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--mm-radius-sm);
+  border: 1px solid var(--mm-border-strong);
+  background: var(--mm-surface-2);
+  color: var(--mm-text);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 16px;
+  cursor: not-allowed;
+}
+
+.mm-btn--primary {
+  background: var(--mm-accent);
+  border-color: var(--mm-accent);
+  color: #0a0b0f;
+}
+
+.mm-btn:disabled,
+.mm-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- Misc helpers ---------- */
+
+.mm-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mm-spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mm-muted {
+  color: var(--mm-muted);
+}
+
+.mm-mono {
+  font-family: var(--mm-mono);
+  font-size: 12.5px;
+}
+
+.mm-divider {
+  height: 1px;
+  background: var(--mm-border);
+  border: 0;
+  margin: 4px 0;
 }
