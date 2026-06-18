@@ -200,18 +200,27 @@ The AI output is expected to follow a structured JSON schema so that it can be p
 The planned core tables include:
 
 * `users`
+* `auth_accounts`
+* `sessions`
 * `mailboxes`
+* `mailbox_credentials`
 * `emails`
 * `daily_digests`
 * `digest_items`
+* `ai_runs`
+* `user_actions`
 * `sync_jobs`
+* `ai_provider_configs` (V1 reserved)
 
 Where:
 
 * `daily_digests` represents a daily AI-generated email digest snapshot.
 * `digest_items` represents individual AI decision items inside a digest.
 * `emails` stores synchronized Gmail email metadata and cleaned text content.
-* `mailboxes` stores connected mailbox information and encrypted OAuth tokens.
+* `mailboxes` stores connected mailbox metadata.
+* `mailbox_credentials` stores encrypted OAuth credentials.
+* `ai_runs` stores AI call metadata and raw structured output.
+* `user_actions` stores actual user behavior and provider sync results.
 
 ## Security Principles
 
@@ -244,35 +253,34 @@ The `gmail.modify` scope is a restricted Gmail scope. It is acceptable for local
 
 Current status:
 
-> MVP design and documentation stage.
+> Documentation hardening before MVP implementation.
 
-This repository currently stores product and architecture documents. Implementation will be added gradually after the core engineering documents are finalized.
+This repository currently stores product, architecture, and Harness Engineering documents. Backend, frontend, database migrations, and business logic have not started yet.
 
-## Planned Documentation
+## Available Documentation
 
 ```text
 docs/
-  PRD.md
-  SYSTEM_DESIGN.md
-  DATABASE_DESIGN.md
-  API_DESIGN.md
-  AI_PIPELINE.md
-  SECURITY.md
-  TASK_BREAKDOWN.md
+  product/PRD.md
+  architecture/SYSTEM_DESIGN.md
+  architecture/DATA_FLOWS.md
+  database/DATABASE_DESIGN.md
+  api/API_DESIGN.md
+  ai/AI_PIPELINE.md
+  security/SECURITY.md
+  frontend/FRONTEND_DESIGN.md
+  engineering/DEVELOPMENT.md
+  engineering/ASYNC_TASKS.md
+  engineering/INCREMENTAL_SYNC.md
+  engineering/TIMEZONE_RULES.md
+  engineering/TASK_BREAKDOWN.md
+  engineering/AGENTS.md
+  engineering/DECISION_LOG.md
+  engineering/DOCS_FREEZE_CHECKLIST.md
+  engineering/REVIEW_CHECKLIST.md
 ```
 
-Currently available:
-
-* Product Requirements Document
-* System Architecture Design
-
-Planned next:
-
-* Database Design
-* API Design
-* AI Pipeline Design
-* Security Design
-* Task Breakdown for implementation
+The Harness Engineering documents define task boundaries, agent execution rules, architecture decisions, documentation freeze checks, and review checklists for future implementation.
 
 ## Roadmap
 
