@@ -1,44 +1,128 @@
 /**
- * Typed API client placeholder for MailMind (T005 scaffold).
+ * Typed API client for MailMind.
  *
- * IMPORTANT: This file deliberately does NOT perform any real network calls,
- * authentication, Gmail sync, digest generation, or mark-read/unread behavior.
- * Every method is an unimplemented placeholder so that page components cannot
- * accidentally rely on fake success states. Real wiring (fetch + TanStack
- * Query) is the responsibility of later, in-scope tasks.
+ * Auth routes (register/login/logout/me) are wired to the real backend in this
+ * integration round. All requests send `credentials: "include"` so the browser
+ * carries the HttpOnly session cookie; the frontend never reads or stores it.
  *
- * The design-preview round intentionally kept this as a safe placeholder: no
- * page in the preview imports or calls it. Wire real fetch here only during a
- * dedicated integration task, strictly following docs/api/API_DESIGN.md.
+ * Every other route remains a safe placeholder that throws `Not implemented`.
+ * Do NOT add Gmail/email/digest/AI behavior here outside a dedicated, in-scope
+ * task — and wire any new route strictly per docs/api/API_DESIGN.md.
  */
 
+import { API_BASE_URL } from "./config";
 import { API_ROUTES } from "./api-routes";
-import type { ApiResult } from "./api-types";
+import {
+  isApiError,
+  type ApiError,
+  type ApiResult,
+  type AuthUserResponse,
+} from "./api-types";
 
 function notImplemented(operation: string): never {
   throw new Error(
-    `Not implemented: ${operation} is a T005 placeholder. Real API wiring lands in a later task.`,
+    `Not implemented: ${operation} is a placeholder. Real API wiring lands in a later task.`,
   );
 }
 
 /**
- * Method names map 1:1 to documented routes in docs/api/API_DESIGN.md. Return
- * types use the documented success/error envelope. No defaults, mock data, or
- * optimistic states are returned — calling any method throws.
+ * Error thrown for any non-success auth response. Carries the backend error
+ * envelope (code/message/retryable) when available, plus the HTTP status.
+ * For network/CORS failures, `code` is "NETWORK_ERROR" and status is 0.
  */
+export class ApiRequestError extends Error {
+  code: string;
+  status: number;
+  retryable: boolean;
+
+  constructor(message: string, code: string, status: number, retryable = false) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.code = code;
+    this.status = status;
+    this.retryable = retryable;
+  }
+}
+
+interface RequestOptions {
+  method: "GET" | "POST";
+  body?: unknown;
+}
+
+/**
+ * Low-level JSON request against the backend. Always credentialed. Parses the
+ * documented { data, meta } / { error } envelope and throws ApiRequestError on
+ * any error response or transport failure. Never fabricates a success result.
+ */
+async function request<T extends ApiResult>(
+  path: string,
+  { method, body }: RequestOptions,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      credentials: "include",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // fetch rejects on network failure, DNS failure, or CORS rejection.
+    throw new ApiRequestError(
+      "Unable to reach the server. Check that the backend is running.",
+      "NETWORK_ERROR",
+      0,
+      true,
+    );
+  }
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok || isApiError(payload)) {
+    const err = payload as ApiError | null;
+    throw new ApiRequestError(
+      err?.error?.message ?? `Request failed (${response.status}).`,
+      err?.error?.code ?? "INVALID_REQUEST",
+      response.status,
+      err?.error?.retryable ?? false,
+    );
+  }
+
+  return payload as T;
+}
+
 export const apiClient = {
   auth: {
-    register(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.auth.register}`);
+    /** POST /api/auth/register — returns the created+authenticated user. */
+    register(input: {
+      email: string;
+      password: string;
+      timezone?: string;
+    }): Promise<AuthUserResponse> {
+      return request<AuthUserResponse>(API_ROUTES.auth.register, {
+        method: "POST",
+        body: input,
+      });
     },
-    login(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.auth.login}`);
+    /** POST /api/auth/login — returns the authenticated user. */
+    login(input: { email: string; password: string }): Promise<AuthUserResponse> {
+      return request<AuthUserResponse>(API_ROUTES.auth.login, {
+        method: "POST",
+        body: input,
+      });
     },
+    /** POST /api/auth/logout — clears the server session + cookie. */
     logout(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.auth.logout}`);
+      return request<ApiResult>(API_ROUTES.auth.logout, { method: "POST" });
     },
-    me(): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.auth.me}`);
+    /** GET /api/auth/me — current user; throws ApiRequestError(401) if signed out. */
+    me(): Promise<AuthUserResponse> {
+      return request<AuthUserResponse>(API_ROUTES.auth.me, { method: "GET" });
     },
   },
 

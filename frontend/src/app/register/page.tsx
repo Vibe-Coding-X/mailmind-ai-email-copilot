@@ -1,13 +1,10 @@
 import { Badge } from "@/components/ui/badge";
-import { Field } from "@/components/ui/field";
-import { Button } from "@/components/ui/button";
+import { AuthForm } from "@/components/auth-form";
+import { AuthStatus } from "@/components/auth-status";
 
 /**
- * /register (design preview).
- *
- * Static visual skeleton only. No submit logic, no API call, no cookie, no
- * localStorage. Inputs are disabled/read-only and the button is non-functional.
- * Registration creates a system account, not a Gmail connection.
+ * /register — system account registration. Registration creates a system
+ * account, not a Gmail connection, and only calls POST /api/auth/register.
  */
 export default function RegisterPage() {
   return (
@@ -30,38 +27,16 @@ export default function RegisterPage() {
         <section className="mm-card" style={{ padding: "24px 24px 22px" }}>
           <div className="mm-spread" style={{ marginBottom: 16 }}>
             <h1 style={{ fontSize: 18 }}>Create account</h1>
-            <Badge tone="warn" dot>
-              Design Preview
+            <Badge tone="ok" dot>
+              Auth API
             </Badge>
           </div>
 
-          <Field
-            label="Email"
-            type="email"
-            placeholder="you@example.com"
-            autoComplete="email"
-          />
-          <Field
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            autoComplete="new-password"
-          />
-          <Field
-            label="Confirm password"
-            type="password"
-            placeholder="••••••••"
-            autoComplete="new-password"
-          />
+          <AuthForm mode="register" />
 
-          <Button type="button" variant="primary" disabled>
-            Create account
-          </Button>
-
-          <p className="mm-muted" style={{ fontSize: 12, marginTop: 14 }}>
-            Authentication backend is not connected. This form is a static design
-            preview and does not submit, store, or create anything.
-          </p>
+          <div style={{ marginTop: 16 }}>
+            <AuthStatus />
+          </div>
 
           <hr className="mm-divider" style={{ margin: "16px 0" }} />
 

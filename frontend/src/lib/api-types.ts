@@ -49,3 +49,25 @@ export function isApiError(value: unknown): value is ApiError {
     typeof (value as ApiError).error === "object"
   );
 }
+
+/**
+ * Auth DTOs — derived strictly from the backend contract:
+ * - app/schemas/user.py (UserRead)
+ * - app/api/auth.py (register/login/me return { data: { user }, meta })
+ * No fields are invented beyond what the backend returns.
+ */
+export interface AuthUser {
+  id: string;
+  email: string;
+  timezone: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload shape of register/login/me success responses. */
+export interface AuthUserData {
+  user: AuthUser;
+}
+
+export type AuthUserResponse = ApiSuccess<AuthUserData>;

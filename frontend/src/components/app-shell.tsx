@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { AuthStatus } from "@/components/auth-status";
 
 /**
  * AppShell — product layout frame for MailMind (design preview).
  *
- * Structural/presentational only. It does not load user data, auth state, or
- * any Daily Digest content. Nav links point at documented routes; destination
- * pages are static design previews. A sidebar status block makes the
- * "not connected" state unmistakable.
+ * Product layout frame. Authentication status is live via GET /api/auth/me;
+ * Gmail, Digest, and AI areas remain design previews until their own tasks.
  */
 
 interface NavLink {
@@ -74,12 +73,7 @@ function SidebarStatus() {
         className="mm-stack"
         style={{ gap: 6, alignItems: "flex-start" }}
       >
-        <Badge tone="warn" dot>
-          Frontend scaffold
-        </Badge>
-        <Badge tone="neutral" dot>
-          Backend not connected
-        </Badge>
+        <AuthStatus compact />
         <Badge tone="neutral" dot>
           Gmail not connected
         </Badge>

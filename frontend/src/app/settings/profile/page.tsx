@@ -1,16 +1,14 @@
 import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
-import { Badge } from "@/components/ui/badge";
+import { AuthStatus } from "@/components/auth-status";
 import { SettingsSection, SettingRow } from "@/components/settings-section";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
 /**
- * /settings/profile (design preview).
- *
- * User profile & preferences skeleton. Static only — no user data is loaded or
- * persisted. Future routes: GET/PATCH /api/users/me (API_DESIGN.md §8).
+ * /settings/profile — current system identity status. Profile editing remains
+ * a design preview; auth state comes from GET /api/auth/me.
  */
 export default function ProfileSettingsPage() {
   return (
@@ -23,19 +21,11 @@ export default function ProfileSettingsPage() {
       >
         <SettingsSection
           title="Account"
-          description="Read-only preview. No account data is loaded."
+          description="Current system login state from the auth session."
         >
           <SettingRow
-            label="Email"
-            value={<span className="mm-muted">not connected</span>}
-          />
-          <SettingRow
-            label="Account status"
-            value={
-              <Badge tone="neutral" dot>
-                Unknown · not connected
-              </Badge>
-            }
+            label="Session"
+            value={<AuthStatus />}
           />
         </SettingsSection>
 
