@@ -3,15 +3,14 @@ from app.db.base import Base
 
 
 IDENTITY_TABLES = {"users", "auth_accounts", "sessions"}
-FORBIDDEN_BUSINESS_TABLES = {
-    "mailboxes",
-    "mailbox_credentials",
+MAILBOX_FOUNDATION_TABLES = {"mailboxes", "mailbox_credentials"}
+CURRENT_BUSINESS_TABLES = IDENTITY_TABLES | MAILBOX_FOUNDATION_TABLES | {
     "emails",
+    "sync_jobs",
     "daily_digests",
     "digest_items",
     "ai_runs",
     "user_actions",
-    "sync_jobs",
 }
 
 
@@ -19,8 +18,17 @@ def test_identity_tables_are_registered_in_metadata() -> None:
     assert IDENTITY_TABLES.issubset(Base.metadata.tables.keys())
 
 
-def test_non_identity_business_tables_are_not_registered_in_metadata() -> None:
-    assert FORBIDDEN_BUSINESS_TABLES.isdisjoint(Base.metadata.tables.keys())
+def test_mailbox_foundation_tables_are_registered_in_metadata() -> None:
+    assert MAILBOX_FOUNDATION_TABLES.issubset(Base.metadata.tables.keys())
+
+
+def test_email_sync_tables_are_registered_in_metadata() -> None:
+    assert {"emails", "sync_jobs"}.issubset(Base.metadata.tables.keys())
+
+
+def test_only_current_business_tables_are_registered_in_metadata() -> None:
+    assert set(Base.metadata.tables.keys()) == CURRENT_BUSINESS_TABLES
+    assert "user_actions" in Base.metadata.tables
 
 
 def test_users_email_has_unique_constraint() -> None:

@@ -3,7 +3,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.actions import router as actions_router
 from app.api.auth import router as auth_router
+from app.api.digests import router as digests_router
+from app.api.emails import router as emails_router
+from app.api.gmail_auth import router as gmail_auth_router
+from app.api.mailboxes import router as mailboxes_router
 from app.core.config import get_settings
 
 
@@ -22,6 +27,11 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(gmail_auth_router)
+app.include_router(mailboxes_router)
+app.include_router(emails_router)
+app.include_router(digests_router)
+app.include_router(actions_router)
 
 
 @app.exception_handler(HTTPException)
