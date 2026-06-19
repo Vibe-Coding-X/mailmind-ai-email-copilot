@@ -3,6 +3,7 @@ import type { Mailbox, MailboxSyncStatusData } from "@/lib/api-types";
 import {
   formatDateTime,
   isConnectedMailbox,
+  requiresGmailReconnect,
   statusLabel,
   syncStatusSummary,
   syncStatusTone,
@@ -27,6 +28,7 @@ export function MailboxSyncCard({
   const loaded = syncStatus?.state === "loaded" ? syncStatus.data : undefined;
   const disabled = !isConnectedMailbox(mailbox) || syncing;
   const lastJob = loaded?.last_job ?? null;
+  const needsReconnect = requiresGmailReconnect(mailbox);
   const syncError =
     syncStatus?.state === "error"
       ? syncStatus.message
@@ -96,7 +98,9 @@ export function MailboxSyncCard({
         </button>
         {!isConnectedMailbox(mailbox) ? (
           <span className="mm-muted" style={{ fontSize: 12 }}>
-            Connect Gmail before syncing.
+            {needsReconnect
+              ? "Reconnect Gmail before syncing."
+              : "Connect Gmail before syncing."}
           </span>
         ) : null}
       </div>
