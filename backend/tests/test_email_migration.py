@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, inspect
 from app.core.config import Settings
 
 
-ALLOWED_BUSINESS_TABLES = {
+EXPECTED_BUSINESS_TABLES = {
     "users",
     "auth_accounts",
     "sessions",
@@ -36,16 +36,17 @@ def _business_tables() -> set[str]:
     return table_names - {"alembic_version"}
 
 
-def test_identity_migration_upgrades_and_downgrades() -> None:
+def test_email_sync_migration_upgrades_and_downgrades() -> None:
     config = _alembic_config()
 
     command.downgrade(config, "base")
     command.upgrade(config, "head")
 
-    assert _business_tables() == ALLOWED_BUSINESS_TABLES
+    assert _business_tables() == EXPECTED_BUSINESS_TABLES
     assert FORBIDDEN_LATER_PHASE_TABLES.isdisjoint(_business_tables())
 
-    command.downgrade(config, "base")
-    assert _business_tables() == set()
+    command.downgrade(config, "20260619_0002")
+    assert "emails" not in _business_tables()
+    assert "sync_jobs" not in _business_tables()
 
     command.upgrade(config, "head")

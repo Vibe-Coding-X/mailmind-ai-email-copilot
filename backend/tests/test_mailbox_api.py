@@ -1,10 +1,7 @@
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
-
 from app.db.models.mailbox import Mailbox
-from app.db.models.user import User
 from app.db.session import SessionLocal
 from app.main import app
 
@@ -69,51 +66,3 @@ def test_get_mailbox_detail_blocks_access_to_other_users_mailbox() -> None:
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "INVALID_REQUEST"
-
-
-def test_sync_status_returns_foundation_response_without_syncing_email() -> None:
-    client, user_id = _register_client("mailbox-sync-status")
-    mailbox_id = _create_mailbox(
-        user_id, email="sync-status@example.com", account_id="sync-status-account"
-    )
-
-    response = client.get(f"/api/mailboxes/{mailbox_id}/sync-status")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "data": {
-            "mailbox_id": str(mailbox_id),
-            "status": "not_started",
-            "last_successful_sync_at": None,
-            "message": "Email sync is not implemented in this phase.",
-        },
-        "meta": {},
-    }
-
-
-def test_sync_trigger_returns_foundation_response_without_creating_sync_jobs() -> None:
-    client, user_id = _register_client("mailbox-sync")
-    mailbox_id = _create_mailbox(
-        user_id, email="sync@example.com", account_id="sync-account"
-    )
-
-    response = client.post(f"/api/mailboxes/{mailbox_id}/sync")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "data": {
-            "mailbox_id": str(mailbox_id),
-            "status": "not_implemented",
-            "message": "Email sync will be implemented in a later phase.",
-        },
-        "meta": {},
-    }
-    assert "sync_jobs" not in BaseTableNames.current()
-
-
-class BaseTableNames:
-    @staticmethod
-    def current() -> set[str]:
-        from app.db.base import Base
-
-        return set(Base.metadata.tables.keys())

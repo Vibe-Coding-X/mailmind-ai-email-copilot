@@ -5,12 +5,10 @@ from app.db.base import Base
 IDENTITY_TABLES = {"users", "auth_accounts", "sessions"}
 MAILBOX_FOUNDATION_TABLES = {"mailboxes", "mailbox_credentials"}
 FORBIDDEN_LATER_PHASE_TABLES = {
-    "emails",
     "daily_digests",
     "digest_items",
     "ai_runs",
     "user_actions",
-    "sync_jobs",
 }
 
 
@@ -20,6 +18,10 @@ def test_identity_tables_are_registered_in_metadata() -> None:
 
 def test_mailbox_foundation_tables_are_registered_in_metadata() -> None:
     assert MAILBOX_FOUNDATION_TABLES.issubset(Base.metadata.tables.keys())
+
+
+def test_email_sync_tables_are_registered_in_metadata() -> None:
+    assert {"emails", "sync_jobs"}.issubset(Base.metadata.tables.keys())
 
 
 def test_later_phase_business_tables_are_not_registered_in_metadata() -> None:

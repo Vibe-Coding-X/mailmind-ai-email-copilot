@@ -6,14 +6,12 @@ from app.db.session import create_engine_from_settings, session_scope
 
 
 def test_base_metadata_contains_only_current_phase_business_tables() -> None:
-    current_phase_business_tables = {"mailboxes", "mailbox_credentials"}
+    current_phase_business_tables = {"mailboxes", "mailbox_credentials", "emails", "sync_jobs"}
     later_phase_business_tables = {
-        "emails",
         "daily_digests",
         "digest_items",
         "ai_runs",
         "user_actions",
-        "sync_jobs",
     }
 
     assert current_phase_business_tables.issubset(Base.metadata.tables.keys())
@@ -35,6 +33,8 @@ def test_database_connection_uses_configured_database_url() -> None:
         "sessions",
         "mailboxes",
         "mailbox_credentials",
+        "emails",
+        "sync_jobs",
     }
 
 

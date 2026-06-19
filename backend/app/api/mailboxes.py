@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import error_response, get_current_user, get_db
 from app.db.models.mailbox import Mailbox
+from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.schemas.mailbox import mailbox_payload
+from app.schemas.sync_job import sync_job_payload, sync_status_for_api
+from app.services.email_sync_service import EmailSyncError, sync_today_emails
 
 
 router = APIRouter(prefix="/api/mailboxes", tags=["mailboxes"])
@@ -62,12 +65,17 @@ def get_sync_status(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     mailbox = _get_owned_mailbox(db, user=current_user, mailbox_id=mailbox_id)
+    last_job = db.scalar(
+        select(SyncJob)
+        .where(SyncJob.mailbox_id == mailbox.id, SyncJob.user_id == current_user.id)
+        .order_by(SyncJob.created_at.desc())
+    )
     return {
         "data": {
             "mailbox_id": str(mailbox.id),
-            "status": "not_started",
+            "status": sync_status_for_api(last_job.status) if last_job else "not_started",
             "last_successful_sync_at": mailbox.last_successful_sync_at,
-            "message": "Email sync is not implemented in this phase.",
+            "last_job": sync_job_payload(last_job),
         },
         "meta": {},
     }
@@ -80,11 +88,25 @@ def trigger_sync(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     mailbox = _get_owned_mailbox(db, user=current_user, mailbox_id=mailbox_id)
+    try:
+        result = sync_today_emails(
+            db,
+            user_id=current_user.id,
+            mailbox_id=mailbox.id,
+        )
+    except EmailSyncError as exc:
+        db.commit()
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=error_response(exc.code, exc.message, retryable=False)["error"],
+        ) from exc
+
     return {
         "data": {
-            "mailbox_id": str(mailbox.id),
-            "status": "not_implemented",
-            "message": "Email sync will be implemented in a later phase.",
+            "mailbox_id": str(result.mailbox_id),
+            "status": result.status,
+            "synced_count": result.synced_count,
+            "job_id": str(result.job_id),
         },
         "meta": {},
     }
