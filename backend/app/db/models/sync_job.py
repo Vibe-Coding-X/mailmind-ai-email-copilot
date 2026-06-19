@@ -27,13 +27,7 @@ class SyncJob(Base):
     __tablename__ = "sync_jobs"
     __table_args__ = (
         CheckConstraint(
-            "job_type IN ("
-            "'sync_today_emails', "
-            "'generate_daily_digest', "
-            "'refresh_daily_digest', "
-            "'check_new_emails_after_digest', "
-            "'refresh_access_token'"
-            ")",
+            "job_type IN ('sync_today_emails')",
             name="sync_jobs_job_type_check",
         ),
         CheckConstraint(
@@ -59,7 +53,6 @@ class SyncJob(Base):
         ),
         UniqueConstraint("celery_task_id", name="sync_jobs_celery_task_id_uq"),
         Index("sync_jobs_mailbox_created_idx", "mailbox_id", text("created_at DESC")),
-        Index("sync_jobs_digest_created_idx", "digest_id", text("created_at DESC")),
         Index("sync_jobs_status_created_idx", "status", text("created_at DESC")),
         Index("sync_jobs_target_date_idx", "mailbox_id", "target_date", "job_type"),
         Index(
@@ -79,7 +72,6 @@ class SyncJob(Base):
     mailbox_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("mailboxes.id", ondelete="CASCADE"), nullable=True
     )
-    digest_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     job_type: Mapped[str] = mapped_column(String(50), nullable=False)
     trigger_source: Mapped[str] = mapped_column(String(20), nullable=False)

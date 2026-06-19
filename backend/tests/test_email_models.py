@@ -3,11 +3,14 @@ from app.db.base import Base
 
 
 EMAIL_SYNC_TABLES = {"emails", "sync_jobs"}
-FORBIDDEN_LATER_PHASE_TABLES = {
-    "daily_digests",
-    "digest_items",
-    "ai_runs",
-    "user_actions",
+CURRENT_BUSINESS_TABLES = {
+    "users",
+    "auth_accounts",
+    "sessions",
+    "mailboxes",
+    "mailbox_credentials",
+    "emails",
+    "sync_jobs",
 }
 
 
@@ -15,8 +18,8 @@ def test_email_sync_tables_are_registered_in_metadata() -> None:
     assert EMAIL_SYNC_TABLES.issubset(Base.metadata.tables.keys())
 
 
-def test_later_digest_ai_and_action_tables_are_not_registered() -> None:
-    assert FORBIDDEN_LATER_PHASE_TABLES.isdisjoint(Base.metadata.tables.keys())
+def test_metadata_contains_only_current_business_tables() -> None:
+    assert set(Base.metadata.tables.keys()) == CURRENT_BUSINESS_TABLES
 
 
 def test_emails_columns_and_constraints_match_database_design() -> None:
@@ -67,7 +70,6 @@ def test_sync_jobs_columns_and_constraints_match_database_design() -> None:
         "id",
         "user_id",
         "mailbox_id",
-        "digest_id",
         "celery_task_id",
         "job_type",
         "trigger_source",
@@ -83,7 +85,7 @@ def test_sync_jobs_columns_and_constraints_match_database_design() -> None:
         "finished_at",
     }
 
-    assert expected_columns.issubset(sync_jobs.c.keys())
+    assert set(sync_jobs.c.keys()) == expected_columns
     assert {fk.target_fullname for fk in sync_jobs.c.user_id.foreign_keys} == {"users.id"}
     assert {fk.target_fullname for fk in sync_jobs.c.mailbox_id.foreign_keys} == {
         "mailboxes.id"
@@ -93,3 +95,9 @@ def test_sync_jobs_columns_and_constraints_match_database_design() -> None:
         for constraint in sync_jobs.constraints
         if constraint.__class__.__name__ == "UniqueConstraint"
     )
+    job_type_checks = [
+        str(constraint.sqltext)
+        for constraint in sync_jobs.constraints
+        if constraint.name == "sync_jobs_job_type_check"
+    ]
+    assert job_type_checks == ["job_type IN ('sync_today_emails')"]

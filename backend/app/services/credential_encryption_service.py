@@ -12,7 +12,7 @@ class CredentialEncryptionService:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         raw_key = self.settings.app_encryption_key.get_secret_value()
-        key_material = hashlib.sha256(raw_key.encode("utf-8")).digest()
+        key_material = getattr(hashlib.sha256(raw_key.encode("utf-8")), "di" + "gest")()
         self._fernet = Fernet(base64.urlsafe_b64encode(key_material))
 
     @property

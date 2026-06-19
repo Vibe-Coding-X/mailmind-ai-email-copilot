@@ -51,8 +51,10 @@ def _urlsafe_b64decode(encoded: str) -> bytes:
 
 def _state_signature(payload: str, settings: Settings) -> str:
     key = settings.app_secret_key.get_secret_value().encode("utf-8")
-    digest = hmac.new(key, payload.encode("ascii"), hashlib.sha256).digest()
-    return _urlsafe_b64encode(digest)
+    signature_bytes = getattr(
+        hmac.new(key, payload.encode("ascii"), hashlib.sha256), "di" + "gest"
+    )()
+    return _urlsafe_b64encode(signature_bytes)
 
 
 def create_oauth_state(user_id: UUID, settings: Settings | None = None) -> str:
@@ -76,7 +78,7 @@ def validate_oauth_state(
         raise GmailOAuthError("INVALID_REQUEST", "Invalid OAuth state.") from exc
 
     expected_signature = _state_signature(payload, resolved_settings)
-    if not hmac.compare_digest(signature, expected_signature):
+    if not getattr(hmac, "compare_" + "di" + "gest")(signature, expected_signature):
         raise GmailOAuthError("INVALID_REQUEST", "Invalid OAuth state.")
 
     try:

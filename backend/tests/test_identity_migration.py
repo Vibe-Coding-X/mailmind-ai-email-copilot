@@ -14,12 +14,6 @@ ALLOWED_BUSINESS_TABLES = {
     "emails",
     "sync_jobs",
 }
-FORBIDDEN_LATER_PHASE_TABLES = {
-    "daily_digests",
-    "digest_items",
-    "ai_runs",
-    "user_actions",
-}
 
 
 def _alembic_config() -> Config:
@@ -43,7 +37,6 @@ def test_identity_migration_upgrades_and_downgrades() -> None:
     command.upgrade(config, "head")
 
     assert _business_tables() == ALLOWED_BUSINESS_TABLES
-    assert FORBIDDEN_LATER_PHASE_TABLES.isdisjoint(_business_tables())
 
     command.downgrade(config, "base")
     assert _business_tables() == set()

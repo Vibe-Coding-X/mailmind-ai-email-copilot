@@ -3,11 +3,14 @@ from app.db.base import Base
 
 
 MAILBOX_TABLES = {"mailboxes", "mailbox_credentials"}
-FORBIDDEN_LATER_PHASE_TABLES = {
-    "daily_digests",
-    "digest_items",
-    "ai_runs",
-    "user_actions",
+CURRENT_BUSINESS_TABLES = {
+    "users",
+    "auth_accounts",
+    "sessions",
+    "mailboxes",
+    "mailbox_credentials",
+    "emails",
+    "sync_jobs",
 }
 
 
@@ -20,7 +23,7 @@ def test_email_sync_tables_are_registered_in_metadata() -> None:
 
 
 def test_later_phase_tables_are_not_registered_in_metadata() -> None:
-    assert FORBIDDEN_LATER_PHASE_TABLES.isdisjoint(Base.metadata.tables.keys())
+    assert set(Base.metadata.tables.keys()) == CURRENT_BUSINESS_TABLES
 
 
 def test_mailboxes_columns_match_database_design_foundation() -> None:

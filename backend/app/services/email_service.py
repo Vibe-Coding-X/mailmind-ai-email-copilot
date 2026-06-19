@@ -57,7 +57,7 @@ def list_today_emails(
     if source != "all" or priority is not None:
         raise EmailServiceError(
             "INVALID_REQUEST",
-            "Digest-backed email filtering is not available in this phase.",
+            "Priority-backed email filtering is not available in this phase.",
         )
 
     window_start, window_end = _today_window(user.timezone, now)

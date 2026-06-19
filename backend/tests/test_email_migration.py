@@ -14,11 +14,23 @@ EXPECTED_BUSINESS_TABLES = {
     "emails",
     "sync_jobs",
 }
-FORBIDDEN_LATER_PHASE_TABLES = {
-    "daily_digests",
-    "digest_items",
-    "ai_runs",
-    "user_actions",
+EXPECTED_SYNC_JOB_COLUMNS = {
+    "id",
+    "user_id",
+    "mailbox_id",
+    "celery_task_id",
+    "job_type",
+    "trigger_source",
+    "job_key",
+    "target_date",
+    "status",
+    "retry_count",
+    "payload_json",
+    "error_code",
+    "error_message",
+    "created_at",
+    "started_at",
+    "finished_at",
 }
 
 
@@ -43,7 +55,24 @@ def test_email_sync_migration_upgrades_and_downgrades() -> None:
     command.upgrade(config, "head")
 
     assert _business_tables() == EXPECTED_BUSINESS_TABLES
-    assert FORBIDDEN_LATER_PHASE_TABLES.isdisjoint(_business_tables())
+    engine = create_engine(Settings().database_url, pool_pre_ping=True)
+    try:
+        inspector = inspect(engine)
+        assert {
+            column["name"] for column in inspector.get_columns("sync_jobs")
+        } == EXPECTED_SYNC_JOB_COLUMNS
+        checks = {
+            check["name"]: check["sqltext"]
+            for check in inspector.get_check_constraints("sync_jobs")
+        }
+        assert checks["sync_jobs_job_type_check"] == (
+            "job_type::text = 'sync_today_emails'::text"
+        )
+        assert "sync_jobs_mailbox_created_idx" in {
+            index["name"] for index in inspector.get_indexes("sync_jobs")
+        }
+    finally:
+        engine.dispose()
 
     command.downgrade(config, "20260619_0002")
     assert "emails" not in _business_tables()
