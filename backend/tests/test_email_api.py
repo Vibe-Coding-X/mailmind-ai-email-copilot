@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -78,7 +78,7 @@ def _create_email(
             snippet="preview",
             body_text=f"Body {external_id}",
             body_text_truncated=False,
-            received_at=received_at or datetime(2026, 6, 19, 2, 0, tzinfo=UTC),
+            received_at=received_at or _current_test_received_at(),
             is_read=is_read,
             provider_labels=["INBOX"] if is_read else ["INBOX", "UNREAD"],
         )
@@ -101,6 +101,10 @@ class FakeProvider:
         assert access_token == "fake-access-token"
         assert message_id
         return ["INBOX", "UNREAD"]
+
+
+def _current_test_received_at() -> datetime:
+    return datetime.now(UTC) - timedelta(minutes=5)
 
 
 def test_get_today_emails_returns_only_current_user_email_summaries() -> None:

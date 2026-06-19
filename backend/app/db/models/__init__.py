@@ -8,6 +8,7 @@ from app.db.models.mailbox_credential import MailboxCredential
 from app.db.models.session import UserSession
 from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
+from app.db.models.user_action import UserAction
 
 __all__ = [
     "AuthAccount",
@@ -19,5 +20,6 @@ __all__ = [
     "MailboxCredential",
     "SyncJob",
     "User",
+    "UserAction",
     "UserSession",
 ]

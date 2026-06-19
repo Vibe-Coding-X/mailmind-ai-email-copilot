@@ -14,6 +14,7 @@ CURRENT_BUSINESS_TABLES = {
     "daily_digests",
     "digest_items",
     "ai_runs",
+    "user_actions",
 }
 
 
@@ -27,7 +28,7 @@ def test_email_sync_tables_are_registered_in_metadata() -> None:
 
 def test_only_current_business_tables_are_registered_in_metadata() -> None:
     assert set(Base.metadata.tables.keys()) == CURRENT_BUSINESS_TABLES
-    assert "user_actions" not in Base.metadata.tables
+    assert "user_actions" in Base.metadata.tables
 
 
 def test_mailboxes_columns_match_database_design_foundation() -> None:

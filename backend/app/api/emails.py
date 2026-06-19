@@ -75,6 +75,7 @@ def mark_email_read(
     try:
         email = mark_email_read_state(db, user=current_user, email_id=email_id, read=True)
     except EmailServiceError as exc:
+        db.commit()
         _raise_email_error(exc)
     return {"data": {"email": email_summary_payload(email)}, "meta": {}}
 
@@ -88,5 +89,6 @@ def mark_email_unread(
     try:
         email = mark_email_read_state(db, user=current_user, email_id=email_id, read=False)
     except EmailServiceError as exc:
+        db.commit()
         _raise_email_error(exc)
     return {"data": {"email": email_summary_payload(email)}, "meta": {}}

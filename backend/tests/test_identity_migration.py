@@ -16,6 +16,7 @@ ALLOWED_BUSINESS_TABLES = {
     "daily_digests",
     "digest_items",
     "ai_runs",
+    "user_actions",
 }
 
 

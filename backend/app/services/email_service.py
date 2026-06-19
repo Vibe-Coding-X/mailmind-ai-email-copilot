@@ -15,6 +15,7 @@ from app.db.models.user import User
 from app.providers.base import ProviderError
 from app.providers.gmail import GmailProvider
 from app.services.credential_encryption_service import CredentialEncryptionService
+from app.services.user_action_service import record_completed_action, record_failed_action
 
 
 class EmailServiceError(Exception):
@@ -104,16 +105,48 @@ def mark_email_read_state(
     if "https://www.googleapis.com/auth/gmail.modify" not in (mailbox.granted_scopes or []):
         raise EmailServiceError("FORBIDDEN", "Mailbox does not have Gmail modify scope.", 403)
 
-    refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
-    gmail_provider = provider or GmailProvider()
+    action_type = "mark_read" if read else "mark_unread"
+    before_state = _email_read_state_snapshot(email)
     try:
+        refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
+        gmail_provider = provider or GmailProvider()
         access_token = gmail_provider.refresh_access_token(refresh_token)
         labels = (
             gmail_provider.mark_as_read(access_token, email.external_id)
             if read
             else gmail_provider.mark_as_unread(access_token, email.external_id)
         )
+    except EmailServiceError as exc:
+        record_failed_action(
+            db,
+            user_id=user.id,
+            mailbox_id=mailbox.id,
+            email_id=email.id,
+            action_type=action_type,
+            source="email_detail",
+            provider_effect="gmail_synced",
+            before_state=before_state,
+            error_code=exc.code,
+            error_message=exc.message,
+            now=now,
+        )
+        db.flush()
+        raise
     except ProviderError as exc:
+        record_failed_action(
+            db,
+            user_id=user.id,
+            mailbox_id=mailbox.id,
+            email_id=email.id,
+            action_type=action_type,
+            source="email_detail",
+            provider_effect="gmail_synced",
+            before_state=before_state,
+            error_code=exc.code,
+            error_message=exc.message,
+            now=now,
+        )
+        db.flush()
         raise EmailServiceError(exc.code, exc.message, exc.status_code) from exc
 
     email.is_read = read
@@ -123,6 +156,18 @@ def mark_email_read_state(
     resolved_now = now or datetime.now(UTC)
     email.last_synced_at = resolved_now
     email.updated_at = resolved_now
+    record_completed_action(
+        db,
+        user_id=user.id,
+        mailbox_id=mailbox.id,
+        email_id=email.id,
+        action_type=action_type,
+        source="email_detail",
+        provider_effect="gmail_synced",
+        before_state=before_state,
+        after_state=_email_read_state_snapshot(email),
+        now=resolved_now,
+    )
     db.flush()
     return email
 
@@ -151,3 +196,10 @@ def _local_labels_after_read_state(labels: list[str], *, read: bool) -> list[str
     if read:
         return without_unread
     return without_unread + ["UNREAD"]
+
+
+def _email_read_state_snapshot(email: Email) -> dict[str, object]:
+    return {
+        "is_read": email.is_read,
+        "provider_labels": list(email.provider_labels or []),
+    }

@@ -14,15 +14,16 @@ EXPECTED_BUSINESS_TABLES = {
     "daily_digests",
     "digest_items",
     "ai_runs",
+    "user_actions",
 }
 
 
 def test_digest_tables_are_registered_in_metadata() -> None:
     assert DIGEST_TABLES.issubset(Base.metadata.tables.keys())
-    assert "user_actions" not in Base.metadata.tables
+    assert "user_actions" in Base.metadata.tables
 
 
-def test_metadata_contains_digest_business_tables_without_actions() -> None:
+def test_metadata_contains_digest_business_tables_with_actions() -> None:
     assert set(Base.metadata.tables.keys()) == EXPECTED_BUSINESS_TABLES
 
 

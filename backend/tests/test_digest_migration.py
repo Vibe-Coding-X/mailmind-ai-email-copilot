@@ -16,6 +16,7 @@ EXPECTED_BUSINESS_TABLES = {
     "daily_digests",
     "digest_items",
     "ai_runs",
+    "user_actions",
 }
 
 
@@ -46,7 +47,7 @@ def test_digest_migration_upgrades_and_downgrades() -> None:
         assert "daily_digests" in inspector.get_table_names()
         assert "digest_items" in inspector.get_table_names()
         assert "ai_runs" in inspector.get_table_names()
-        assert "user_actions" not in inspector.get_table_names()
+        assert "user_actions" in inspector.get_table_names()
         assert "digest_id" in {
             column["name"] for column in inspector.get_columns("sync_jobs")
         }

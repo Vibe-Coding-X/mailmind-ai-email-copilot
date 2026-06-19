@@ -16,6 +16,7 @@ EXPECTED_BUSINESS_TABLES = {
     "daily_digests",
     "digest_items",
     "ai_runs",
+    "user_actions",
 }
 EXPECTED_SYNC_JOB_COLUMNS = {
     "id",

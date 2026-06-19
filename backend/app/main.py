@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.actions import router as actions_router
 from app.api.auth import router as auth_router
 from app.api.digests import router as digests_router
 from app.api.emails import router as emails_router
@@ -30,6 +31,7 @@ app.include_router(gmail_auth_router)
 app.include_router(mailboxes_router)
 app.include_router(emails_router)
 app.include_router(digests_router)
+app.include_router(actions_router)
 
 
 @app.exception_handler(HTTPException)

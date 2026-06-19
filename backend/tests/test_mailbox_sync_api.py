@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -84,7 +84,7 @@ class FakeProvider:
                 snippet="preview",
                 body_text="body",
                 body_text_truncated=False,
-                received_at=datetime(2026, 6, 19, 2, 0, tzinfo=UTC),
+                received_at=datetime.now(UTC) - timedelta(minutes=5),
                 is_read=False,
                 provider_labels=["INBOX", "UNREAD"],
                 gmail_history_id="history-1",

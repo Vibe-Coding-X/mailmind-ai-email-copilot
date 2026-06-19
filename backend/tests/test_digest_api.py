@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -54,7 +54,7 @@ def _create_mailbox_and_email(user_id: UUID, *, prefix: str) -> UUID:
                 snippet="preview",
                 body_text="body",
                 body_text_truncated=False,
-                received_at=datetime(2026, 6, 19, 2, 0, tzinfo=UTC),
+                received_at=_current_test_received_at(),
                 is_read=False,
                 provider_labels=["INBOX", "UNREAD"],
             )
@@ -92,6 +92,10 @@ class StaticProvider:
             model_provider="mock",
             model_name="mock-digest-v1",
         )
+
+
+def _current_test_received_at() -> datetime:
+    return datetime.now(UTC) - timedelta(minutes=5)
 
 
 def test_get_today_digest_requires_login() -> None:
