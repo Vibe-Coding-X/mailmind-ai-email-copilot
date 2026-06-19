@@ -20,12 +20,16 @@ export interface ApiSuccess<TData = unknown, TMeta = Record<string, unknown>> {
 export type ApiErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
+  | "NOT_FOUND"
   | "MAILBOX_REAUTH_REQUIRED"
   | "DIGEST_NOT_READY"
   | "DIGEST_GENERATION_FAILED"
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_SYNC_FAILED"
-  | "INVALID_REQUEST";
+  | "INVALID_REQUEST"
+  | "INTERNAL_ERROR"
+  | "NETWORK_ERROR"
+  | "BACKEND_UNAVAILABLE";
 
 /** Error envelope: docs section 0.2 — { error: { code, message, retryable, details } }. */
 export interface ApiError<TDetails = Record<string, unknown>> {
@@ -71,3 +75,122 @@ export interface AuthUserData {
 }
 
 export type AuthUserResponse = ApiSuccess<AuthUserData>;
+
+export type MailboxProvider = "gmail" | string;
+
+export type MailboxStatus =
+  | "connected"
+  | "disconnected"
+  | "error"
+  | "reauth_required"
+  | "reauthorization_required"
+  | string;
+
+export interface Mailbox {
+  id: string;
+  provider: MailboxProvider;
+  email_address: string;
+  provider_account_id: string;
+  status: MailboxStatus;
+  last_successful_sync_at: string | null;
+  sync_cursor: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailboxesData {
+  mailboxes: Mailbox[];
+}
+
+export type MailboxesResponse = ApiSuccess<MailboxesData>;
+
+export interface MailboxData {
+  mailbox: Mailbox;
+}
+
+export type MailboxResponse = ApiSuccess<MailboxData>;
+
+export type MailboxSyncState =
+  | "not_started"
+  | "running"
+  | "completed"
+  | "failed"
+  | "unknown"
+  | string;
+
+export interface MailboxSyncJob {
+  id: string;
+  job_type: string;
+  status: MailboxSyncState;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+}
+
+export interface MailboxSyncStatusData {
+  mailbox_id: string;
+  status: MailboxSyncState;
+  last_successful_sync_at: string | null;
+  last_job?: MailboxSyncJob | null;
+  message?: string;
+}
+
+export type MailboxSyncStatusResponse = ApiSuccess<MailboxSyncStatusData>;
+
+export interface MailboxSyncData {
+  mailbox_id: string;
+  status: MailboxSyncState;
+  synced_count?: number;
+  job_id?: string;
+  message?: string;
+}
+
+export type MailboxSyncResponse = ApiSuccess<MailboxSyncData>;
+
+export interface GmailLoginData {
+  authorization_url: string;
+  provider: "gmail" | string;
+}
+
+export type GmailLoginResponse = ApiSuccess<GmailLoginData>;
+
+export interface EmailBase {
+  id: string;
+  mailbox_id: string;
+  provider: string;
+  external_id: string;
+  thread_id: string;
+  subject: string;
+  sender: string;
+  recipients: string[];
+  snippet: string;
+  received_at: string;
+  is_read: boolean;
+  labels: string[];
+}
+
+export type EmailSummary = EmailBase;
+
+export interface EmailDetail extends EmailBase {
+  body_text: string | null;
+}
+
+export type EmailMutation = Partial<EmailDetail> & { id: string };
+
+export interface TodayEmailsData {
+  emails: EmailSummary[];
+}
+
+export type TodayEmailsResponse = ApiSuccess<TodayEmailsData>;
+
+export interface EmailData {
+  email: EmailDetail;
+}
+
+export type EmailResponse = ApiSuccess<EmailData>;
+
+export interface EmailMutationData {
+  email: EmailMutation;
+}
+
+export type EmailMutationResponse = ApiSuccess<EmailMutationData>;

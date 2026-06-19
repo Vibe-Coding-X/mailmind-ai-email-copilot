@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://mailmind:mailmind@localhost:5432/mailmind"
     redis_url: str = "redis://localhost:6379/0"
+    frontend_base_url: str = "http://localhost:3000"
 
     google_client_id: str = ""
     google_client_secret: SecretStr = Field(default=SecretStr(""), repr=False)

@@ -5,16 +5,18 @@ from sqlalchemy import create_engine, inspect
 from app.core.config import Settings
 
 
-ALLOWED_BUSINESS_TABLES = {"users", "auth_accounts", "sessions"}
-FORBIDDEN_BUSINESS_TABLES = {
+ALLOWED_BUSINESS_TABLES = {
+    "users",
+    "auth_accounts",
+    "sessions",
     "mailboxes",
     "mailbox_credentials",
     "emails",
+    "sync_jobs",
     "daily_digests",
     "digest_items",
     "ai_runs",
     "user_actions",
-    "sync_jobs",
 }
 
 
@@ -39,7 +41,6 @@ def test_identity_migration_upgrades_and_downgrades() -> None:
     command.upgrade(config, "head")
 
     assert _business_tables() == ALLOWED_BUSINESS_TABLES
-    assert FORBIDDEN_BUSINESS_TABLES.isdisjoint(_business_tables())
 
     command.downgrade(config, "base")
     assert _business_tables() == set()

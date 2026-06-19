@@ -22,8 +22,8 @@ export function PageFrame({
         <div className="mm-row" style={{ marginBottom: 6 }}>
           <h1 style={{ fontSize: 24, letterSpacing: "-0.01em" }}>{title}</h1>
           {badge ? (
-            <Badge tone="warn" dot>
-              Design Preview
+            <Badge tone="neutral" dot>
+              Preview
             </Badge>
           ) : null}
         </div>

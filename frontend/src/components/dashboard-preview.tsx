@@ -38,7 +38,7 @@ export function DashboardPreview() {
     <div className="mm-stack">
       {/* 1. Digest freshness status (FRONTEND_DESIGN §3) */}
       <div className="mm-banner" role="note">
-        <Badge tone="warn" dot>
+        <Badge tone="neutral" dot>
           Digest status
         </Badge>
         <span>
@@ -89,7 +89,7 @@ export function DashboardPreview() {
         <PreviewCard
           title="Review later"
           badgeLabel="Review"
-          badgeTone="info"
+          badgeTone="neutral"
           note="Placeholder region"
         >
           <DigestItemSkeleton actions={["Review", "Snooze"]} />
@@ -112,36 +112,17 @@ export function DashboardPreview() {
         <PreviewCard
           title="Tasks"
           badgeLabel="To-do"
-          badgeTone="ok"
+          badgeTone="neutral"
           note="Extracted action items (placeholder)"
           skeletonLines={3}
         />
         <PreviewCard
           title="Risks"
           badgeLabel="Risk"
-          badgeTone="warn"
+          badgeTone="neutral"
           note="Risk reminders (placeholder)"
           skeletonLines={3}
         />
-      </div>
-
-      {/* System status */}
-      <div className="mm-card">
-        <div className="mm-card-title">System status</div>
-        <div className="mm-row">
-          <Badge tone="neutral" dot>
-            Backend not connected
-          </Badge>
-          <Badge tone="neutral" dot>
-            Gmail not connected
-          </Badge>
-          <Badge tone="neutral" dot>
-            AI not connected
-          </Badge>
-          <Badge tone="warn" dot>
-            Frontend scaffold
-          </Badge>
-        </div>
       </div>
     </div>
   );
