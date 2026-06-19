@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { AuthStatus } from "@/components/auth-status";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 /**
  * AppShell — product layout frame for MailMind (design preview).
@@ -67,19 +68,22 @@ function NavSection({ title, links }: { title: string; links: NavLink[] }) {
 
 function SidebarStatus() {
   return (
-    <div style={{ marginTop: "auto" }}>
-      <div className="mm-nav-label">Status</div>
-      <div
-        className="mm-stack"
-        style={{ gap: 6, alignItems: "flex-start" }}
-      >
-        <AuthStatus compact />
-        <Badge tone="neutral" dot>
-          Gmail not connected
-        </Badge>
-        <Badge tone="neutral" dot>
-          AI not connected
-        </Badge>
+    <div style={{ marginTop: "auto" }} className="mm-stack" >
+      <div>
+        <div className="mm-nav-label">Theme</div>
+        <ThemeSwitcher />
+      </div>
+      <div>
+        <div className="mm-nav-label">Status</div>
+        <div
+          className="mm-stack"
+          style={{ gap: 6, alignItems: "flex-start" }}
+        >
+          <AuthStatus compact />
+          <Badge tone="neutral" dot>
+            Gmail not connected
+          </Badge>
+        </div>
       </div>
     </div>
   );
