@@ -7,6 +7,9 @@ MAILBOX_FOUNDATION_TABLES = {"mailboxes", "mailbox_credentials"}
 CURRENT_BUSINESS_TABLES = IDENTITY_TABLES | MAILBOX_FOUNDATION_TABLES | {
     "emails",
     "sync_jobs",
+    "daily_digests",
+    "digest_items",
+    "ai_runs",
 }
 
 
@@ -22,8 +25,9 @@ def test_email_sync_tables_are_registered_in_metadata() -> None:
     assert {"emails", "sync_jobs"}.issubset(Base.metadata.tables.keys())
 
 
-def test_later_phase_business_tables_are_not_registered_in_metadata() -> None:
+def test_only_current_business_tables_are_registered_in_metadata() -> None:
     assert set(Base.metadata.tables.keys()) == CURRENT_BUSINESS_TABLES
+    assert "user_actions" not in Base.metadata.tables
 
 
 def test_users_email_has_unique_constraint() -> None:

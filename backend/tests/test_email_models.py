@@ -11,6 +11,9 @@ CURRENT_BUSINESS_TABLES = {
     "mailbox_credentials",
     "emails",
     "sync_jobs",
+    "daily_digests",
+    "digest_items",
+    "ai_runs",
 }
 
 
@@ -70,6 +73,7 @@ def test_sync_jobs_columns_and_constraints_match_database_design() -> None:
         "id",
         "user_id",
         "mailbox_id",
+        "digest_id",
         "celery_task_id",
         "job_type",
         "trigger_source",
@@ -90,6 +94,9 @@ def test_sync_jobs_columns_and_constraints_match_database_design() -> None:
     assert {fk.target_fullname for fk in sync_jobs.c.mailbox_id.foreign_keys} == {
         "mailboxes.id"
     }
+    assert {fk.target_fullname for fk in sync_jobs.c.digest_id.foreign_keys} == {
+        "daily_digests.id"
+    }
     assert any(
         {column.name for column in constraint.columns} == {"celery_task_id"}
         for constraint in sync_jobs.constraints
@@ -100,4 +107,12 @@ def test_sync_jobs_columns_and_constraints_match_database_design() -> None:
         for constraint in sync_jobs.constraints
         if constraint.name == "sync_jobs_job_type_check"
     ]
-    assert job_type_checks == ["job_type IN ('sync_today_emails')"]
+    assert job_type_checks == [
+        "job_type IN ("
+        "'sync_today_emails', "
+        "'generate_daily_digest', "
+        "'refresh_daily_digest', "
+        "'check_new_emails_after_digest', "
+        "'refresh_access_token'"
+        ")"
+    ]
