@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { AuthForm } from "@/components/auth-form";
 import { AuthStatus } from "@/components/auth-status";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 /**
  * /login — system authentication. System login is separate from Gmail
@@ -40,9 +41,12 @@ export default function LoginPage() {
 
           <hr className="mm-divider" style={{ margin: "16px 0" }} />
 
-          <p className="mm-muted" style={{ fontSize: 13 }}>
-            No account yet? <a href="/register">Create one</a>
-          </p>
+          <div className="mm-spread">
+            <p className="mm-muted" style={{ fontSize: 13 }}>
+              No account yet? <a href="/register">Create one</a>
+            </p>
+            <ThemeSwitcher compact />
+          </div>
         </section>
       </div>
     </main>
