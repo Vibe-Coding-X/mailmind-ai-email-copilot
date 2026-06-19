@@ -1,13 +1,13 @@
 /**
  * Typed API client for MailMind.
  *
- * Auth routes (register/login/logout/me) are wired to the real backend in this
- * integration round. All requests send `credentials: "include"` so the browser
- * carries the HttpOnly session cookie; the frontend never reads or stores it.
+ * Auth and mailbox settings routes are wired to the real backend. All requests
+ * send `credentials: "include"` so the browser carries the HttpOnly session
+ * cookie; the frontend never reads or stores it.
  *
- * Every other route remains a safe placeholder that throws `Not implemented`.
- * Do NOT add Gmail/email/digest/AI behavior here outside a dedicated, in-scope
- * task — and wire any new route strictly per docs/api/API_DESIGN.md.
+ * Routes outside the current integration scope remain safe placeholders that
+ * throw `Not implemented`. Do NOT add email/digest/AI behavior here outside a
+ * dedicated task, and wire any new route strictly per docs/api/API_DESIGN.md.
  */
 
 import { API_BASE_URL } from "./config";
@@ -17,6 +17,11 @@ import {
   type ApiError,
   type ApiResult,
   type AuthUserResponse,
+  type GmailLoginResponse,
+  type MailboxResponse,
+  type MailboxSyncResponse,
+  type MailboxSyncStatusResponse,
+  type MailboxesResponse,
 } from "./api-types";
 
 function notImplemented(operation: string): never {
@@ -96,6 +101,47 @@ async function request<T extends ApiResult>(
   return payload as T;
 }
 
+export function listMailboxes(): Promise<MailboxesResponse> {
+  return request<MailboxesResponse>(API_ROUTES.mailboxes.list, {
+    method: "GET",
+  });
+}
+
+export function getMailbox(mailboxId: string): Promise<MailboxResponse> {
+  return request<MailboxResponse>(API_ROUTES.mailboxes.byId(mailboxId), {
+    method: "GET",
+  });
+}
+
+export function getMailboxSyncStatus(
+  mailboxId: string,
+): Promise<MailboxSyncStatusResponse> {
+  return request<MailboxSyncStatusResponse>(
+    API_ROUTES.mailboxes.syncStatus(mailboxId),
+    { method: "GET" },
+  );
+}
+
+export function triggerMailboxSync(
+  mailboxId: string,
+): Promise<MailboxSyncResponse> {
+  return request<MailboxSyncResponse>(API_ROUTES.mailboxes.sync(mailboxId), {
+    method: "POST",
+  });
+}
+
+export function startGmailLogin(): Promise<GmailLoginResponse> {
+  return request<GmailLoginResponse>(API_ROUTES.gmailAuth.login, {
+    method: "GET",
+  });
+}
+
+export function disconnectGmail(): Promise<ApiResult> {
+  return request<ApiResult>(API_ROUTES.gmailAuth.disconnect, {
+    method: "POST",
+  });
+}
+
 export const apiClient = {
   auth: {
     /** POST /api/auth/register — returns the created+authenticated user. */
@@ -160,20 +206,15 @@ export const apiClient = {
   },
 
   mailboxes: {
-    list(): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.mailboxes.list}`);
-    },
-    byId(mailboxId: string): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.mailboxes.byId(mailboxId)}`);
-    },
-    syncStatus(mailboxId: string): Promise<ApiResult> {
-      return notImplemented(
-        `GET ${API_ROUTES.mailboxes.syncStatus(mailboxId)}`,
-      );
-    },
-    sync(mailboxId: string): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.mailboxes.sync(mailboxId)}`);
-    },
+    list: listMailboxes,
+    byId: getMailbox,
+    syncStatus: getMailboxSyncStatus,
+    sync: triggerMailboxSync,
+  },
+
+  gmailAuth: {
+    startLogin: startGmailLogin,
+    disconnect: disconnectGmail,
   },
 
   jobs: {
