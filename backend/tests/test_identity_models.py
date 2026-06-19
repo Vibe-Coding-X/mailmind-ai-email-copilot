@@ -3,9 +3,8 @@ from app.db.base import Base
 
 
 IDENTITY_TABLES = {"users", "auth_accounts", "sessions"}
-FORBIDDEN_BUSINESS_TABLES = {
-    "mailboxes",
-    "mailbox_credentials",
+MAILBOX_FOUNDATION_TABLES = {"mailboxes", "mailbox_credentials"}
+FORBIDDEN_LATER_PHASE_TABLES = {
     "emails",
     "daily_digests",
     "digest_items",
@@ -19,8 +18,12 @@ def test_identity_tables_are_registered_in_metadata() -> None:
     assert IDENTITY_TABLES.issubset(Base.metadata.tables.keys())
 
 
-def test_non_identity_business_tables_are_not_registered_in_metadata() -> None:
-    assert FORBIDDEN_BUSINESS_TABLES.isdisjoint(Base.metadata.tables.keys())
+def test_mailbox_foundation_tables_are_registered_in_metadata() -> None:
+    assert MAILBOX_FOUNDATION_TABLES.issubset(Base.metadata.tables.keys())
+
+
+def test_later_phase_business_tables_are_not_registered_in_metadata() -> None:
+    assert FORBIDDEN_LATER_PHASE_TABLES.isdisjoint(Base.metadata.tables.keys())
 
 
 def test_users_email_has_unique_constraint() -> None:

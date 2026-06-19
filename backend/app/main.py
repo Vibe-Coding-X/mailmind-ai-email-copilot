@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.api.gmail_auth import router as gmail_auth_router
+from app.api.mailboxes import router as mailboxes_router
 from app.core.config import get_settings
 
 
@@ -22,6 +24,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(gmail_auth_router)
+app.include_router(mailboxes_router)
 
 
 @app.exception_handler(HTTPException)
