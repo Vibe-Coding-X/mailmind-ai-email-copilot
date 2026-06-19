@@ -82,6 +82,7 @@ export type MailboxStatus =
   | "connected"
   | "disconnected"
   | "error"
+  | "reauth_required"
   | "reauthorization_required"
   | string;
 

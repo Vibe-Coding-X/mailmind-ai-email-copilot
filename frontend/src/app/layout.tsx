@@ -41,7 +41,12 @@ const THEME_INIT_SCRIPT = `
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" data-theme-preset="capsule" data-theme-mode="light">
+    <html
+      lang="en"
+      data-theme-preset="capsule"
+      data-theme-mode="light"
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

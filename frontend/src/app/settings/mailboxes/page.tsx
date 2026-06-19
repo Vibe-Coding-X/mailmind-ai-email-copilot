@@ -23,7 +23,7 @@ import {
   triggerMailboxSync,
 } from "@/lib/api-client";
 import type { Mailbox } from "@/lib/api-types";
-import { syncResultMessage } from "@/lib/mailboxes";
+import { requiresGmailReconnect, syncResultMessage } from "@/lib/mailboxes";
 
 type MailboxLoadState =
   | "loading"
@@ -33,6 +33,18 @@ type MailboxLoadState =
   | "error";
 
 const GMAIL_PROVIDER = "gmail";
+const SYSTEM_AUTH_ERROR_CODE = "UNAUTHORIZED";
+const GMAIL_REAUTH_ERROR_CODE = "MAILBOX_REAUTH_REQUIRED";
+
+function isSystemAuthError(error: ApiRequestError): boolean {
+  return error.status === 401 && error.code === SYSTEM_AUTH_ERROR_CODE;
+}
+
+function isGmailReauthError(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError && error.code === GMAIL_REAUTH_ERROR_CODE
+  );
+}
 
 function toErrorMessage(error: unknown): string {
   if (error instanceof ApiRequestError) {
@@ -47,7 +59,7 @@ function toMailboxLoadState(error: unknown): {
   message: string;
 } {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401) {
+    if (isSystemAuthError(error)) {
       return {
         state: "not_signed_in",
         message: "Sign in before managing Gmail authorization.",
@@ -83,6 +95,7 @@ function mailboxStatusTone(status: string): BadgeTone {
     case "connected":
       return "ok";
     case "reauthorization_required":
+    case "reauth_required":
       return "warn";
     case "error":
       return "danger";
@@ -247,6 +260,7 @@ export default function MailboxSettingsPage() {
     (gmailMailbox === null ||
       gmailStatus === "disconnected" ||
       gmailStatus === "reauthorization_required" ||
+      gmailStatus === "reauth_required" ||
       gmailStatus === "error");
   const showDisconnect =
     canAct && gmailMailbox !== null && gmailStatus !== "disconnected";
@@ -331,6 +345,9 @@ export default function MailboxSettingsPage() {
         [mailboxId]: { state: "error", message },
       }));
       setActionError(message);
+      if (isGmailReauthError(error)) {
+        await loadMailboxList();
+      }
     } finally {
       setSyncingMailboxId(null);
     }
@@ -503,7 +520,7 @@ export default function MailboxSettingsPage() {
                 >
                   {connecting
                     ? "Starting Gmail..."
-                    : gmailStatus === "reauthorization_required"
+                    : gmailMailbox && requiresGmailReconnect(gmailMailbox)
                       ? "Reconnect Gmail"
                       : "Connect Gmail"}
                 </button>

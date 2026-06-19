@@ -30,6 +30,13 @@ export function isConnectedMailbox(mailbox: Mailbox): boolean {
   return mailbox.status === "connected";
 }
 
+export function requiresGmailReconnect(mailbox: Mailbox): boolean {
+  return (
+    mailbox.status === "reauth_required" ||
+    mailbox.status === "reauthorization_required"
+  );
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) {
     return "Never";
