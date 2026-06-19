@@ -71,3 +71,54 @@ export interface AuthUserData {
 }
 
 export type AuthUserResponse = ApiSuccess<AuthUserData>;
+
+export type MailboxProvider = "gmail" | string;
+
+export type MailboxStatus =
+  | "connected"
+  | "disconnected"
+  | "error"
+  | "reauthorization_required"
+  | string;
+
+export interface Mailbox {
+  id: string;
+  provider: MailboxProvider;
+  email_address: string;
+  provider_account_id: string;
+  status: MailboxStatus;
+  last_successful_sync_at: string | null;
+  sync_cursor: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MailboxesData {
+  mailboxes: Mailbox[];
+}
+
+export type MailboxesResponse = ApiSuccess<MailboxesData>;
+
+export interface MailboxData {
+  mailbox: Mailbox;
+}
+
+export type MailboxResponse = ApiSuccess<MailboxData>;
+
+export interface MailboxSyncStatusData {
+  mailbox_id: string;
+  status: string;
+  last_successful_sync_at: string | null;
+  message?: string;
+}
+
+export type MailboxSyncStatusResponse = ApiSuccess<MailboxSyncStatusData>;
+
+export type MailboxSyncResponse = ApiSuccess<MailboxSyncStatusData>;
+
+export interface GmailLoginData {
+  authorization_url: string;
+  provider: "gmail" | string;
+}
+
+export type GmailLoginResponse = ApiSuccess<GmailLoginData>;
