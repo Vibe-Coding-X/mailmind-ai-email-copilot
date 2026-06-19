@@ -239,3 +239,28 @@ export interface DigestData {
 }
 
 export type DigestResponse = ApiSuccess<DigestData>;
+
+export interface UserAction {
+  id: string;
+  user_id: string;
+  mailbox_id: string | null;
+  digest_id: string | null;
+  digest_item_id: string | null;
+  email_id: string | null;
+  action_type: string;
+  action_status: string;
+  source: string;
+  provider_effect: string;
+  created_at: string;
+  executed_at: string | null;
+  before_state?: Record<string, unknown> | null;
+  after_state?: Record<string, unknown> | null;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface DigestItemActionData {
+  action: UserAction;
+}
+
+export type DigestItemActionResponse = ApiSuccess<DigestItemActionData>;
