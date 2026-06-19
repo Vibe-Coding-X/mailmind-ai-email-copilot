@@ -194,3 +194,34 @@ export interface EmailMutationData {
 }
 
 export type EmailMutationResponse = ApiSuccess<EmailMutationData>;
+
+export interface UserAction {
+  id: string;
+  user_id: string;
+  mailbox_id: string | null;
+  digest_id: string | null;
+  digest_item_id: string | null;
+  email_id: string | null;
+  action_type: string;
+  action_status: string;
+  source: string;
+  provider_effect: string;
+  created_at: string;
+  executed_at: string | null;
+  before_state?: Record<string, unknown> | null;
+  after_state?: Record<string, unknown> | null;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface UserActionsData {
+  actions: UserAction[];
+}
+
+export type UserActionsResponse = ApiSuccess<UserActionsData>;
+
+export interface UserActionData {
+  action: UserAction;
+}
+
+export type UserActionResponse = ApiSuccess<UserActionData>;

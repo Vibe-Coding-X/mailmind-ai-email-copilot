@@ -20,6 +20,7 @@ interface NavLink {
 const PRIMARY_NAV: NavLink[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/emails", label: "Emails" },
+  { href: "/actions", label: "Actions" },
   { href: "/emails/new", label: "New Emails" },
 ];
 
