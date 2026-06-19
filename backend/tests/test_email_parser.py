@@ -82,6 +82,32 @@ def test_parse_gmail_message_cleans_html_when_plain_text_is_missing() -> None:
     assert parsed.is_read is True
 
 
+def test_parse_gmail_message_uses_snippet_when_body_is_missing() -> None:
+    message = {
+        "id": "gmail-message-snippet",
+        "threadId": "gmail-thread-snippet",
+        "labelIds": ["INBOX"],
+        "snippet": "Snippet fallback text",
+        "internalDate": "1781834400000",
+        "payload": {
+            "headers": [{"name": "From", "value": "sender@example.com"}],
+            "mimeType": "multipart/mixed",
+            "parts": [
+                {
+                    "filename": "report.pdf",
+                    "mimeType": "application/pdf",
+                    "body": {"attachmentId": "attachment-1"},
+                }
+            ],
+        },
+    }
+
+    parsed = parse_gmail_message(message)
+
+    assert parsed.body_text == "Snippet fallback text"
+    assert parsed.body_text_truncated is False
+
+
 def test_clean_email_body_truncates_long_text() -> None:
     cleaned, truncated = clean_email_body("x" * 25, max_length=10)
 

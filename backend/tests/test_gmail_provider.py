@@ -129,6 +129,55 @@ class StaticHttpClient:
         return self.post_response
 
 
+class PaginatedHttpClient:
+    def __init__(self) -> None:
+        self.get_calls: list[dict[str, Any]] = []
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> FakeResponse:
+        params = params or {}
+        self.get_calls.append(
+            {"url": url, "headers": headers, "params": params, "timeout": timeout}
+        )
+        if url.endswith("/messages"):
+            if params.get("pageToken") == "next-page":
+                return FakeResponse(
+                    200,
+                    {
+                        "messages": [{"id": "page-1"}, {"id": "page-2"}],
+                    },
+                )
+            return FakeResponse(
+                200,
+                {
+                    "messages": [{"id": "page-1"}],
+                    "nextPageToken": "next-page",
+                },
+            )
+
+        message_id = url.rsplit("/", 1)[-1]
+        return FakeResponse(
+            200,
+            {
+                "id": message_id,
+                "threadId": f"thread-{message_id}",
+                "labelIds": ["INBOX"],
+                "internalDate": "1781834400000",
+                "payload": {
+                    "headers": [{"name": "Subject", "value": message_id}],
+                    "mimeType": "text/plain",
+                    "body": {"data": "Qm9keQ"},
+                },
+            },
+        )
+
+
 def test_refresh_access_token_exchanges_refresh_token() -> None:
     client = FakeHttpClient()
     provider = GmailProvider(client=client)
@@ -259,6 +308,27 @@ def test_list_messages_for_window_uses_gmail_date_query_and_filters_candidates()
     list_call = client.get_calls[0]
     assert list_call["params"]["q"] == "after:2026/06/18 before:2026/06/20"
     assert list_call["headers"]["Authorization"] == "Bearer fake-access-token"
+
+
+def test_list_messages_for_window_paginates_and_deduplicates_message_ids() -> None:
+    client = PaginatedHttpClient()
+    provider = GmailProvider(client=client)
+
+    messages = provider.list_messages_for_window(
+        "fake-access-token",
+        window_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+        window_end=datetime(2026, 6, 19, 12, 0, tzinfo=UTC),
+    )
+
+    assert [message.external_id for message in messages] == ["page-1", "page-2"]
+    list_calls = [call for call in client.get_calls if call["url"].endswith("/messages")]
+    detail_calls = [call for call in client.get_calls if not call["url"].endswith("/messages")]
+    assert len(list_calls) == 2
+    assert list_calls[1]["params"]["pageToken"] == "next-page"
+    assert [call["url"].rsplit("/", 1)[-1] for call in detail_calls] == [
+        "page-1",
+        "page-2",
+    ]
 
 
 def test_get_message_detail_parses_gmail_message() -> None:
