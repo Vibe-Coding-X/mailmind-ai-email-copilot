@@ -1,346 +1,233 @@
 # MailMind
 
-**MailMind** is a local-first AI email copilot designed to help users understand and process daily emails more efficiently.
+MailMind is a local-first AI email copilot that connects to Gmail, syncs today's email, and turns it into an actionable Daily Digest.
 
-Official product name: **MailMind**  
-Product type / subtitle: **AI Email Copilot**  
-Repository name: `mailmind-ai-email-copilot`
+Current release: `v0.1.0-local-mvp`
 
-Instead of acting as a traditional inbox client, MailMind focuses on generating an actionable **Daily Digest** from Gmail emails. It analyzes the emails received during the day, identifies what needs attention, and organizes them into a decision-oriented dashboard.
+MailMind is not a production SaaS product. The current codebase is a local MVP for validating authentication, Gmail connectivity, email sync, a mock Daily Digest pipeline, and the first frontend workflows.
 
-## Overview
+## What It Does
 
-Modern inboxes are often noisy, time-consuming, and difficult to prioritize. Important emails may be buried under notifications, newsletters, and low-value messages.
+MailMind adds a decision layer on top of email:
 
-MailMind aims to solve this by turning daily email flow into a structured AI decision board.
+- Authenticates a local MailMind user with an HttpOnly cookie session.
+- Connects one Gmail mailbox through OAuth.
+- Encrypts and stores the Gmail refresh token locally.
+- Syncs Gmail messages received today.
+- Shows today's synced emails and individual email detail pages.
+- Writes read/unread changes back to Gmail when the mailbox has `gmail.modify`.
+- Generates a Daily Digest through a deterministic mock AI provider.
+- Records AI runs, digest items, sync jobs, and user actions for auditability.
 
-The core idea is simple:
+## Current v0.1 Features
 
-> Do not make users read every email first. Let AI summarize, prioritize, and suggest what should be handled today.
+- User registration, login, logout, and `GET /api/auth/me`.
+- HttpOnly cookie-backed sessions persisted in `sessions`.
+- Gmail OAuth login/callback/disconnect.
+- Mailbox connected state and reauthorization state management.
+- Encrypted Gmail refresh-token storage in `mailbox_credentials`.
+- Manual "Sync Today" Gmail email sync.
+- Today's email list through `GET /api/emails/today`.
+- Email detail through `GET /api/emails/{email_id}`.
+- Gmail-backed `mark-read` and `mark-unread`.
+- `user_actions` audit records for user and digest-item actions.
+- Daily Digest generation and refresh in the backend.
+- Mock AI pipeline with structured digest output.
+- `ai_runs` records for model metadata and output traceability.
+- `digest_items` records for actionable digest rows.
+- Frontend theme system with light/dark modes and multiple presets.
+- `/settings/mailboxes` for Gmail connection, disconnect, state, and sync.
+- `/emails` for today's email list and read filter.
+- `/emails/[id]` for email detail and read/unread actions.
+- Frontend mailbox sync entry point.
+- Capsule-style UI theme, plus clean, minimal, and soft presets.
 
-## Product Positioning
+## Tech Stack
 
-MailMind is not intended to replace Gmail or become a full-featured email client.
+- Backend: FastAPI, SQLAlchemy, Alembic, Pydantic Settings, PostgreSQL, `uv`.
+- Frontend: Next.js, React, TypeScript, plain CSS theme tokens.
+- Provider: Gmail API through a provider adapter.
+- AI: in-process mock LLM provider for v0.1.
+- Local infrastructure: PostgreSQL and Redis through Docker Compose.
 
-It is designed as an AI-powered decision layer on top of email.
-
-The product helps users answer questions such as:
-
-* Which emails require my attention today?
-* Which emails should I reply to?
-* Which emails can be safely ignored?
-* What tasks or risks are hidden inside today’s emails?
-* Has anything new arrived since the last digest was generated?
-
-## MVP Scope
-
-The current MVP focuses on a single-user, local-first workflow.
-
-### Included in MVP
-
-* Gmail OAuth integration
-* Daily email synchronization
-* AI-generated Daily Digest
-* Actionable email recommendations
-* Email priority classification
-* Email detail view
-* New email detection after digest generation
-* Manual and scheduled digest generation
-* Gmail read / unread status synchronization
-* Local Docker-based development environment
-
-### Not Included in MVP
-
-* Outlook integration
-* IMAP integration
-* Multi-inbox aggregation
-* AI auto-reply
-* Automatic email sending
-* Attachment analysis
-* Mobile app
-* Desktop app
-* SaaS multi-tenant support
-
-## Core Features
-
-### Daily Digest Dashboard
-
-MailMind uses a dashboard-first design. The homepage is not a traditional inbox list. Instead, it displays the current day’s AI-generated email digest.
-
-The dashboard includes:
-
-* Daily email overview
-* Must-handle emails
-* Recommended-to-review emails
-* Ignorable emails
-* Extracted action items
-* Risk reminders
-* Digest freshness status
-* New email notification after digest generation
-
-### Actionable AI Suggestions
-
-MailMind does not only summarize emails. It generates structured action suggestions such as:
-
-* Reply today
-* Review today
-* Handle before deadline
-* Ignore
-* Follow up later
-* No action required
-
-Each suggestion may include:
-
-* Related email
-* Suggested action
-* Priority
-* Reason
-* Deadline
-* Confidence score
-
-### Digest Freshness Tracking
-
-A Daily Digest is treated as a time-bounded snapshot.
-
-Each digest records:
-
-* Generation time
-* Coverage start time
-* Coverage end time
-* Number of analyzed emails
-* Number of new emails received after generation
-* Current status: fresh, stale, refreshing, or failed
-
-If new emails arrive after the digest is generated, MailMind does not silently overwrite the dashboard. Instead, it informs the user that new emails have not yet been included and allows the user to refresh the digest manually.
-
-### Gmail Read / Unread Sync
-
-MailMind supports syncing read and unread status back to Gmail.
-
-This requires the Gmail `gmail.modify` scope. The project currently targets personal and local-first usage. If the project is later developed into a public SaaS product, Google OAuth verification and restricted scope security requirements must be reassessed.
-
-## Architecture
-
-MailMind uses a frontend-backend separated architecture with asynchronous task processing.
+## Architecture Overview
 
 ```text
-Frontend Web
-Next.js + TypeScript
-Dashboard / Email Detail / Settings
-        ↓
-Backend API
-FastAPI
-Auth API / Digest API / Email API
-        ↓
-Core Services
-Auth Layer / Email Layer / AI Layer
-        ↓
-Provider Adapter
-GmailProvider
-        ↓
-Async Task System
-Celery + Redis
-        ↓
-Storage
-PostgreSQL + Redis
+Next.js frontend
+  login/register, mailbox settings, email list/detail, static digest preview
+        |
+FastAPI backend
+  auth, Gmail OAuth, mailboxes, emails, digest, actions
+        |
+Services
+  session, OAuth, credential encryption, email sync, digest, AI run, actions
+        |
+Provider adapters
+  GmailProvider
+        |
+PostgreSQL
+  users, sessions, mailboxes, credentials, emails, digests, ai_runs, actions
 ```
 
-## Planned Tech Stack
+The v0.1 digest path is synchronous and local. Celery, scheduled sync, and a real LLM provider are not implemented yet.
 
-### Frontend
+## Local Development
 
-* Next.js
-* TypeScript
-* Dashboard-first UI
-* Email detail page
-* Gmail authorization settings
+Prerequisites:
 
-### Backend
+- Python 3.11+
+- `uv`
+- Node.js compatible with Next.js 15
+- npm
+- Docker Desktop or a local PostgreSQL 15-compatible database
 
-* FastAPI
-* Gmail OAuth 2.0
-* Gmail Provider Adapter
-* Digest API
-* Email API
-* Job API
+Start local infrastructure:
 
-### Async Tasks
+```powershell
+docker compose -f docker/docker-compose.yml up -d postgres redis
+```
 
-* Celery
-* Redis
-* Email synchronization
-* AI digest generation
-* Token refresh
-* New email detection
+Install and run the backend:
 
-### Storage
+```powershell
+cd backend
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-* PostgreSQL
-* Redis
-* Local Docker volumes
+Install and run the frontend:
 
-### AI Pipeline
+```powershell
+cd frontend
+npm install
+npm run dev
+```
 
-The AI layer is designed as an independent pipeline:
+The frontend defaults to `http://localhost:3000`. The backend defaults to `http://127.0.0.1:8000`.
+
+## Environment Variables
+
+Use `.env.example` as a template and create a local `.env`. Do not commit `.env`.
+
+Important variables:
+
+- `APP_SECRET_KEY`: local session/signing secret.
+- `APP_ENCRYPTION_KEY`: key used to encrypt stored Gmail refresh tokens.
+- `APP_ENCRYPTION_KEY_VERSION`: local key version label.
+- `DATABASE_URL`: SQLAlchemy PostgreSQL URL.
+- `REDIS_URL`: Redis URL reserved for local infrastructure and future async work.
+- `FRONTEND_BASE_URL`: frontend URL used after Gmail OAuth callback.
+- `CORS_ALLOWED_ORIGINS`: comma-separated frontend origins for credentialed CORS.
+- `GOOGLE_CLIENT_ID`: Google OAuth client ID.
+- `GOOGLE_CLIENT_SECRET`: Google OAuth client secret.
+- `GOOGLE_REDIRECT_URI`: callback URL, usually `http://localhost:8000/api/auth/gmail/callback`.
+- `LLM_PROVIDER`: leave empty or set to `mock` for v0.1.
+
+Security requirements:
+
+- Do not commit `.env`.
+- Do not commit a Google Client Secret.
+- Do not commit `APP_ENCRYPTION_KEY`.
+- Do not commit an LLM API key.
+- If `APP_ENCRYPTION_KEY` is lost, existing encrypted Gmail refresh tokens cannot be decrypted.
+- Gmail restricted scopes such as `gmail.modify` require Google review before production/public distribution.
+
+## Google OAuth Setup
+
+Create a Google OAuth app for local testing and configure:
 
 ```text
-EmailPreprocessor
-        ↓
-DigestInputBuilder
-        ↓
-LLMClient
-        ↓
-StructuredOutputParser
-        ↓
-DigestDecisionEngine
-        ↓
-SafetyFilter
+Authorized redirect URI:
+http://localhost:8000/api/auth/gmail/callback
 ```
 
-The AI output is expected to follow a structured JSON schema so that it can be parsed, stored, and displayed reliably.
-
-## Data Model Draft
-
-The planned core tables include:
-
-* `users`
-* `auth_accounts`
-* `sessions`
-* `mailboxes`
-* `mailbox_credentials`
-* `emails`
-* `daily_digests`
-* `digest_items`
-* `ai_runs`
-* `user_actions`
-* `sync_jobs`
-* `ai_provider_configs` (V1 reserved)
-
-Where:
-
-* `daily_digests` represents a daily AI-generated email digest snapshot.
-* `digest_items` represents individual AI decision items inside a digest.
-* `emails` stores synchronized Gmail email metadata and cleaned text content.
-* `mailboxes` stores connected mailbox metadata.
-* `mailbox_credentials` stores encrypted OAuth credentials.
-* `ai_runs` stores AI call metadata and raw structured output.
-* `user_actions` stores actual user behavior and provider sync results.
-
-## Security Principles
-
-MailMind follows a local-first security model during the MVP stage.
-
-Key principles:
-
-* Do not store Gmail passwords
-* Use OAuth 2.0 authorization
-* Encrypt refresh tokens
-* Cache access tokens only temporarily
-* Minimize email body storage
-* Do not log access tokens, refresh tokens, full email bodies, full prompts, or AI API keys
-* Allow users to disconnect Gmail authorization
-* Do not analyze attachments by default
-* Let users provide their own AI API key in local configuration
-
-## Gmail Permissions
-
-The MVP uses the following self-use full-experience Gmail API scopes:
-
-| Scope            | Purpose                                     |
-| ---------------- | ------------------------------------------- |
-| `gmail.readonly` | Read email list, metadata, and body content |
-| `gmail.modify`   | Modify read / unread status                 |
-
-The `gmail.modify` scope enables real Gmail read / unread synchronization. It is not a strict read-only minimum-permission scope. It is acceptable for local personal testing, but public distribution or SaaS usage may require additional Google verification, security review, and permission-minimization reassessment.
-
-## Development Status
-
-Current status:
-
-> Documentation hardening before MVP implementation.
-
-This repository currently stores product, architecture, and Harness Engineering documents. Backend, frontend, database migrations, and business logic have not started yet.
-
-## Available Documentation
+The v0.1 Gmail integration uses:
 
 ```text
-docs/
-  product/PRD.md
-  architecture/SYSTEM_DESIGN.md
-  architecture/DATA_FLOWS.md
-  database/DATABASE_DESIGN.md
-  api/API_DESIGN.md
-  ai/AI_PIPELINE.md
-  security/SECURITY.md
-  frontend/FRONTEND_DESIGN.md
-  engineering/DEVELOPMENT.md
-  engineering/ASYNC_TASKS.md
-  engineering/INCREMENTAL_SYNC.md
-  engineering/TIMEZONE_RULES.md
-  engineering/TASK_BREAKDOWN.md
-  engineering/AGENTS.md
-  engineering/DECISION_LOG.md
-  engineering/DOCS_FREEZE_CHECKLIST.md
-  engineering/REVIEW_CHECKLIST.md
+https://www.googleapis.com/auth/gmail.readonly
+https://www.googleapis.com/auth/gmail.modify
 ```
 
-The Harness Engineering documents define task boundaries, agent execution rules, architecture decisions, documentation freeze checks, and review checklists for future implementation.
+`gmail.readonly` is used for message sync. `gmail.modify` is used for read/unread writeback. Public SaaS usage requires a permission and Google verification review.
+
+## Running Backend Tests
+
+```powershell
+cd backend
+uv sync
+uv run alembic upgrade head
+uv run alembic current
+uv run pytest
+uv run python -m compileall app tests
+```
+
+## Running Frontend Checks
+
+```powershell
+cd frontend
+npm install
+npm run typecheck
+npm run lint
+npm run build
+```
+
+## Current API Summary
+
+The current backend API is documented in `docs/api/CURRENT_API_SUMMARY.md`.
+
+Key route groups:
+
+- Auth: `/api/auth/*`
+- Gmail OAuth: `/api/auth/gmail/*`
+- Mailboxes: `/api/mailboxes/*`
+- Emails: `/api/emails/*`
+- Digest: `/api/digest/*`
+- User actions: `/api/actions/*`
+
+Note that the digest routes are singular: `/api/digest`, not `/api/digests`.
+
+## Current Database Summary
+
+The current schema is documented in `docs/database/CURRENT_SCHEMA_SUMMARY.md`.
+
+Current tables:
+
+- `users`
+- `auth_accounts`
+- `sessions`
+- `mailboxes`
+- `mailbox_credentials`
+- `emails`
+- `sync_jobs`
+- `daily_digests`
+- `digest_items`
+- `ai_runs`
+- `user_actions`
+
+## Current Limitations
+
+- Real LLM providers are not integrated; v0.1 uses the mock provider only.
+- Digest frontend dashboard is a static preview and is not fully wired to `/api/digest`.
+- Celery and background workers are not implemented.
+- Scheduled sync is not implemented.
+- Multi-mailbox aggregate Digest is not complete.
+- Outlook and IMAP are not implemented.
+- Production deployment, Google OAuth verification, and security review are not complete.
+- The current target is a local MVP, not a production SaaS product.
 
 ## Roadmap
 
-### MVP
+- v0.1 Local MVP: completed.
+- v0.2 Digest Dashboard / Frontend Digest UI.
+- v0.3 Real AI Provider.
+- v0.4 Background Jobs / Scheduled Sync.
+- v0.5 Multi Mailbox.
+- v0.6 Open Source Ready / CI / Docker polish.
+- v1.0 Personal Productivity Ready.
 
-* Gmail OAuth integration
-* Daily email synchronization
-* AI Daily Digest generation
-* Actionable email recommendations
-* Email detail view
-* New email detection
-* Gmail read / unread status synchronization
-
-### V1
-
-* Outlook integration
-* IMAP integration
-* AI reply draft generation
-* Email thread summary
-* Semantic email search
-
-### V2
-
-* Multi-inbox aggregation
-* Incremental AI analysis
-* Desktop client
-* Auto-archive suggestions
-* Smart labels
-
-### V3
-
-* SaaS version
-* Multi-tenant support
-* Privacy and compliance hardening
-* Team collaboration features
-
-## Repository Name
-
-The repository name is:
-
-```text
-mailmind-ai-email-copilot
-```
-
-The product name is:
-
-```text
-MailMind
-```
-
-## Disclaimer
-
-MailMind is currently a personal learning and engineering practice project. It is not yet a production-ready SaaS product.
-
-If you use Gmail API, OAuth scopes, email content processing, or third-party AI model APIs, please evaluate the corresponding privacy, security, and compliance risks based on your own use case.
+See `docs/ROADMAP.md` for more detail.
 
 ## License
 
-Apache-2.0 license
+Apache-2.0
