@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +15,7 @@ from app.services.user_action_service import (
     create_action,
     get_user_action,
     list_digest_item_actions,
-    list_user_actions,
+    query_user_actions,
 )
 
 
@@ -69,23 +70,44 @@ def create_user_action(
 @router.get("")
 def list_actions(
     limit: int = 50,
+    offset: int = 0,
     action_type: str | None = None,
     status: str | None = None,
+    provider_effect: str | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    related_resource_type: str | None = None,
+    related_resource_id: UUID | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    actions = list_user_actions(
-        db,
-        user_id=current_user.id,
-        limit=limit,
-        action_type=action_type,
-        status=status,
-    )
+    try:
+        result = query_user_actions(
+            db,
+            user_id=current_user.id,
+            limit=limit,
+            offset=offset,
+            action_type=action_type,
+            status=status,
+            provider_effect=provider_effect,
+            created_from=created_from,
+            created_to=created_to,
+            related_resource_type=related_resource_type,
+            related_resource_id=related_resource_id,
+        )
+    except UserActionServiceError as exc:
+        _raise_action_error(exc)
     return {
         "data": {
-            "actions": [user_action_payload(action) for action in actions],
+            "actions": [user_action_payload(action) for action in result.actions],
+            "pagination": {
+                "limit": result.limit,
+                "offset": result.offset,
+                "count": len(result.actions),
+                "has_more": result.has_more,
+            },
         },
-        "meta": {"limit": max(1, min(limit, 100))},
+        "meta": {"limit": result.limit, "offset": result.offset},
     }
 
 
