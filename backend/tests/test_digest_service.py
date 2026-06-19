@@ -120,6 +120,18 @@ class FailingProvider(LLMProvider):
         raise RuntimeError("LLM unavailable")
 
 
+class InvalidOutputProvider(LLMProvider):
+    provider_name = "mock"
+    model_name = "mock-digest-v1"
+
+    def generate_digest(self, prompt: str) -> LLMResponse:
+        return LLMResponse(
+            text="{not json",
+            model_provider=self.provider_name,
+            model_name=self.model_name,
+        )
+
+
 def test_generate_today_digest_creates_digest_items_ai_run_and_sync_job() -> None:
     user_id, mailbox_id, email_id = _create_user_mailbox_and_email(prefix="digest-service")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
@@ -245,6 +257,43 @@ def test_failed_refresh_preserves_previous_current_digest() -> None:
             .where(DailyDigest.user_id == user_id, DailyDigest.status == "failed")
             .order_by(DailyDigest.version.desc())
         )
+        assert current.id == first_id
+        assert failed is not None
+        assert failed.is_current is False
+
+
+def test_failed_refresh_from_invalid_ai_output_preserves_previous_current_digest() -> None:
+    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-invalid-output")
+    now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
+
+    with SessionLocal() as db:
+        first = generate_today_digest(
+            db,
+            user_id=user_id,
+            llm_provider=StaticProvider("digest-invalid-output-gmail-1"),
+            now=now,
+        )
+        db.commit()
+        first_id = first.id
+
+    with SessionLocal() as db:
+        with pytest.raises(DigestServiceError, match="Daily digest generation failed"):
+            refresh_today_digest(
+                db,
+                user_id=user_id,
+                llm_provider=InvalidOutputProvider(),
+                now=now,
+            )
+        db.commit()
+
+    with SessionLocal() as db:
+        current = get_today_digest(db, user_id=user_id, now=now)
+        failed = db.scalar(
+            select(DailyDigest)
+            .where(DailyDigest.user_id == user_id, DailyDigest.status == "failed")
+            .order_by(DailyDigest.version.desc())
+        )
+
         assert current.id == first_id
         assert failed is not None
         assert failed.is_current is False
