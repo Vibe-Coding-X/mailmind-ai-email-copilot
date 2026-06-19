@@ -9,6 +9,10 @@ import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { SettingsSection } from "@/components/settings-section";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  MailboxSyncCard,
+  type MailboxSyncStatusView,
+} from "@/components/mailbox-sync-card";
 import { useAuth } from "@/lib/auth";
 import {
   ApiRequestError,
@@ -16,8 +20,10 @@ import {
   getMailboxSyncStatus,
   listMailboxes,
   startGmailLogin,
+  triggerMailboxSync,
 } from "@/lib/api-client";
-import type { Mailbox, MailboxSyncStatusData } from "@/lib/api-types";
+import type { Mailbox } from "@/lib/api-types";
+import { syncResultMessage } from "@/lib/mailboxes";
 
 type MailboxLoadState =
   | "loading"
@@ -25,11 +31,6 @@ type MailboxLoadState =
   | "not_signed_in"
   | "backend_unavailable"
   | "error";
-
-type SyncStatusView =
-  | { state: "loading" }
-  | { state: "loaded"; data: MailboxSyncStatusData }
-  | { state: "error"; message: string };
 
 const GMAIL_PROVIDER = "gmail";
 
@@ -105,26 +106,6 @@ function formatDateTime(value: string | null): string {
   return date.toLocaleString();
 }
 
-function describeSyncStatus(view: SyncStatusView | undefined): string {
-  if (view === undefined || view.state === "loading") {
-    return "Checking sync status...";
-  }
-
-  if (view.state === "error") {
-    return `Sync status unavailable: ${view.message}`;
-  }
-
-  if (view.data.message && view.data.message.trim().length > 0) {
-    return view.data.message;
-  }
-
-  if (view.data.status === "not_started") {
-    return "Email sync is not implemented yet.";
-  }
-
-  return `Sync status: ${statusLabel(view.data.status)}`;
-}
-
 function actionButtonStyle(disabled: boolean): React.CSSProperties {
   return { cursor: disabled ? "not-allowed" : "pointer" };
 }
@@ -164,13 +145,14 @@ export default function MailboxSettingsPage() {
   const [loadState, setLoadState] = useState<MailboxLoadState>("loading");
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [syncStatuses, setSyncStatuses] = useState<
-    Record<string, SyncStatusView>
+    Record<string, MailboxSyncStatusView>
   >({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [syncingMailboxId, setSyncingMailboxId] = useState<string | null>(null);
 
   const refreshSyncStatuses = useCallback(async (nextMailboxes: Mailbox[]) => {
     if (nextMailboxes.length === 0) {
@@ -190,12 +172,15 @@ export default function MailboxSettingsPage() {
           const response = await getMailboxSyncStatus(mailbox.id);
           return [
             mailbox.id,
-            { state: "loaded", data: response.data } satisfies SyncStatusView,
+            { state: "loaded", data: response.data } satisfies MailboxSyncStatusView,
           ] as const;
         } catch (error) {
           return [
             mailbox.id,
-            { state: "error", message: toErrorMessage(error) } satisfies SyncStatusView,
+            {
+              state: "error",
+              message: toErrorMessage(error),
+            } satisfies MailboxSyncStatusView,
           ] as const;
         }
       }),
@@ -258,6 +243,7 @@ export default function MailboxSettingsPage() {
   const gmailSummary = gmailOverview(loadState, gmailMailbox);
   const canAct = authStatus === "authenticated";
   const showConnect =
+    canAct &&
     (gmailMailbox === null ||
       gmailStatus === "disconnected" ||
       gmailStatus === "reauthorization_required" ||
@@ -314,6 +300,39 @@ export default function MailboxSettingsPage() {
       setActionError(toErrorMessage(error));
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  async function onSyncMailbox(mailboxId: string) {
+    setActionError(null);
+    setActionMessage(null);
+    setSyncingMailboxId(mailboxId);
+    setSyncStatuses((current) => ({
+      ...current,
+      [mailboxId]: { state: "loading" },
+    }));
+
+    try {
+      const response = await triggerMailboxSync(mailboxId);
+      setActionMessage(syncResultMessage(response.data));
+      await loadMailboxList();
+    } catch (error) {
+      const message = toErrorMessage(error);
+      const resolved = toMailboxLoadState(error);
+      if (
+        resolved.state === "not_signed_in" ||
+        resolved.state === "backend_unavailable"
+      ) {
+        setLoadState(resolved.state);
+        setLoadError(resolved.message);
+      }
+      setSyncStatuses((current) => ({
+        ...current,
+        [mailboxId]: { state: "error", message },
+      }));
+      setActionError(message);
+    } finally {
+      setSyncingMailboxId(null);
     }
   }
 
@@ -386,7 +405,7 @@ export default function MailboxSettingsPage() {
       return (
         <EmptyState
           title="Not connected"
-          hint="GET /api/mailboxes returned no connected mailboxes."
+          hint="No mailboxes are connected."
         />
       );
     }
@@ -413,33 +432,13 @@ export default function MailboxSettingsPage() {
               </Badge>
             </div>
 
-            <div
-              className="mm-grid mm-grid-2"
-              style={{ marginTop: 14, fontSize: 13 }}
-            >
-              <div>
-                <div className="mm-muted" style={{ fontSize: 12 }}>
-                  Last successful sync
-                </div>
-                <div>{formatDateTime(mailbox.last_successful_sync_at)}</div>
-              </div>
-              <div>
-                <div className="mm-muted" style={{ fontSize: 12 }}>
-                  Sync status
-                </div>
-                <div>{describeSyncStatus(syncStatuses[mailbox.id])}</div>
-              </div>
-            </div>
-
-            <div className="mm-row" style={{ marginTop: 14 }}>
-              <button
-                type="button"
-                className="mm-btn"
-                disabled
-                aria-disabled="true"
-              >
-                Sync not implemented
-              </button>
+            <div style={{ marginTop: 14 }}>
+              <MailboxSyncCard
+                mailbox={mailbox}
+                syncStatus={syncStatuses[mailbox.id]}
+                syncing={syncingMailboxId === mailbox.id}
+                onSync={(mailboxId) => void onSyncMailbox(mailboxId)}
+              />
             </div>
           </div>
         ))}
@@ -465,7 +464,7 @@ export default function MailboxSettingsPage() {
       >
         <SettingsSection
           title="Gmail"
-          description="Gmail OAuth starts from a backend-generated authorization URL."
+          description="Manage the Gmail account authorized for MailMind."
         >
           <div className="mm-spread" style={{ alignItems: "flex-start" }}>
             <div className="mm-stack" style={{ gap: 8 }}>
@@ -544,7 +543,7 @@ export default function MailboxSettingsPage() {
 
         <SettingsSection
           title="Mailbox list"
-          description="Mailbox state comes from GET /api/mailboxes and sync status from GET /api/mailboxes/{mailbox_id}/sync-status."
+          description="Connected mailbox state and sync activity."
         >
           {renderMailboxList()}
         </SettingsSection>

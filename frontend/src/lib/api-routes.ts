@@ -41,9 +41,12 @@ export const API_ROUTES = {
   emails: {
     today: "/api/emails/today",
     new: "/api/emails/new",
-    byId: (emailId: string) => `/api/emails/${emailId}`,
-    markRead: (emailId: string) => `/api/emails/${emailId}/mark-read`,
-    markUnread: (emailId: string) => `/api/emails/${emailId}/mark-unread`,
+    byId: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}` as const,
+    markRead: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}/mark-read` as const,
+    markUnread: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}/mark-unread` as const,
   },
 
   // Section 5 — Mailbox API (/api/mailboxes)

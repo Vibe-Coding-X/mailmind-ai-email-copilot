@@ -17,11 +17,14 @@ import {
   type ApiError,
   type ApiResult,
   type AuthUserResponse,
+  type EmailMutationResponse,
+  type EmailResponse,
   type GmailLoginResponse,
   type MailboxResponse,
   type MailboxSyncResponse,
   type MailboxSyncStatusResponse,
   type MailboxesResponse,
+  type TodayEmailsResponse,
 } from "./api-types";
 
 function notImplemented(operation: string): never {
@@ -142,6 +145,32 @@ export function disconnectGmail(): Promise<ApiResult> {
   });
 }
 
+export function listTodayEmails(): Promise<TodayEmailsResponse> {
+  return request<TodayEmailsResponse>(API_ROUTES.emails.today, {
+    method: "GET",
+  });
+}
+
+export function getEmail(emailId: string): Promise<EmailResponse> {
+  return request<EmailResponse>(API_ROUTES.emails.byId(emailId), {
+    method: "GET",
+  });
+}
+
+export function markEmailRead(emailId: string): Promise<EmailMutationResponse> {
+  return request<EmailMutationResponse>(API_ROUTES.emails.markRead(emailId), {
+    method: "POST",
+  });
+}
+
+export function markEmailUnread(
+  emailId: string,
+): Promise<EmailMutationResponse> {
+  return request<EmailMutationResponse>(API_ROUTES.emails.markUnread(emailId), {
+    method: "POST",
+  });
+}
+
 export const apiClient = {
   auth: {
     /** POST /api/auth/register — returns the created+authenticated user. */
@@ -188,21 +217,13 @@ export const apiClient = {
   },
 
   emails: {
-    today(): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.emails.today}`);
-    },
+    today: listTodayEmails,
     new(): Promise<ApiResult> {
       return notImplemented(`GET ${API_ROUTES.emails.new}`);
     },
-    byId(emailId: string): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.emails.byId(emailId)}`);
-    },
-    markRead(emailId: string): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.emails.markRead(emailId)}`);
-    },
-    markUnread(emailId: string): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.emails.markUnread(emailId)}`);
-    },
+    byId: getEmail,
+    markRead: markEmailRead,
+    markUnread: markEmailUnread,
   },
 
   mailboxes: {
