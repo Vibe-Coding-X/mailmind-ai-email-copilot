@@ -17,25 +17,6 @@ EXPECTED_BUSINESS_TABLES = {
     "digest_items",
     "ai_runs",
 }
-EXPECTED_SYNC_JOB_COLUMNS = {
-    "id",
-    "user_id",
-    "mailbox_id",
-    "digest_id",
-    "celery_task_id",
-    "job_type",
-    "trigger_source",
-    "job_key",
-    "target_date",
-    "status",
-    "retry_count",
-    "payload_json",
-    "error_code",
-    "error_message",
-    "created_at",
-    "started_at",
-    "finished_at",
-}
 
 
 def _alembic_config() -> Config:
@@ -52,7 +33,7 @@ def _business_tables() -> set[str]:
     return table_names - {"alembic_version"}
 
 
-def test_email_sync_migration_upgrades_and_downgrades() -> None:
+def test_digest_migration_upgrades_and_downgrades() -> None:
     config = _alembic_config()
 
     command.downgrade(config, "base")
@@ -62,26 +43,48 @@ def test_email_sync_migration_upgrades_and_downgrades() -> None:
     engine = create_engine(Settings().database_url, pool_pre_ping=True)
     try:
         inspector = inspect(engine)
-        assert {
+        assert "daily_digests" in inspector.get_table_names()
+        assert "digest_items" in inspector.get_table_names()
+        assert "ai_runs" in inspector.get_table_names()
+        assert "user_actions" not in inspector.get_table_names()
+        assert "digest_id" in {
             column["name"] for column in inspector.get_columns("sync_jobs")
-        } == EXPECTED_SYNC_JOB_COLUMNS
+        }
+        sync_indexes = {index["name"] for index in inspector.get_indexes("sync_jobs")}
+        assert "sync_jobs_digest_created_idx" in sync_indexes
         checks = {
             check["name"]: check["sqltext"]
             for check in inspector.get_check_constraints("sync_jobs")
         }
         assert "generate_daily_digest" in checks["sync_jobs_job_type_check"]
         assert "refresh_daily_digest" in checks["sync_jobs_job_type_check"]
-        assert "sync_jobs_mailbox_created_idx" in {
-            index["name"] for index in inspector.get_indexes("sync_jobs")
-        }
-        assert "sync_jobs_digest_created_idx" in {
-            index["name"] for index in inspector.get_indexes("sync_jobs")
-        }
     finally:
         engine.dispose()
 
-    command.downgrade(config, "20260619_0002")
-    assert "emails" not in _business_tables()
-    assert "sync_jobs" not in _business_tables()
+    command.downgrade(config, "20260619_0004")
+    assert _business_tables() == {
+        "users",
+        "auth_accounts",
+        "sessions",
+        "mailboxes",
+        "mailbox_credentials",
+        "emails",
+        "sync_jobs",
+    }
+    engine = create_engine(Settings().database_url, pool_pre_ping=True)
+    try:
+        inspector = inspect(engine)
+        assert "digest_id" not in {
+            column["name"] for column in inspector.get_columns("sync_jobs")
+        }
+        checks = {
+            check["name"]: check["sqltext"]
+            for check in inspector.get_check_constraints("sync_jobs")
+        }
+        assert checks["sync_jobs_job_type_check"] == (
+            "job_type::text = 'sync_today_emails'::text"
+        )
+    finally:
+        engine.dispose()
 
     command.upgrade(config, "head")

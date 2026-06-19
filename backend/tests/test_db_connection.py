@@ -13,6 +13,9 @@ CURRENT_BUSINESS_TABLES = {
     "mailbox_credentials",
     "emails",
     "sync_jobs",
+    "daily_digests",
+    "digest_items",
+    "ai_runs",
 }
 
 
