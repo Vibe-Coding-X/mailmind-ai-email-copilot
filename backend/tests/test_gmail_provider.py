@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
+
+from app.providers.base import ProviderError
 from app.providers.gmail import GmailProvider
 
 
@@ -92,6 +95,40 @@ class FakeHttpClient:
         return FakeResponse(200, {"access_token": "fake-access-token", "expires_in": 3600})
 
 
+class StaticHttpClient:
+    def __init__(
+        self,
+        *,
+        get_response: FakeResponse | None = None,
+        post_response: FakeResponse | None = None,
+    ) -> None:
+        self.get_response = get_response or FakeResponse(200, {})
+        self.post_response = post_response or FakeResponse(
+            200, {"access_token": "fake-access-token", "expires_in": 3600}
+        )
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> FakeResponse:
+        return self.get_response
+
+    def post(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> FakeResponse:
+        return self.post_response
+
+
 def test_refresh_access_token_exchanges_refresh_token() -> None:
     client = FakeHttpClient()
     provider = GmailProvider(client=client)
@@ -101,6 +138,111 @@ def test_refresh_access_token_exchanges_refresh_token() -> None:
     assert access_token == "fake-access-token"
     assert client.post_calls[0]["data"]["grant_type"] == "refresh_token"
     assert client.post_calls[0]["data"]["refresh_token"] == "fake-refresh-token"
+
+
+def test_refresh_access_token_invalid_grant_requires_reauth() -> None:
+    provider = GmailProvider(
+        client=StaticHttpClient(
+            post_response=FakeResponse(400, {"error": "invalid_grant"})
+        )
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.refresh_access_token("fake-refresh-token")
+
+    assert exc_info.value.code == "MAILBOX_REAUTH_REQUIRED"
+    assert exc_info.value.message == "Gmail authorization is no longer valid."
+    assert exc_info.value.status_code == 401
+
+
+def test_gmail_api_access_not_configured_maps_to_provider_sync_failed() -> None:
+    provider = GmailProvider(
+        client=StaticHttpClient(
+            get_response=FakeResponse(
+                403,
+                {
+                    "error": {
+                        "code": 403,
+                        "message": (
+                            "Gmail API has not been used in project 660896633151 "
+                            "before or it is disabled."
+                        ),
+                        "status": "PERMISSION_DENIED",
+                        "errors": [
+                            {
+                                "domain": "usageLimits",
+                                "reason": "accessNotConfigured",
+                                "message": "Access Not Configured.",
+                            }
+                        ],
+                    }
+                },
+            )
+        )
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.list_messages_for_window(
+            "fake-access-token",
+            window_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+            window_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+
+    assert exc_info.value.code == "PROVIDER_SYNC_FAILED"
+    assert exc_info.value.message == "Gmail API is disabled for the Google Cloud project."
+    assert exc_info.value.status_code == 502
+
+
+def test_gmail_api_insufficient_scope_has_clear_permission_message() -> None:
+    provider = GmailProvider(
+        client=StaticHttpClient(
+            get_response=FakeResponse(
+                403,
+                {
+                    "error": {
+                        "code": 403,
+                        "message": "Request had insufficient authentication scopes.",
+                        "status": "PERMISSION_DENIED",
+                        "errors": [
+                            {
+                                "domain": "global",
+                                "reason": "insufficientPermissions",
+                                "message": "Insufficient Permission",
+                            }
+                        ],
+                    }
+                },
+            )
+        )
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.list_messages_for_window(
+            "fake-access-token",
+            window_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+            window_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+
+    assert exc_info.value.code == "MAILBOX_REAUTH_REQUIRED"
+    assert (
+        exc_info.value.message
+        == "Gmail authorization does not include the required Gmail scope."
+    )
+    assert exc_info.value.status_code == 401
+
+
+def test_gmail_api_rate_limit_maps_to_provider_rate_limited() -> None:
+    provider = GmailProvider(client=StaticHttpClient(get_response=FakeResponse(429, {})))
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.list_messages_for_window(
+            "fake-access-token",
+            window_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+            window_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+
+    assert exc_info.value.code == "PROVIDER_RATE_LIMITED"
+    assert exc_info.value.message == "Gmail rate limit exceeded."
 
 
 def test_list_messages_for_window_uses_gmail_date_query_and_filters_candidates() -> None:

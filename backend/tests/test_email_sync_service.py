@@ -119,6 +119,15 @@ class FailingProvider:
         raise ProviderError("PROVIDER_SYNC_FAILED", "Gmail request failed.", 502)
 
 
+class ReauthProvider:
+    def refresh_access_token(self, refresh_token: str) -> str:
+        raise ProviderError(
+            "MAILBOX_REAUTH_REQUIRED",
+            "Gmail authorization is no longer valid.",
+            401,
+        )
+
+
 def test_sync_today_emails_upserts_emails_and_creates_sync_job() -> None:
     user_id, mailbox_id = _create_connected_mailbox()
     provider = FakeProvider(
@@ -148,7 +157,12 @@ def test_sync_today_emails_upserts_emails_and_creates_sync_job() -> None:
     assert provider.window_end == now
 
     with SessionLocal() as db:
-        email = db.scalar(select(Email).where(Email.external_id == "gmail-message-1"))
+        email = db.scalar(
+            select(Email).where(
+                Email.mailbox_id == mailbox_id,
+                Email.external_id == "gmail-message-1",
+            )
+        )
         job = db.scalar(
             select(SyncJob)
             .where(SyncJob.mailbox_id == mailbox_id)
@@ -189,7 +203,10 @@ def test_sync_today_emails_upserts_emails_and_creates_sync_job() -> None:
     assert result.synced_count == 1
     with SessionLocal() as db:
         emails = db.scalars(
-            select(Email).where(Email.external_id == "gmail-message-1")
+            select(Email).where(
+                Email.mailbox_id == mailbox_id,
+                Email.external_id == "gmail-message-1",
+            )
         ).all()
         assert len(emails) == 1
         assert emails[0].subject == "Updated subject"
@@ -224,3 +241,38 @@ def test_sync_today_emails_records_failed_sync_job() -> None:
         assert job.status == "failed"
         assert job.error_code == "PROVIDER_SYNC_FAILED"
         assert job.error_message == "Gmail request failed."
+        mailbox = db.get(Mailbox, mailbox_id)
+        assert mailbox is not None
+        assert mailbox.status == "active"
+
+
+def test_sync_today_emails_marks_mailbox_reauth_only_for_reauth_errors() -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+
+    with SessionLocal() as db:
+        try:
+            sync_today_emails(
+                db,
+                user_id=user_id,
+                mailbox_id=mailbox_id,
+                provider=ReauthProvider(),
+                now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+            )
+        except EmailSyncError as exc:
+            assert exc.code == "MAILBOX_REAUTH_REQUIRED"
+            db.commit()
+        else:
+            raise AssertionError("reauth failure should raise EmailSyncError")
+
+    with SessionLocal() as db:
+        mailbox = db.get(Mailbox, mailbox_id)
+        job = db.scalar(
+            select(SyncJob)
+            .where(SyncJob.mailbox_id == mailbox_id)
+            .order_by(SyncJob.created_at.desc())
+        )
+        assert mailbox is not None
+        assert mailbox.status == "reauth_required"
+        assert job is not None
+        assert job.status == "failed"
+        assert job.error_code == "MAILBOX_REAUTH_REQUIRED"
