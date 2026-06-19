@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from app.db.models.sync_job import SyncJob
 from app.db.session import SessionLocal
 from app.main import app
 from app.providers.base import ProviderEmailMessage, ProviderError
+from app.providers.gmail import GmailProvider
 from app.services.credential_encryption_service import CredentialEncryptionService
 
 
@@ -107,6 +109,85 @@ class FailingProvider:
         window_end: datetime,
     ) -> list[ProviderEmailMessage]:
         raise ProviderError("PROVIDER_SYNC_FAILED", "Gmail request failed.", 502)
+
+
+class GmailHttpResponse:
+    def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self) -> dict[str, Any]:
+        return self._payload
+
+
+class AccessNotConfiguredHttpClient:
+    def post(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> GmailHttpResponse:
+        assert data is not None
+        assert data["refresh_token"] == "fake-refresh-token"
+        return GmailHttpResponse(200, {"access_token": "fake-access-token"})
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> GmailHttpResponse:
+        assert headers["Authorization"] == "Bearer fake-access-token"
+        return GmailHttpResponse(
+            403,
+            {
+                "error": {
+                    "code": 403,
+                    "message": (
+                        "Gmail API has not been used in project 660896633151 "
+                        "before or it is disabled."
+                    ),
+                    "status": "PERMISSION_DENIED",
+                    "errors": [
+                        {
+                            "domain": "usageLimits",
+                            "reason": "accessNotConfigured",
+                            "message": "Access Not Configured.",
+                        }
+                    ],
+                }
+            },
+        )
+
+
+class InvalidGrantHttpClient:
+    def post(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> GmailHttpResponse:
+        assert data is not None
+        assert data["refresh_token"] == "fake-refresh-token"
+        return GmailHttpResponse(400, {"error": "invalid_grant"})
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
+        timeout: int,
+    ) -> GmailHttpResponse:
+        raise AssertionError("Gmail API should not be called when token refresh fails")
 
 
 def test_trigger_mailbox_sync_runs_sync_and_returns_job(monkeypatch) -> None:
@@ -240,3 +321,66 @@ def test_trigger_mailbox_sync_returns_provider_error_and_records_failed_job(
         assert job.status == "failed"
         assert job.error_code == "PROVIDER_SYNC_FAILED"
         assert job.error_message == "Gmail request failed."
+
+
+def test_trigger_mailbox_sync_access_not_configured_does_not_mark_reauth(
+    monkeypatch,
+) -> None:
+    client, user_id = _register_client("mailbox-sync-api-disabled")
+    mailbox_id = _create_connected_mailbox(user_id)
+    monkeypatch.setattr(
+        "app.services.email_sync_service.GmailProvider",
+        lambda: GmailProvider(client=AccessNotConfiguredHttpClient()),
+    )
+
+    response = client.post(f"/api/mailboxes/{mailbox_id}/sync")
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "PROVIDER_SYNC_FAILED"
+    assert (
+        response.json()["error"]["message"]
+        == "Gmail API is disabled for the Google Cloud project."
+    )
+
+    with SessionLocal() as db:
+        mailbox = db.get(Mailbox, mailbox_id)
+        job = db.scalar(
+            select(SyncJob)
+            .where(SyncJob.mailbox_id == mailbox_id, SyncJob.user_id == user_id)
+            .order_by(SyncJob.created_at.desc())
+        )
+        assert mailbox is not None
+        assert mailbox.status == "active"
+        assert job is not None
+        assert job.status == "failed"
+        assert job.error_code == "PROVIDER_SYNC_FAILED"
+        assert job.error_message == "Gmail API is disabled for the Google Cloud project."
+
+
+def test_trigger_mailbox_sync_invalid_grant_marks_mailbox_reauth(
+    monkeypatch,
+) -> None:
+    client, user_id = _register_client("mailbox-sync-invalid-grant")
+    mailbox_id = _create_connected_mailbox(user_id)
+    monkeypatch.setattr(
+        "app.services.email_sync_service.GmailProvider",
+        lambda: GmailProvider(client=InvalidGrantHttpClient()),
+    )
+
+    response = client.post(f"/api/mailboxes/{mailbox_id}/sync")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "MAILBOX_REAUTH_REQUIRED"
+
+    with SessionLocal() as db:
+        mailbox = db.get(Mailbox, mailbox_id)
+        job = db.scalar(
+            select(SyncJob)
+            .where(SyncJob.mailbox_id == mailbox_id, SyncJob.user_id == user_id)
+            .order_by(SyncJob.created_at.desc())
+        )
+        assert mailbox is not None
+        assert mailbox.status == "reauth_required"
+        assert job is not None
+        assert job.status == "failed"
+        assert job.error_code == "MAILBOX_REAUTH_REQUIRED"

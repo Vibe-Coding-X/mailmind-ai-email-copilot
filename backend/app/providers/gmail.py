@@ -169,7 +169,7 @@ class GmailProvider:
         status_code = int(getattr(response, "status_code", 500))
         if status_code < 400:
             return
-        if status_code in {401, 403} or auth_operation:
+        if auth_operation:
             raise ProviderError(
                 "MAILBOX_REAUTH_REQUIRED",
                 "Gmail authorization is no longer valid.",
@@ -177,4 +177,87 @@ class GmailProvider:
             )
         if status_code == 429:
             raise ProviderError("PROVIDER_RATE_LIMITED", "Gmail rate limit exceeded.", 429)
+        if status_code == 401:
+            raise ProviderError(
+                "MAILBOX_REAUTH_REQUIRED",
+                "Gmail authorization is no longer valid.",
+                401,
+            )
+        if status_code == 403:
+            error_details = _google_error_details(response)
+            if error_details.is_api_disabled:
+                raise ProviderError(
+                    "PROVIDER_SYNC_FAILED",
+                    "Gmail API is disabled for the Google Cloud project.",
+                    502,
+                )
+            if error_details.is_scope_insufficient:
+                raise ProviderError(
+                    "MAILBOX_REAUTH_REQUIRED",
+                    "Gmail authorization does not include the required Gmail scope.",
+                    401,
+                )
         raise ProviderError("PROVIDER_SYNC_FAILED", "Gmail request failed.", 502)
+
+
+class _GoogleErrorDetails:
+    def __init__(self, *, status: str, message: str, reasons: set[str]) -> None:
+        self.status = status
+        self.message = message
+        self.reasons = reasons
+
+    @property
+    def is_api_disabled(self) -> bool:
+        message = self.message.lower()
+        return (
+            "accessnotconfigured" in self.reasons
+            or "gmail api has not been used" in message
+            or "it is disabled" in message
+        )
+
+    @property
+    def is_scope_insufficient(self) -> bool:
+        status = self.status.lower()
+        message = self.message.lower()
+        return (
+            "insufficientpermissions" in self.reasons
+            or status == "access_token_scope_insufficient"
+            or "access_token_scope_insufficient" in self.reasons
+            or "insufficient authentication scopes" in message
+            or "insufficient permission" in message
+        )
+
+
+def _google_error_details(response: Any) -> _GoogleErrorDetails:
+    try:
+        payload = response.json()
+    except Exception:
+        return _GoogleErrorDetails(status="", message="", reasons=set())
+    if not isinstance(payload, dict):
+        return _GoogleErrorDetails(status="", message="", reasons=set())
+
+    error = payload.get("error")
+    if isinstance(error, str):
+        return _GoogleErrorDetails(status="", message=error, reasons={error.lower()})
+    if not isinstance(error, dict):
+        return _GoogleErrorDetails(status="", message="", reasons=set())
+
+    status = str(error.get("status") or "")
+    messages = [str(error.get("message") or "")]
+    reasons: set[str] = set()
+    errors = error.get("errors")
+    if isinstance(errors, list):
+        for item in errors:
+            if not isinstance(item, dict):
+                continue
+            reason = str(item.get("reason") or "")
+            message = str(item.get("message") or "")
+            if reason:
+                reasons.add(reason.lower())
+            if message:
+                messages.append(message)
+    return _GoogleErrorDetails(
+        status=status,
+        message=" ".join(message for message in messages if message),
+        reasons=reasons,
+    )
