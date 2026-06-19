@@ -8,9 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import {
   ApiRequestError,
+  dismissDigestItem,
   generateTodayDigest,
   getTodayDigest,
+  markDigestItemDone,
   refreshTodayDigest,
+  snoozeDigestItem,
 } from "@/lib/api-client";
 import type { Digest, DigestItem } from "@/lib/api-types";
 
@@ -26,6 +29,18 @@ interface DigestErrorView {
   state: Exclude<DigestPageState, "loading" | "loaded">;
   title: string;
   message: string;
+}
+
+type DigestItemActionKind = "mark_done" | "dismiss" | "snooze";
+
+interface ItemFeedback {
+  tone: BadgeTone;
+  message: string;
+}
+
+interface SnoozeOption {
+  label: string;
+  value: string;
 }
 
 function digestErrorView(error: unknown): DigestErrorView {
@@ -153,6 +168,20 @@ function groupDigestItems(items: DigestItem[]): Array<{
   }));
 }
 
+function buildSnoozeOptions(): SnoozeOption[] {
+  return [
+    { label: "Tomorrow", value: futureIsoDate(1) },
+    { label: "In 3 days", value: futureIsoDate(3) },
+    { label: "Next week", value: futureIsoDate(7) },
+  ];
+}
+
+function futureIsoDate(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
 export function DigestDashboard() {
   const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [pageState, setPageState] = useState<DigestPageState>("loading");
@@ -163,11 +192,17 @@ export function DigestDashboard() {
   const [busyAction, setBusyAction] = useState<"generate" | "refresh" | null>(
     null,
   );
+  const [busyItemId, setBusyItemId] = useState<string | null>(null);
+  const [itemFeedback, setItemFeedback] = useState<Record<string, ItemFeedback>>(
+    {},
+  );
+  const [snoozeValues, setSnoozeValues] = useState<Record<string, string>>({});
 
   const groupedItems = useMemo(
     () => groupDigestItems(digest?.items ?? []),
     [digest],
   );
+  const snoozeOptions = useMemo(() => buildSnoozeOptions(), []);
 
   const loadDigest = useCallback(async (): Promise<boolean> => {
     setPageState("loading");
@@ -277,6 +312,60 @@ export function DigestDashboard() {
     await refreshAuth();
   }
 
+  async function onDigestItemAction(
+    itemId: string,
+    action: DigestItemActionKind,
+  ) {
+    setBusyItemId(itemId);
+    setItemFeedback((current) => ({
+      ...current,
+      [itemId]: {
+        tone: "neutral",
+        message: "Recording action...",
+      },
+    }));
+
+    try {
+      const response =
+        action === "mark_done"
+          ? await markDigestItemDone(itemId)
+          : action === "dismiss"
+            ? await dismissDigestItem(itemId)
+            : await snoozeDigestItem(itemId, {
+                snoozed_until:
+                  snoozeValues[itemId] ??
+                  snoozeOptions[0]?.value ??
+                  futureIsoDate(1),
+              });
+
+      setItemFeedback((current) => ({
+        ...current,
+        [itemId]: {
+          tone: "ok",
+          message: `Action ${statusLabel(response.data.action.action_status)}.`,
+        },
+      }));
+      await loadDigest();
+    } catch (error) {
+      setItemFeedback((current) => ({
+        ...current,
+        [itemId]: {
+          tone: "danger",
+          message: digestErrorView(error).message,
+        },
+      }));
+    } finally {
+      setBusyItemId(null);
+    }
+  }
+
+  function onSnoozeValueChange(itemId: string, value: string) {
+    setSnoozeValues((current) => ({
+      ...current,
+      [itemId]: value,
+    }));
+  }
+
   const busy = busyAction !== null;
   const canGenerate =
     authStatus === "authenticated" &&
@@ -350,8 +439,13 @@ export function DigestDashboard() {
         digest,
         groupedItems,
         pageError,
+        busyItemId,
+        itemFeedback,
+        snoozeOptions,
         onGenerate,
         onRetry,
+        onDigestItemAction,
+        onSnoozeValueChange,
         busy,
       })}
     </div>
@@ -363,16 +457,29 @@ function renderDigestContent({
   digest,
   groupedItems,
   pageError,
+  busyItemId,
+  itemFeedback,
+  snoozeOptions,
   onGenerate,
   onRetry,
+  onDigestItemAction,
+  onSnoozeValueChange,
   busy,
 }: {
   pageState: DigestPageState;
   digest: Digest | null;
   groupedItems: Array<{ section: string; items: DigestItem[] }>;
   pageError: DigestErrorView | null;
+  busyItemId: string | null;
+  itemFeedback: Record<string, ItemFeedback>;
+  snoozeOptions: SnoozeOption[];
   onGenerate: () => Promise<void>;
   onRetry: () => Promise<void>;
+  onDigestItemAction: (
+    itemId: string,
+    action: DigestItemActionKind,
+  ) => Promise<void>;
+  onSnoozeValueChange: (itemId: string, value: string) => void;
   busy: boolean;
 }) {
   if (pageState === "loading") {
@@ -429,7 +536,17 @@ function renderDigestContent({
     );
   }
 
-  return <DigestLoadedView digest={digest} groupedItems={groupedItems} />;
+  return (
+    <DigestLoadedView
+      digest={digest}
+      groupedItems={groupedItems}
+      busyItemId={busyItemId}
+      itemFeedback={itemFeedback}
+      snoozeOptions={snoozeOptions}
+      onDigestItemAction={onDigestItemAction}
+      onSnoozeValueChange={onSnoozeValueChange}
+    />
+  );
 }
 
 function DigestLoadingState() {
@@ -458,9 +575,22 @@ function MetricSkeleton() {
 function DigestLoadedView({
   digest,
   groupedItems,
+  busyItemId,
+  itemFeedback,
+  snoozeOptions,
+  onDigestItemAction,
+  onSnoozeValueChange,
 }: {
   digest: Digest;
   groupedItems: Array<{ section: string; items: DigestItem[] }>;
+  busyItemId: string | null;
+  itemFeedback: Record<string, ItemFeedback>;
+  snoozeOptions: SnoozeOption[];
+  onDigestItemAction: (
+    itemId: string,
+    action: DigestItemActionKind,
+  ) => Promise<void>;
+  onSnoozeValueChange: (itemId: string, value: string) => void;
 }) {
   return (
     <div className="mm-stack">
@@ -522,6 +652,11 @@ function DigestLoadedView({
                   key={item.id}
                   item={item}
                   showTopBorder={index > 0}
+                  busy={busyItemId === item.id}
+                  feedback={itemFeedback[item.id]}
+                  snoozeOptions={snoozeOptions}
+                  onAction={onDigestItemAction}
+                  onSnoozeValueChange={onSnoozeValueChange}
                 />
               ))}
             </div>
@@ -568,10 +703,22 @@ function MetricCard({
 function DigestItemRow({
   item,
   showTopBorder,
+  busy,
+  feedback,
+  snoozeOptions,
+  onAction,
+  onSnoozeValueChange,
 }: {
   item: DigestItem;
   showTopBorder: boolean;
+  busy: boolean;
+  feedback: ItemFeedback | undefined;
+  snoozeOptions: SnoozeOption[];
+  onAction: (itemId: string, action: DigestItemActionKind) => Promise<void>;
+  onSnoozeValueChange: (itemId: string, value: string) => void;
 }) {
+  const defaultSnoozeValue = snoozeOptions[0]?.value ?? futureIsoDate(1);
+
   return (
     <article
       style={{
@@ -624,6 +771,67 @@ function DigestItemRow({
         >
           {item.reason}
         </p>
+      ) : null}
+
+      <div
+        className="mm-row"
+        style={{
+          marginTop: 14,
+          alignItems: "center",
+        }}
+      >
+        <button
+          type="button"
+          className="mm-btn"
+          onClick={() => void onAction(item.id, "mark_done")}
+          disabled={busy}
+          aria-disabled={busy}
+        >
+          {busy ? "Working..." : "Mark done"}
+        </button>
+        <button
+          type="button"
+          className="mm-btn"
+          onClick={() => void onAction(item.id, "dismiss")}
+          disabled={busy}
+          aria-disabled={busy}
+        >
+          Dismiss
+        </button>
+        <select
+          className="mm-input"
+          aria-label={`Snooze ${item.title}`}
+          defaultValue={defaultSnoozeValue}
+          disabled={busy}
+          onChange={(event) => onSnoozeValueChange(item.id, event.target.value)}
+          style={{
+            minWidth: 132,
+            maxWidth: "100%",
+          }}
+        >
+          {snoozeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="mm-btn"
+          onClick={() => void onAction(item.id, "snooze")}
+          disabled={busy}
+          aria-disabled={busy}
+        >
+          Snooze
+        </button>
+      </div>
+
+      {feedback ? (
+        <div style={{ marginTop: 10 }}>
+          <Badge tone={feedback.tone} dot>
+            {feedback.message}
+          </Badge>
+        </div>
       ) : null}
     </article>
   );

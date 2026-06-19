@@ -1,6 +1,7 @@
 import { API_ROUTES } from "./api-routes";
 import {
   disconnectGmail,
+  dismissDigestItem,
   generateTodayDigest,
   getDigest,
   getEmail,
@@ -11,12 +12,15 @@ import {
   listTodayEmails,
   markEmailRead,
   markEmailUnread,
+  markDigestItemDone,
   refreshTodayDigest,
+  snoozeDigestItem,
   startGmailLogin,
   triggerMailboxSync,
 } from "./api-client";
 import type {
   ApiResult,
+  DigestItemActionResponse,
   DigestResponse,
   EmailMutationResponse,
   EmailResponse,
@@ -47,7 +51,16 @@ type MailboxRoutesMatchResolvedContract = Assert<
   Equal<MailboxRouteKeys, "list" | "byId" | "syncStatus" | "sync">
 >;
 type DigestRoutesMatchResolvedContract = Assert<
-  Equal<DigestRouteKeys, "today" | "todayGenerate" | "todayRefresh" | "byId">
+  Equal<
+    DigestRouteKeys,
+    | "today"
+    | "todayGenerate"
+    | "todayRefresh"
+    | "byId"
+    | "itemMarkDone"
+    | "itemDismiss"
+    | "itemSnooze"
+  >
 >;
 
 const gmailLoginPath: "/api/auth/gmail/login" = API_ROUTES.gmailAuth.login;
@@ -67,6 +80,12 @@ const refreshTodayDigestPath: "/api/digest/today/refresh" =
   API_ROUTES.digest.todayRefresh;
 const digestDetailPath: "/api/digest/digest-id" =
   API_ROUTES.digest.byId("digest-id");
+const digestItemMarkDonePath: "/api/digest/items/item-id/mark-done" =
+  API_ROUTES.digest.itemMarkDone("item-id");
+const digestItemDismissPath: "/api/digest/items/item-id/dismiss" =
+  API_ROUTES.digest.itemDismiss("item-id");
+const digestItemSnoozePath: "/api/digest/items/item-id/snooze" =
+  API_ROUTES.digest.itemSnooze("item-id");
 const todayEmailsPath: "/api/emails/today" = API_ROUTES.emails.today;
 const emailDetailPath: "/api/emails/email-id" =
   API_ROUTES.emails.byId("email-id");
@@ -120,6 +139,27 @@ type GetDigestParameters = Assert<
 type GetDigestSignature = Assert<
   Equal<ReturnType<typeof getDigest>, Promise<DigestResponse>>
 >;
+type MarkDigestItemDoneParameters = Assert<
+  Equal<Parameters<typeof markDigestItemDone>, [itemId: string]>
+>;
+type MarkDigestItemDoneSignature = Assert<
+  Equal<ReturnType<typeof markDigestItemDone>, Promise<DigestItemActionResponse>>
+>;
+type DismissDigestItemParameters = Assert<
+  Equal<Parameters<typeof dismissDigestItem>, [itemId: string]>
+>;
+type DismissDigestItemSignature = Assert<
+  Equal<ReturnType<typeof dismissDigestItem>, Promise<DigestItemActionResponse>>
+>;
+type SnoozeDigestItemParameters = Assert<
+  Equal<
+    Parameters<typeof snoozeDigestItem>,
+    [itemId: string, input: { snoozed_until: string }]
+  >
+>;
+type SnoozeDigestItemSignature = Assert<
+  Equal<ReturnType<typeof snoozeDigestItem>, Promise<DigestItemActionResponse>>
+>;
 type ListTodayEmailsSignature = Assert<
   Equal<ReturnType<typeof listTodayEmails>, Promise<TodayEmailsResponse>>
 >;
@@ -158,6 +198,12 @@ type ContractAssertions = [
   RefreshTodayDigestSignature,
   GetDigestParameters,
   GetDigestSignature,
+  MarkDigestItemDoneParameters,
+  MarkDigestItemDoneSignature,
+  DismissDigestItemParameters,
+  DismissDigestItemSignature,
+  SnoozeDigestItemParameters,
+  SnoozeDigestItemSignature,
   ListTodayEmailsSignature,
   GetEmailParameters,
   GetEmailSignature,
@@ -168,6 +214,12 @@ type ContractAssertions = [
 ];
 
 const contractAssertions: ContractAssertions = [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
   true,
   true,
   true,
@@ -205,6 +257,9 @@ void todayDigestPath;
 void generateTodayDigestPath;
 void refreshTodayDigestPath;
 void digestDetailPath;
+void digestItemMarkDonePath;
+void digestItemDismissPath;
+void digestItemSnoozePath;
 void todayEmailsPath;
 void emailDetailPath;
 void emailMarkReadPath;

@@ -17,6 +17,7 @@ import {
   type ApiError,
   type ApiResult,
   type AuthUserResponse,
+  type DigestItemActionResponse,
   type DigestResponse,
   type EmailMutationResponse,
   type EmailResponse,
@@ -170,6 +171,41 @@ export function getDigest(digestId: string): Promise<DigestResponse> {
   });
 }
 
+export function markDigestItemDone(
+  itemId: string,
+): Promise<DigestItemActionResponse> {
+  return request<DigestItemActionResponse>(
+    API_ROUTES.digest.itemMarkDone(itemId),
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function dismissDigestItem(
+  itemId: string,
+): Promise<DigestItemActionResponse> {
+  return request<DigestItemActionResponse>(
+    API_ROUTES.digest.itemDismiss(itemId),
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function snoozeDigestItem(
+  itemId: string,
+  input: { snoozed_until: string },
+): Promise<DigestItemActionResponse> {
+  return request<DigestItemActionResponse>(
+    API_ROUTES.digest.itemSnooze(itemId),
+    {
+      method: "POST",
+      body: input,
+    },
+  );
+}
+
 export function listTodayEmails(): Promise<TodayEmailsResponse> {
   return request<TodayEmailsResponse>(API_ROUTES.emails.today, {
     method: "GET",
@@ -231,6 +267,9 @@ export const apiClient = {
     generateToday: generateTodayDigest,
     refreshToday: refreshTodayDigest,
     byId: getDigest,
+    markItemDone: markDigestItemDone,
+    dismissItem: dismissDigestItem,
+    snoozeItem: snoozeDigestItem,
   },
 
   emails: {
