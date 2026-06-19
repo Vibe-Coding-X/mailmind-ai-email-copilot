@@ -25,6 +25,8 @@ import {
   type MailboxSyncStatusResponse,
   type MailboxesResponse,
   type TodayEmailsResponse,
+  type UserActionResponse,
+  type UserActionsResponse,
 } from "./api-types";
 
 function notImplemented(operation: string): never {
@@ -171,6 +173,18 @@ export function markEmailUnread(
   });
 }
 
+export function listActions(): Promise<UserActionsResponse> {
+  return request<UserActionsResponse>(API_ROUTES.actions.list, {
+    method: "GET",
+  });
+}
+
+export function getAction(actionId: string): Promise<UserActionResponse> {
+  return request<UserActionResponse>(API_ROUTES.actions.byId(actionId), {
+    method: "GET",
+  });
+}
+
 export const apiClient = {
   auth: {
     /** POST /api/auth/register — returns the created+authenticated user. */
@@ -245,9 +259,11 @@ export const apiClient = {
   },
 
   actions: {
+    list: listActions,
     create(): Promise<ApiResult> {
       return notImplemented(`POST ${API_ROUTES.actions.create}`);
     },
+    byId: getAction,
     forDigestItem(digestItemId: string): Promise<ApiResult> {
       return notImplemented(
         `GET ${API_ROUTES.actions.forDigestItem(digestItemId)}`,
