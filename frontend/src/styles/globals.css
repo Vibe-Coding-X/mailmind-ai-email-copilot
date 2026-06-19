@@ -1,49 +1,230 @@
 /*
- * MailMind frontend global styles (design preview layer).
+ * MailMind frontend global styles — theme system.
  *
- * Plain CSS only — no Tailwind/shadcn (intentionally out of scope this round).
- * This defines a small design-system: tokens (CSS variables) plus a handful of
- * reusable presentational classes used by the preview components. Nothing here
- * loads data, talks to a backend, or implies a connected state.
+ * Theming has two orthogonal axes set on <html>:
+ *   data-theme-preset = capsule | clean | minimal | soft   (shape / density / depth)
+ *   data-theme-mode   = light | dark                        (color)
+ *
+ * Tokens are split accordingly:
+ *   - Color tokens (--color-*) are defined per MODE.
+ *   - Shape/space tokens (--radius-*, --shadow-*, --space-*, --border-w) are
+ *     defined per PRESET.
+ * Legacy --mm-* names are kept as ALIASES that point at the new tokens, so the
+ * existing components keep working without edits.
+ *
+ * Plain CSS only — no Tailwind/shadcn. Nothing here loads data or talks to a
+ * backend; only presentational tokens and classes live in this file.
  */
 
 :root {
-  color-scheme: dark;
-
-  /* Surfaces */
-  --mm-bg: #0a0b0f;
-  --mm-bg-elevated: #101218;
-  --mm-surface: #14161d;
-  --mm-surface-2: #1a1d26;
-  --mm-border: #262a35;
-  --mm-border-strong: #333949;
-
-  /* Text */
-  --mm-text: #e7e9f0;
-  --mm-text-soft: #b8bdca;
-  --mm-muted: #868d9c;
-  --mm-faint: #5b6271;
-
-  /* Accents */
-  --mm-accent: #6b8cff;
-  --mm-accent-soft: rgba(107, 140, 255, 0.14);
-  --mm-success: #57c98a;
-  --mm-warn: #e0a850;
-  --mm-danger: #e0676b;
-  --mm-success-soft: rgba(87, 201, 138, 0.13);
-  --mm-warn-soft: rgba(224, 168, 80, 0.13);
-  --mm-danger-soft: rgba(224, 103, 107, 0.13);
-
-  /* Radii & spacing */
-  --mm-radius-sm: 6px;
-  --mm-radius: 10px;
-  --mm-radius-lg: 14px;
-  --mm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.18);
-
+  /* Type + motion (theme-independent) */
   --mm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
   --mm-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --mm-transition: 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* Shape / space defaults (capsule). Overridden per preset below. */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --space-page: 36px;
+  --space-section: 22px;
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 6px 18px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05),
+    0 10px 30px rgba(15, 23, 42, 0.08);
+
+  /* Color defaults (capsule light). Overridden per mode below. */
+  --color-bg: #eef1f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f6fb;
+  --color-text: #1b2030;
+  --color-text-muted: #5d6577;
+  --color-text-faint: #9aa1b2;
+  --color-border: #e3e7f0;
+  --color-border-strong: #d2d8e6;
+  --color-primary: #4f5bd5;
+  --color-primary-strong: #3f49c0;
+  --color-on-primary: #ffffff;
+  --color-primary-soft: rgba(79, 91, 213, 0.12);
+  --color-danger: #d6455b;
+  --color-warning: #c98a2e;
+  --color-success: #1f9d6b;
+  --color-danger-soft: rgba(214, 69, 91, 0.12);
+  --color-warning-soft: rgba(201, 138, 46, 0.13);
+  --color-success-soft: rgba(31, 157, 107, 0.13);
+
+  color-scheme: light;
 }
+
+/* ============================================================
+ * COLOR — per mode
+ * Light is the primary optimization target; dark is deliberately
+ * not pure-black (deep slate) so surfaces keep visible layering.
+ * ============================================================ */
+
+[data-theme-mode="light"] {
+  --color-bg: #eef1f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f6fb;
+  --color-text: #1b2030;
+  --color-text-muted: #5d6577;
+  --color-text-faint: #9aa1b2;
+  --color-border: #e3e7f0;
+  --color-border-strong: #d2d8e6;
+  --color-primary: #4f5bd5;
+  --color-primary-strong: #3f49c0;
+  --color-on-primary: #ffffff;
+  --color-primary-soft: rgba(79, 91, 213, 0.12);
+  --color-danger: #d6455b;
+  --color-warning: #b7791f;
+  --color-success: #1f9d6b;
+  --color-danger-soft: rgba(214, 69, 91, 0.1);
+  --color-warning-soft: rgba(183, 121, 31, 0.12);
+  --color-success-soft: rgba(31, 157, 107, 0.12);
+  color-scheme: light;
+}
+
+[data-theme-mode="dark"] {
+  --color-bg: #13151c;
+  --color-surface: #1b1e27;
+  --color-surface-muted: #22262f;
+  --color-text: #eaecf3;
+  --color-text-muted: #aab0bf;
+  --color-text-faint: #6c7384;
+  --color-border: #2c313d;
+  --color-border-strong: #3a4150;
+  --color-primary: #7c8cff;
+  --color-primary-strong: #93a1ff;
+  --color-on-primary: #14151c;
+  --color-primary-soft: rgba(124, 140, 255, 0.16);
+  --color-danger: #f0727f;
+  --color-warning: #e0a850;
+  --color-success: #54cd97;
+  --color-danger-soft: rgba(240, 114, 127, 0.14);
+  --color-warning-soft: rgba(224, 168, 80, 0.14);
+  --color-success-soft: rgba(84, 205, 151, 0.14);
+  color-scheme: dark;
+}
+
+/* ============================================================
+ * SHAPE / DENSITY / ELEVATION — per preset
+ * ============================================================ */
+
+/* Capsule — rounded cards, pill controls, soft depth, light borders. */
+[data-theme-preset="capsule"] {
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --space-page: 38px;
+  --space-section: 24px;
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 22px rgba(15, 23, 42, 0.07);
+  --shadow-card: 0 2px 4px rgba(15, 23, 42, 0.05),
+    0 14px 36px rgba(15, 23, 42, 0.09);
+}
+[data-theme-preset="capsule"][data-theme-mode="dark"] {
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 22px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* Clean — crisp, moderate radius, defined borders, subtle shadow. */
+[data-theme-preset="clean"] {
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --space-page: 32px;
+  --space-section: 20px;
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+[data-theme-preset="clean"][data-theme-mode="dark"] {
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Minimal — hairline borders, flat, square-ish, quiet. */
+[data-theme-preset="minimal"] {
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --space-page: 30px;
+  --space-section: 18px;
+  --shadow-soft: none;
+  --shadow-card: none;
+}
+
+/* Soft — gentle tints, larger radius, very low contrast elevation. */
+[data-theme-preset="soft"] {
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+  --space-page: 40px;
+  --space-section: 26px;
+  --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.05);
+  --shadow-card: 0 4px 20px rgba(15, 23, 42, 0.07);
+}
+[data-theme-preset="soft"][data-theme-mode="dark"] {
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.36);
+}
+
+/* Soft mode tints the background a touch warmer/cooler for personality. */
+[data-theme-preset="soft"][data-theme-mode="light"] {
+  --color-bg: #f0eef6;
+  --color-surface-muted: #f6f4fb;
+  --color-border: #e7e3f0;
+}
+
+/* ============================================================
+ * LEGACY ALIASES — existing components reference --mm-* names.
+ * Map them onto the new tokens so no component edits are required.
+ * ============================================================ */
+:root {
+  --mm-bg: var(--color-bg);
+  --mm-bg-elevated: var(--color-surface-muted);
+  --mm-surface: var(--color-surface);
+  --mm-surface-2: var(--color-surface-muted);
+  --mm-border: var(--color-border);
+  --mm-border-strong: var(--color-border-strong);
+
+  --mm-text: var(--color-text);
+  --mm-text-soft: var(--color-text-muted);
+  --mm-muted: var(--color-text-muted);
+  --mm-faint: var(--color-text-faint);
+
+  --mm-accent: var(--color-primary);
+  --mm-accent-soft: var(--color-primary-soft);
+  --mm-on-accent: var(--color-on-primary);
+  --mm-success: var(--color-success);
+  --mm-warn: var(--color-warning);
+  --mm-danger: var(--color-danger);
+  --mm-success-soft: var(--color-success-soft);
+  --mm-warn-soft: var(--color-warning-soft);
+  --mm-danger-soft: var(--color-danger-soft);
+
+  --mm-radius-sm: var(--radius-sm);
+  --mm-radius: var(--radius-md);
+  --mm-radius-lg: var(--radius-lg);
+  --mm-shadow: var(--shadow-card);
+}
+
+/* ---------- Base elements ---------- */
 
 * {
   box-sizing: border-box;
@@ -54,15 +235,19 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: var(--mm-bg);
-  color: var(--mm-text);
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--mm-font);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
+body {
+  transition: background var(--mm-transition), color var(--mm-transition);
+}
+
 a {
-  color: var(--mm-accent);
+  color: var(--color-primary);
   text-decoration: none;
 }
 
@@ -82,17 +267,33 @@ p {
   margin: 0;
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  body {
+    transition: none !important;
+  }
+  .mm-skel {
+    animation: none !important;
+  }
+}
+
 /* ---------- Layout primitives ---------- */
 
 .mm-shell {
   display: grid;
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 252px 1fr;
   min-height: 100vh;
 }
 
 .mm-sidebar {
-  border-right: 1px solid var(--mm-border);
-  background: var(--mm-bg-elevated);
+  border-right: var(--border-w) solid var(--color-border);
+  background: var(--color-surface);
   padding: 22px 16px;
   display: flex;
   flex-direction: column;
@@ -104,9 +305,10 @@ p {
 }
 
 .mm-main {
-  padding: 32px 40px 64px;
+  padding: var(--space-page) calc(var(--space-page) + 4px) 64px;
   width: 100%;
-  max-width: 1180px;
+  max-width: 1440px;
+  margin-inline: auto;
 }
 
 .mm-brand-name {
@@ -116,7 +318,7 @@ p {
 }
 
 .mm-brand-sub {
-  color: var(--mm-muted);
+  color: var(--color-text-muted);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -125,7 +327,7 @@ p {
   text-transform: uppercase;
   font-size: 10.5px;
   letter-spacing: 0.08em;
-  color: var(--mm-faint);
+  color: var(--color-text-faint);
   margin-bottom: 8px;
 }
 
@@ -140,25 +342,42 @@ p {
 
 .mm-nav-link {
   display: block;
-  padding: 7px 10px;
-  border-radius: var(--mm-radius-sm);
-  color: var(--mm-text-soft);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
   font-size: 14px;
+  border-left: 2px solid transparent;
+  transition: background var(--mm-transition), color var(--mm-transition);
 }
 
 .mm-nav-link:hover {
-  background: var(--mm-surface);
+  background: var(--color-surface-muted);
   text-decoration: none;
-  color: var(--mm-text);
+  color: var(--color-text);
+}
+
+.mm-nav-link[aria-current="page"] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  border-left-color: var(--color-primary);
+}
+
+[data-theme-preset="capsule"] .mm-nav-link {
+  border-left: 0;
+  border-radius: var(--radius-pill);
+}
+[data-theme-preset="capsule"] .mm-nav-link[aria-current="page"] {
+  padding-left: 14px;
 }
 
 /* ---------- Cards & sections ---------- */
 
 .mm-card {
-  border: 1px solid var(--mm-border);
-  border-radius: var(--mm-radius);
-  background: var(--mm-surface);
-  padding: 18px 20px;
+  border: var(--border-w) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-soft);
 }
 
 .mm-card-title {
@@ -171,7 +390,7 @@ p {
 }
 
 .mm-card-muted {
-  color: var(--mm-muted);
+  color: var(--color-text-muted);
   font-size: 13.5px;
 }
 
@@ -203,11 +422,11 @@ p {
   gap: 6px;
   font-size: 11px;
   font-weight: 500;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--mm-border-strong);
-  color: var(--mm-muted);
-  background: var(--mm-surface-2);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: var(--border-w) solid var(--color-border);
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
   white-space: nowrap;
 }
 
@@ -215,40 +434,40 @@ p {
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--mm-faint);
+  background: var(--color-text-faint);
 }
 
 .mm-badge--info {
-  color: var(--mm-accent);
+  color: var(--color-primary);
   border-color: transparent;
-  background: var(--mm-accent-soft);
+  background: var(--color-primary-soft);
 }
 .mm-badge--info .mm-badge-dot {
-  background: var(--mm-accent);
+  background: var(--color-primary);
 }
 .mm-badge--warn {
-  color: var(--mm-warn);
+  color: var(--color-warning);
   border-color: transparent;
-  background: var(--mm-warn-soft);
+  background: var(--color-warning-soft);
 }
 .mm-badge--warn .mm-badge-dot {
-  background: var(--mm-warn);
+  background: var(--color-warning);
 }
 .mm-badge--danger {
-  color: var(--mm-danger);
+  color: var(--color-danger);
   border-color: transparent;
-  background: var(--mm-danger-soft);
+  background: var(--color-danger-soft);
 }
 .mm-badge--danger .mm-badge-dot {
-  background: var(--mm-danger);
+  background: var(--color-danger);
 }
 .mm-badge--ok {
-  color: var(--mm-success);
+  color: var(--color-success);
   border-color: transparent;
-  background: var(--mm-success-soft);
+  background: var(--color-success-soft);
 }
 .mm-badge--ok .mm-badge-dot {
-  background: var(--mm-success);
+  background: var(--color-success);
 }
 
 .mm-banner {
@@ -256,13 +475,18 @@ p {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  border: 1px solid var(--mm-border);
-  border-left: 3px solid var(--mm-warn);
-  background: var(--mm-bg-elevated);
-  border-radius: var(--mm-radius);
-  padding: 12px 16px;
-  font-size: 13.5px;
-  color: var(--mm-text-soft);
+  border: var(--border-w) solid var(--color-border);
+  border-left: 3px solid var(--color-warning);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  padding: 11px 16px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+[data-theme-preset="capsule"] .mm-banner {
+  border-left-width: var(--border-w);
+  border-radius: var(--radius-pill);
+  padding-left: 20px;
 }
 
 .mm-chip {
@@ -270,11 +494,11 @@ p {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--mm-border-strong);
-  background: var(--mm-surface-2);
-  color: var(--mm-text-soft);
+  padding: 4px 11px;
+  border-radius: var(--radius-pill);
+  border: var(--border-w) solid var(--color-border-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
 }
 
 /* ---------- Skeleton lines ---------- */
@@ -282,11 +506,13 @@ p {
 .mm-skel {
   background: linear-gradient(
     90deg,
-    var(--mm-surface-2) 0%,
-    var(--mm-border) 50%,
-    var(--mm-surface-2) 100%
+    var(--color-surface-muted) 0%,
+    var(--color-border) 50%,
+    var(--color-surface-muted) 100%
   );
-  border-radius: var(--mm-radius-sm);
+  background-size: 200% 100%;
+  animation: mm-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
   height: 12px;
   width: 100%;
 }
@@ -295,7 +521,16 @@ p {
   margin-top: 8px;
 }
 
-/* ---------- Forms (static, non-functional) ---------- */
+@keyframes mm-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- Forms ---------- */
 
 .mm-field {
   display: flex;
@@ -306,26 +541,31 @@ p {
 
 .mm-label {
   font-size: 12.5px;
-  color: var(--mm-text-soft);
+  color: var(--color-text-muted);
 }
 
 .mm-input {
-  background: var(--mm-bg);
-  border: 1px solid var(--mm-border-strong);
-  border-radius: var(--mm-radius-sm);
-  padding: 9px 12px;
-  color: var(--mm-text);
+  background: var(--color-surface);
+  border: var(--border-w) solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  color: var(--color-text);
   font-size: 14px;
   font-family: inherit;
+  transition: border-color var(--mm-transition);
+}
+[data-theme-preset="capsule"] .mm-input {
+  border-radius: var(--radius-pill);
+  padding: 10px 16px;
 }
 
 .mm-input:focus {
   outline: none;
-  border-color: var(--mm-accent);
+  border-color: var(--color-primary);
 }
 
 .mm-input::placeholder {
-  color: var(--mm-faint);
+  color: var(--color-text-faint);
 }
 
 .mm-btn {
@@ -333,20 +573,35 @@ p {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: var(--mm-radius-sm);
-  border: 1px solid var(--mm-border-strong);
-  background: var(--mm-surface-2);
-  color: var(--mm-text);
+  border-radius: var(--radius-sm);
+  border: var(--border-w) solid var(--color-border-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
   font-size: 14px;
   font-weight: 500;
   padding: 9px 16px;
-  cursor: not-allowed;
+  cursor: pointer;
+  transition: background var(--mm-transition), border-color var(--mm-transition),
+    opacity var(--mm-transition);
+}
+[data-theme-preset="capsule"] .mm-btn {
+  border-radius: var(--radius-pill);
+  padding: 9px 20px;
+}
+
+.mm-btn:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-border);
 }
 
 .mm-btn--primary {
-  background: var(--mm-accent);
-  border-color: var(--mm-accent);
-  color: #0a0b0f;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.mm-btn--primary:hover {
+  background: var(--color-primary-strong);
+  border-color: var(--color-primary-strong);
 }
 
 .mm-btn:disabled,
@@ -378,7 +633,7 @@ p {
 }
 
 .mm-muted {
-  color: var(--mm-muted);
+  color: var(--color-text-muted);
 }
 
 .mm-mono {
@@ -388,7 +643,58 @@ p {
 
 .mm-divider {
   height: 1px;
-  background: var(--mm-border);
+  background: var(--color-border);
   border: 0;
   margin: 4px 0;
 }
+
+/* ---------- Segmented control (theme switcher) ---------- */
+
+.mm-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: var(--border-w) solid var(--color-border);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-pill);
+  max-width: 100%;
+}
+
+.mm-seg--block {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.mm-seg--block .mm-seg-btn {
+  flex: 1 1 0;
+  padding-inline: 6px;
+  text-align: center;
+}
+
+.mm-seg-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--mm-transition), color var(--mm-transition);
+}
+
+.mm-seg-btn:hover {
+  color: var(--color-text);
+}
+
+.mm-seg-btn[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-soft);
+}
+

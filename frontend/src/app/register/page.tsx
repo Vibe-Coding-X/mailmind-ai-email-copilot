@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { AuthForm } from "@/components/auth-form";
 import { AuthStatus } from "@/components/auth-status";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 /**
  * /register — system account registration. Registration creates a system
@@ -40,9 +41,12 @@ export default function RegisterPage() {
 
           <hr className="mm-divider" style={{ margin: "16px 0" }} />
 
-          <p className="mm-muted" style={{ fontSize: 13 }}>
-            Already have an account? <a href="/login">Sign in</a>
-          </p>
+          <div className="mm-spread">
+            <p className="mm-muted" style={{ fontSize: 13 }}>
+              Already have an account? <a href="/login">Sign in</a>
+            </p>
+            <ThemeSwitcher compact />
+          </div>
         </section>
       </div>
     </main>

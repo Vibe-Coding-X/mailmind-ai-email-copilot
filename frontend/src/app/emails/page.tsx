@@ -1,87 +1,248 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ActionChip } from "@/components/action-chip";
-import { EmptyState } from "@/components/empty-state";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { EmailList } from "@/components/email-list";
+import { EmailLoadingState } from "@/components/email-loading-state";
+import { EmailErrorState } from "@/components/email-error-state";
+import { EmailEmptyState } from "@/components/email-empty-state";
+import { useAuth } from "@/lib/auth";
+import {
+  listTodayEmails,
+  markEmailRead,
+  markEmailUnread,
+} from "@/lib/api-client";
+import type { EmailSummary } from "@/lib/api-types";
+import {
+  EMAIL_READ_FILTERS,
+  emailErrorView,
+  filterEmails,
+  mergeEmailMutation,
+  type EmailErrorView,
+  type EmailReadFilter,
+} from "@/lib/emails";
 
-/**
- * /emails (design preview).
- *
- * Auxiliary email list view — NOT the product homepage (MailMind is
- * dashboard-first). Static design preview: no Gmail messages, no real senders
- * or subjects, no sync state. Future data source: GET /api/emails/today with
- * documented sort/is_read/priority/source query params (API_DESIGN.md §4).
- */
-
-// Documented filter dimensions (visual placeholders only — not wired).
-const FILTERS = [
-  "Sort: newest",
-  "Status: all",
-  "Priority: any",
-  "Source: current digest",
-];
-
-function EmailRowSkeleton() {
-  return (
-    <div
-      style={{
-        padding: "14px 0",
-        borderTop: "1px solid var(--mm-border)",
-      }}
-    >
-      <div className="mm-spread" style={{ marginBottom: 8 }}>
-        <div style={{ flex: 1 }}>
-          <Skeleton lines={2} widths={["64%", "40%"]} />
-        </div>
-        <Badge tone="neutral" dot>
-          Unread
-        </Badge>
-      </div>
-      <div className="mm-row">
-        <ActionChip>Open</ActionChip>
-        <ActionChip>Mark read</ActionChip>
-      </div>
-    </div>
-  );
-}
+type EmailsPageState =
+  | "loading"
+  | "loaded"
+  | "unauthorized"
+  | "backend_unavailable"
+  | "error";
 
 export default function EmailsTodayPage() {
+  const { status: authStatus, refresh: refreshAuth } = useAuth();
+  const [pageState, setPageState] = useState<EmailsPageState>("loading");
+  const [emails, setEmails] = useState<EmailSummary[]>([]);
+  const [filter, setFilter] = useState<EmailReadFilter>("all");
+  const [pageError, setPageError] = useState<EmailErrorView | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busyEmailId, setBusyEmailId] = useState<string | null>(null);
+
+  const filteredEmails = useMemo(
+    () => filterEmails(emails, filter),
+    [emails, filter],
+  );
+
+  const loadEmails = useCallback(async (): Promise<boolean> => {
+    setPageState("loading");
+    setPageError(null);
+    setActionError(null);
+
+    try {
+      const response = await listTodayEmails();
+      setEmails(response.data.emails);
+      setPageState("loaded");
+      return true;
+    } catch (error) {
+      const view = emailErrorView(error);
+      setEmails([]);
+      setPageError(view);
+      setPageState(
+        view.kind === "unauthorized"
+          ? "unauthorized"
+          : view.kind === "backend_unavailable"
+            ? "backend_unavailable"
+            : "error",
+      );
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authStatus === "loading") {
+      setPageState("loading");
+      return;
+    }
+
+    if (authStatus === "unauthenticated") {
+      setEmails([]);
+      setPageError({
+        kind: "unauthorized",
+        title: "Not signed in",
+        message: "Sign in with your MailMind account to load emails.",
+      });
+      setPageState("unauthorized");
+      return;
+    }
+
+    if (authStatus === "unavailable") {
+      setEmails([]);
+      setPageError({
+        kind: "backend_unavailable",
+        title: "Backend unavailable",
+        message: "Unable to reach the server. Check that the backend is running.",
+      });
+      setPageState("backend_unavailable");
+      return;
+    }
+
+    void loadEmails();
+  }, [authStatus, loadEmails]);
+
+  async function onRefresh() {
+    if (authStatus === "authenticated") {
+      await loadEmails();
+      return;
+    }
+
+    await refreshAuth();
+  }
+
+  async function updateReadState(emailId: string, nextReadState: boolean) {
+    setActionError(null);
+    setBusyEmailId(emailId);
+
+    try {
+      const response = nextReadState
+        ? await markEmailRead(emailId)
+        : await markEmailUnread(emailId);
+      const mutation = response.data.email;
+
+      if (typeof mutation.is_read === "boolean") {
+        setEmails((current) =>
+          current.map((email) => mergeEmailMutation(email, mutation)),
+        );
+      } else {
+        await loadEmails();
+      }
+    } catch (error) {
+      setActionError(emailErrorView(error).message);
+    } finally {
+      setBusyEmailId(null);
+    }
+  }
+
+  function renderContent() {
+    if (pageState === "loading") {
+      return <EmailLoadingState />;
+    }
+
+    if (pageState !== "loaded") {
+      const error =
+        pageError ??
+        ({
+          kind: "error",
+          title: "Email error",
+          message: "Something went wrong. Please try again.",
+        } satisfies EmailErrorView);
+
+      return (
+        <EmailErrorState
+          error={error}
+          action={
+            error.kind === "unauthorized" ? (
+              <a href="/login">Sign in</a>
+            ) : (
+              <button type="button" className="mm-btn" onClick={onRefresh}>
+                Retry
+              </button>
+            )
+          }
+        />
+      );
+    }
+
+    if (emails.length === 0) {
+      return (
+        <EmailEmptyState
+          title="No emails today"
+          hint="No messages were returned for today."
+          action={
+            <button type="button" className="mm-btn" onClick={onRefresh}>
+              Refresh
+            </button>
+          }
+        />
+      );
+    }
+
+    if (filteredEmails.length === 0) {
+      return (
+        <EmailEmptyState
+          title="No matching emails"
+          hint="The current read filter has no matching messages."
+        />
+      );
+    }
+
+    return (
+      <EmailList
+        emails={filteredEmails}
+        busyEmailId={busyEmailId}
+        onMarkRead={(emailId) => void updateReadState(emailId, true)}
+        onMarkUnread={(emailId) => void updateReadState(emailId, false)}
+      />
+    );
+  }
+
   return (
     <AppShell>
       <StatusBanner />
       <div style={{ height: 20 }} />
       <PageFrame
         title="Emails"
-        description="Auxiliary list view of today's emails. The primary entry point is the Daily Digest dashboard."
+        description="Messages received today from connected mailboxes."
+        badge={false}
       >
-        {/* Filter bar (static) */}
-        <div className="mm-row" role="group" aria-label="Filters (preview)">
-          {FILTERS.map((f) => (
-            <span className="mm-chip" key={f} aria-disabled="true">
-              {f}
-            </span>
-          ))}
-        </div>
-
-        {/* List skeleton */}
         <section className="mm-card">
-          <div className="mm-card-title">Today&apos;s emails</div>
-          <EmailRowSkeleton />
-          <EmailRowSkeleton />
-          <EmailRowSkeleton />
-          <p className="mm-muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Layout preview only. No emails are loaded and no Gmail sync is
-            implied.
-          </p>
+          <div className="mm-spread" style={{ alignItems: "flex-start" }}>
+            <div className="mm-row">
+              <SegmentedControl
+                label="Read filter"
+                value={filter}
+                options={EMAIL_READ_FILTERS}
+                onChange={setFilter}
+              />
+              <Badge tone="neutral" dot>
+                {filteredEmails.length} shown
+              </Badge>
+            </div>
+            <button
+              type="button"
+              className="mm-btn"
+              onClick={onRefresh}
+              disabled={pageState === "loading"}
+              aria-disabled={pageState === "loading"}
+            >
+              Refresh
+            </button>
+          </div>
+
+          {actionError ? (
+            <div style={{ marginTop: 14 }}>
+              <Badge tone="danger" dot>
+                {actionError}
+              </Badge>
+            </div>
+          ) : null}
         </section>
 
-        {/* Not-connected empty state */}
-        <EmptyState
-          title="No mailbox connected"
-          hint="Connect Gmail in Settings → Mailboxes to load today's emails. Nothing is synced yet."
-        />
+        {renderContent()}
       </PageFrame>
     </AppShell>
   );

@@ -22,10 +22,10 @@ export const API_ROUTES = {
   },
 
   // Section 2 — Gmail OAuth API (/api/auth/gmail)
-  // Routes listed for contract awareness only. T005 must not implement OAuth.
+  // The backend owns the callback route. The frontend only starts login and
+  // requests disconnect.
   gmailAuth: {
     login: "/api/auth/gmail/login",
-    callback: "/api/auth/gmail/callback",
     disconnect: "/api/auth/gmail/disconnect",
   },
 
@@ -41,18 +41,23 @@ export const API_ROUTES = {
   emails: {
     today: "/api/emails/today",
     new: "/api/emails/new",
-    byId: (emailId: string) => `/api/emails/${emailId}`,
-    markRead: (emailId: string) => `/api/emails/${emailId}/mark-read`,
-    markUnread: (emailId: string) => `/api/emails/${emailId}/mark-unread`,
+    byId: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}` as const,
+    markRead: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}/mark-read` as const,
+    markUnread: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}/mark-unread` as const,
   },
 
   // Section 5 — Mailbox API (/api/mailboxes)
   mailboxes: {
     list: "/api/mailboxes",
-    byId: (mailboxId: string) => `/api/mailboxes/${mailboxId}`,
-    syncStatus: (mailboxId: string) =>
-      `/api/mailboxes/${mailboxId}/sync-status`,
-    sync: (mailboxId: string) => `/api/mailboxes/${mailboxId}/sync`,
+    byId: <TMailboxId extends string>(mailboxId: TMailboxId) =>
+      `/api/mailboxes/${mailboxId}` as const,
+    syncStatus: <TMailboxId extends string>(mailboxId: TMailboxId) =>
+      `/api/mailboxes/${mailboxId}/sync-status` as const,
+    sync: <TMailboxId extends string>(mailboxId: TMailboxId) =>
+      `/api/mailboxes/${mailboxId}/sync` as const,
   },
 
   // Section 6 — Job API (/api/jobs)

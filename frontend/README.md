@@ -52,3 +52,36 @@ src/
 - **Plain CSS only.** No Tailwind/shadcn or extra UI dependencies were added.
   `globals.css` defines tokens and reusable classes; structure stays
   Tailwind-ready for a future, intentional migration.
+
+## Theme system
+
+The UI is themeable on two orthogonal axes, both set as data attributes on
+`<html>` and read entirely through CSS variables:
+
+- **preset** (`data-theme-preset`) — shape / density / elevation:
+  `capsule` (default), `clean`, `minimal`, `soft`.
+  `capsule` is the card-pill personality: large radii, pill buttons/inputs,
+  soft shadows, light borders, generous spacing.
+- **mode** (`data-theme-mode`) — `light` (primary target) or `dark`
+  (deep slate, intentionally not pure black so surfaces keep layering).
+
+Implementation:
+
+- `src/lib/theme.ts` — types, preset/mode metadata, validation, and
+  localStorage read/write. Persists ONLY the theme preference
+  (`mailmind-theme` = `"preset:mode"`) — never user, session, token, or
+  mailbox data, and never cookies.
+- `src/components/theme-provider.tsx` — `ThemeProvider` / `useTheme`. Initial
+  choice resolves from localStorage → `prefers-color-scheme` (mode only) →
+  default `capsule light`.
+- `src/app/layout.tsx` — a pre-hydration inline script applies the stored
+  attributes before first paint, so there is **no theme flash and no
+  hydration mismatch**.
+- `src/components/theme-switcher.tsx` + `ui/segmented-control.tsx` — the
+  switcher (preset + mode) lives in the sidebar; a compact mode toggle sits on
+  the login/register cards.
+
+Color tokens (`--color-*`) vary by mode; shape tokens (`--radius-*`,
+`--shadow-*`, `--space-*`, `--border-w`) vary by preset. Legacy `--mm-*`
+variables are kept as aliases onto the new tokens, so components did not need
+per-file edits.
