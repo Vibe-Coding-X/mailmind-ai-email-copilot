@@ -50,6 +50,16 @@ uv run celery -A app.jobs.worker:app worker --loglevel=info --pool=solo
 
 The worker uses Redis by default through `REDIS_URL`. Override `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` only when the broker/result backend should differ from Redis. Tests can set `BACKGROUND_JOBS_EAGER=true` to execute Celery tasks in-process without a long-running worker.
 
+Scheduled job foundation for v0.3 local development:
+
+```powershell
+cd backend
+uv run celery -A app.jobs.worker:app call app.jobs.scheduled_email_sync
+uv run celery -A app.jobs.worker:app call app.jobs.scheduled_digest
+```
+
+These tasks enqueue due jobs; they do not run Celery Beat or a production scheduler. `app.jobs.scheduled_email_sync` queues at most one scheduled sync per active Gmail mailbox per user-local day. `app.jobs.scheduled_digest` queues at most one scheduled digest per active Gmail mailbox per user-local day after `DIGEST_GENERATE_TIME` when `DIGEST_AUTO_GENERATE=true`.
+
 Backend verification:
 
 ```powershell
@@ -112,4 +122,4 @@ The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public product
 - Redis is the default broker and result backend.
 - `app.jobs.worker:app` is the worker entrypoint.
 - `BACKGROUND_JOBS_EAGER=true` runs tasks eagerly for tests and local diagnostics.
-- Scheduled sync and scheduled digest are not enabled by this foundation task.
+- Scheduled sync and scheduled digest foundation tasks can be invoked manually or by an external local scheduler; Celery Beat is not implemented.
