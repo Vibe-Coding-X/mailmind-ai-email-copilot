@@ -1,10 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import type { Mailbox, MailboxSyncStatusData } from "@/lib/api-types";
 import {
-  formatDateTime,
+  formatDateTimeWithRelative,
   isConnectedMailbox,
+  mailboxStateMessage,
   requiresGmailReconnect,
   statusLabel,
+  syncStatusDetail,
   syncStatusSummary,
   syncStatusTone,
 } from "@/lib/mailboxes";
@@ -53,6 +55,11 @@ export function MailboxSyncCard({
               ? "Checking sync status..."
               : syncStatusSummary(loaded)}
           </p>
+          {syncStatus?.state !== "loading" ? (
+            <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {loaded ? syncStatusDetail(loaded) : mailboxStateMessage(mailbox)}
+            </p>
+          ) : null}
         </div>
         <Badge tone={syncStatusTone(loaded?.status)} dot>
           {loaded ? statusLabel(loaded.status) : syncStatus?.state ?? "unknown"}
@@ -65,7 +72,7 @@ export function MailboxSyncCard({
       >
         <SyncDatum
           label="Last successful sync"
-          value={formatDateTime(loaded?.last_successful_sync_at)}
+          value={formatDateTimeWithRelative(loaded?.last_successful_sync_at)}
         />
         <SyncDatum
           label="Last job"
