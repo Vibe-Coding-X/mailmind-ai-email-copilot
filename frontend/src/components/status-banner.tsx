@@ -3,9 +3,8 @@ import { Badge } from "@/components/ui/badge";
 /**
  * StatusBanner — quiet, single-line product-scope notice.
  *
- * Authentication, Gmail, email, and digest surfaces call the backend where
- * available. The digest content remains mock-AI backed until a real provider is
- * configured.
+ * Authentication, Gmail, email, digest, and action surfaces call the backend
+ * where available. AI output remains provider-dependent.
  */
 export function StatusBanner() {
   return (
@@ -13,7 +12,7 @@ export function StatusBanner() {
       <Badge tone="ok" dot>
         Backend connected
       </Badge>
-      <span>Digest content uses the configured backend provider.</span>
+      <span>MailMind data is loaded from the local backend when available.</span>
     </div>
   );
 }

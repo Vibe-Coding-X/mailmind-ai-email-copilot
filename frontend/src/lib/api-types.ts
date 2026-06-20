@@ -264,3 +264,15 @@ export interface DigestItemActionData {
 }
 
 export type DigestItemActionResponse = ApiSuccess<DigestItemActionData>;
+
+export interface UserActionsData {
+  actions: UserAction[];
+}
+
+export type UserActionsResponse = ApiSuccess<UserActionsData>;
+
+export interface UserActionData {
+  action: UserAction;
+}
+
+export type UserActionResponse = ApiSuccess<UserActionData>;

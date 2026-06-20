@@ -74,9 +74,12 @@ export const API_ROUTES = {
 
   // Section 7 — User Action API (/api/actions)
   actions: {
+    list: "/api/actions",
     create: "/api/actions",
-    forDigestItem: (digestItemId: string) =>
-      `/api/actions/digest-items/${digestItemId}`,
+    byId: <TActionId extends string>(actionId: TActionId) =>
+      `/api/actions/${actionId}` as const,
+    forDigestItem: <TDigestItemId extends string>(digestItemId: TDigestItemId) =>
+      `/api/actions/digest-items/${digestItemId}` as const,
   },
 
   // Section 8 — Users API (/api/users)
