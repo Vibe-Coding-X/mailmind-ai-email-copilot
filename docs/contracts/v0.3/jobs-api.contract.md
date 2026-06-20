@@ -81,3 +81,16 @@ Every job response object should include:
   - Returns `400 INVALID_REQUEST` when the job is not failed or the job type cannot be retried.
 
 All endpoints use the existing project envelope: `{ "data": ..., "meta": ... }` for success and `{ "error": ... }` for errors.
+
+## Scheduler-Created Jobs
+
+The v0.3 local MVP scheduler foundation creates jobs through worker tasks rather than user-facing HTTP endpoints:
+
+- `app.jobs.scheduled_email_sync`
+  - Enqueues at most one `scheduled_email_sync` job per active Gmail mailbox per user-local day.
+  - Skips inactive, disconnected, and reauth-required mailboxes.
+- `app.jobs.scheduled_digest`
+  - Enqueues at most one `scheduled_digest` job per active Gmail mailbox per user-local day after the configured local digest time.
+  - Skips when a current digest already exists for that mailbox/date.
+
+Scheduled jobs appear in `GET /api/jobs` and `GET /api/jobs/{job_id}` with the same common job object shape.
