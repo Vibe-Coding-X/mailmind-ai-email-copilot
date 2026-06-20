@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { InlineFeedback } from "@/components/inline-feedback";
 import { EmailToolbar } from "@/components/email-toolbar";
 import type { EmailDetail } from "@/lib/api-types";
 import {
@@ -65,9 +66,9 @@ export function EmailDetailView({
 
         {actionError ? (
           <div style={{ marginTop: 14 }}>
-            <Badge tone="danger" dot>
+            <InlineFeedback tone="danger" title="Email action error">
               {actionError}
-            </Badge>
+            </InlineFeedback>
           </div>
         ) : null}
       </section>
