@@ -45,10 +45,18 @@ Every job response object should include:
 - Job responses must not contain access tokens, refresh tokens, API keys, cookies, authorization headers, raw email bodies, raw Gmail payloads, raw prompts, or raw model responses.
 - Examples must use fake UUIDs and fake data only.
 
-## Planned Endpoints
+## Endpoints
 
 - `GET /api/jobs`
+  - Requires login.
+  - Query params: `limit`, `offset`, `job_type`, `status`, `created_from`, `created_to`.
+  - Returns only current user's jobs.
 - `GET /api/jobs/{job_id}`
+  - Requires login.
+  - Returns `404 INVALID_REQUEST` when the job is absent or belongs to another user.
 - `POST /api/jobs/{job_id}/retry`
+  - Requires login.
+  - The current foundation accepts failed jobs and creates a new `queued` retry row.
+  - Deeper retry limits and worker dispatch behavior are staged for the retry/failure-handling task.
 
-Endpoint implementation is staged after the BE-G background runtime foundation.
+All endpoints use the existing project envelope: `{ "data": ..., "meta": ... }` for success and `{ "error": ... }` for errors.

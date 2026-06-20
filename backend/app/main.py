@@ -8,6 +8,7 @@ from app.api.auth import router as auth_router
 from app.api.digests import router as digests_router
 from app.api.emails import router as emails_router
 from app.api.gmail_auth import router as gmail_auth_router
+from app.api.jobs import router as jobs_router
 from app.api.mailboxes import router as mailboxes_router
 from app.core.config import get_settings
 
@@ -32,6 +33,7 @@ app.include_router(mailboxes_router)
 app.include_router(emails_router)
 app.include_router(digests_router)
 app.include_router(actions_router)
+app.include_router(jobs_router)
 
 
 @app.exception_handler(HTTPException)
