@@ -370,6 +370,123 @@ p {
   padding-left: 14px;
 }
 
+/* ---------- Account menu ---------- */
+
+.mm-account {
+  position: relative;
+}
+
+.mm-account-trigger {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: var(--border-w) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  padding: 10px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.mm-account-trigger:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-primary-soft);
+}
+
+.mm-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mm-account-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mm-account-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.mm-account-sub {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.mm-account-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 20;
+  border: var(--border-w) solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: 12px;
+}
+
+.mm-account-menu-head,
+.mm-account-menu-section {
+  padding: 10px 0;
+  border-bottom: var(--border-w) solid var(--color-border);
+}
+
+.mm-account-menu-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.mm-account-email {
+  margin-top: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.mm-menu-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.mm-menu-link:hover {
+  background: var(--color-surface-muted);
+  text-decoration: none;
+}
+
+.mm-menu-link:disabled,
+.mm-menu-link[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ---------- Cards & sections ---------- */
 
 .mm-card {
@@ -450,6 +567,11 @@ p {
   .mm-feedback {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .mm-account-menu {
+    position: static;
+    margin-top: 10px;
   }
 }
 
