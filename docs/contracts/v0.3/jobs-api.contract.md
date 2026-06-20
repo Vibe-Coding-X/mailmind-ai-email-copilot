@@ -47,6 +47,11 @@ Every job response object should include:
 
 ## Endpoints
 
+- `POST /api/mailboxes/{mailbox_id}/sync-jobs`
+  - Requires login.
+  - Creates an `email_sync` job with `queued` status.
+  - Returns a common job object.
+  - Does not replace the existing synchronous `POST /api/mailboxes/{mailbox_id}/sync`.
 - `GET /api/jobs`
   - Requires login.
   - Query params: `limit`, `offset`, `job_type`, `status`, `created_from`, `created_to`.
