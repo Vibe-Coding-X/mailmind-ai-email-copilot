@@ -47,3 +47,39 @@ def run_digest_job(job_id: str) -> dict[str, object]:
         except Exception:
             db.rollback()
             raise
+
+
+@celery_app.task(name="app.jobs.scheduled_email_sync")
+def run_scheduled_email_sync_jobs() -> dict[str, object]:
+    from app.services.scheduled_job_service import enqueue_due_scheduled_email_sync_jobs
+
+    with SessionLocal() as db:
+        try:
+            result = enqueue_due_scheduled_email_sync_jobs(db)
+            db.commit()
+            return {
+                "job_ids": [str(job_id) for job_id in result.job_ids],
+                "created_count": result.created_count,
+                "skipped_count": result.skipped_count,
+            }
+        except Exception:
+            db.rollback()
+            raise
+
+
+@celery_app.task(name="app.jobs.scheduled_digest")
+def run_scheduled_digest_jobs() -> dict[str, object]:
+    from app.services.scheduled_job_service import enqueue_due_scheduled_digest_jobs
+
+    with SessionLocal() as db:
+        try:
+            result = enqueue_due_scheduled_digest_jobs(db)
+            db.commit()
+            return {
+                "job_ids": [str(job_id) for job_id in result.job_ids],
+                "created_count": result.created_count,
+                "skipped_count": result.skipped_count,
+            }
+        except Exception:
+            db.rollback()
+            raise
