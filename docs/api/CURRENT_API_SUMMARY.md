@@ -1,6 +1,6 @@
 # Current API Summary
 
-This document summarizes the API implemented in `backend/app/api` for `v0.1.0-local-mvp`. It intentionally excludes planned routes that are only described in older design docs.
+This document summarizes the API implemented in `backend/app/api` for `v0.2.0-digest-ai`. It intentionally excludes planned routes that are only described in older design docs.
 
 All application responses use either:
 
@@ -72,10 +72,23 @@ Implemented behavior:
 ## Emails
 
 ```text
+GET  /api/emails
 GET  /api/emails/today
 GET  /api/emails/{email_id}
 POST /api/emails/{email_id}/mark-read
 POST /api/emails/{email_id}/mark-unread
+```
+
+`GET /api/emails` accepts:
+
+```text
+limit=1..100
+offset=0..
+is_read=true|false
+mailbox_id=<uuid>
+received_from=<iso datetime>
+received_to=<iso datetime>
+q=<keyword>
 ```
 
 `GET /api/emails/today` accepts:
@@ -89,6 +102,8 @@ source=all|current_digest
 
 Implemented behavior:
 
+- Lists current-user emails with filters, descending received time, offset/limit
+  pagination, and `has_more` metadata.
 - Lists synced emails received during the current user's local day.
 - Reads an owned email detail record.
 - Writes read/unread state to Gmail first, then updates local `emails.is_read`.
@@ -115,7 +130,8 @@ Implemented behavior:
 
 - Reads the current digest for the user's active Gmail mailbox and local date.
 - Generates or refreshes today's digest synchronously.
-- Uses the mock AI provider unless an explicit in-test provider is injected.
+- Uses the configured v0.2 AI provider chain when `AI_PROVIDER_MODE=env`;
+  otherwise falls back to the mock provider.
 - Creates `daily_digests`, `digest_items`, `ai_runs`, and related `sync_jobs`.
 
 ## Digest Item Actions
@@ -144,14 +160,16 @@ GET  /api/actions/digest-items/{item_id}
 
 Implemented behavior:
 
-- Lists current user's actions with optional filtering.
+- Lists current user's actions with optional filtering by action type, status,
+  provider effect, created date range, and related resource. The list endpoint
+  supports offset/limit pagination and `has_more` metadata.
 - Reads a single user action.
 - Creates a user action record.
 - Lists actions associated with one digest item.
 
-## Planned But Not Implemented in v0.1
+## Planned But Not Implemented in v0.2
 
-The following appear in earlier design docs or frontend placeholders but are not implemented backend routes in v0.1:
+The following appear in earlier design docs or frontend placeholders but are not implemented backend routes in v0.2:
 
 - `GET /api/emails/new`
 - `GET /api/jobs/{job_id}`

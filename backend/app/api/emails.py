@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +12,7 @@ from app.schemas.email import email_detail_payload, email_summary_payload
 from app.services.email_service import (
     EmailServiceError,
     get_owned_email,
+    list_emails,
     list_today_emails,
     mark_email_read_state,
 )
@@ -24,6 +26,49 @@ def _raise_email_error(error: EmailServiceError) -> None:
         status_code=error.status_code,
         detail=error_response(error.code, error.message)["error"],
     )
+
+
+@router.get("")
+def get_emails(
+    limit: int = 50,
+    offset: int = 0,
+    is_read: bool | None = None,
+    mailbox_id: UUID | None = None,
+    received_from: datetime | None = None,
+    received_to: datetime | None = None,
+    q: str | None = None,
+    sort: str = "received_at_desc",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        result = list_emails(
+            db,
+            user=current_user,
+            limit=limit,
+            offset=offset,
+            is_read=is_read,
+            mailbox_id=mailbox_id,
+            received_from=received_from,
+            received_to=received_to,
+            q=q,
+            sort=sort,
+        )
+    except EmailServiceError as exc:
+        _raise_email_error(exc)
+
+    return {
+        "data": {
+            "emails": [email_summary_payload(email) for email in result.emails],
+            "pagination": {
+                "limit": result.limit,
+                "offset": result.offset,
+                "count": len(result.emails),
+                "has_more": result.has_more,
+            },
+        },
+        "meta": {},
+    }
 
 
 @router.get("/today")

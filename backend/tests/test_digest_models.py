@@ -106,6 +106,8 @@ def test_ai_runs_columns_and_constraints_match_database_design() -> None:
         "digest_id",
         "run_type",
         "trigger_source",
+        "provider_id",
+        "provider_type",
         "model_provider",
         "model_name",
         "prompt_version",

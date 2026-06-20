@@ -116,6 +116,7 @@ class GmailProvider:
         before_date = window_end.astimezone(UTC).date() + timedelta(days=1)
         query = f"after:{after_date:%Y/%m/%d} before:{before_date:%Y/%m/%d}"
         message_ids: list[str] = []
+        seen_message_ids: set[str] = set()
         page_token: str | None = None
 
         while True:
@@ -135,11 +136,12 @@ class GmailProvider:
             )
             self._raise_for_response(response)
             payload = response.json()
-            message_ids.extend(
-                str(message["id"])
-                for message in payload.get("messages", [])
-                if message.get("id")
-            )
+            for message in payload.get("messages", []):
+                message_id = str(message.get("id") or "")
+                if not message_id or message_id in seen_message_ids:
+                    continue
+                seen_message_ids.add(message_id)
+                message_ids.append(message_id)
             page_token = payload.get("nextPageToken")
             if not page_token:
                 return message_ids

@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.models.ai_run import AIRun
+from app.utils.redaction import safe_error_message
 
 
 def create_ai_run(
@@ -17,6 +18,8 @@ def create_ai_run(
     mailbox_id: UUID,
     digest_id: UUID | None,
     trigger_source: str,
+    provider_id: str | None = None,
+    provider_type: str | None = None,
     model_provider: str,
     model_name: str,
     prompt_version: str,
@@ -32,6 +35,8 @@ def create_ai_run(
         digest_id=digest_id,
         run_type="daily_digest",
         trigger_source=trigger_source,
+        provider_id=provider_id,
+        provider_type=provider_type,
         model_provider=model_provider,
         model_name=model_name,
         prompt_version=prompt_version,
@@ -78,7 +83,7 @@ def mark_ai_run_failed(
 ) -> AIRun:
     run.status = "failed"
     run.error_code = error_code
-    run.error_message = error_message[:1000]
+    run.error_message = safe_error_message(error_message, max_length=1000) or ""
     run.finished_at = _ensure_utc(now or datetime.now(UTC))
     return run
 

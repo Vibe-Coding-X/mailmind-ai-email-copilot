@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
-from app.ai.base import LLMResponse
+from app.ai.base import LLMProviderError, LLMResponse
 from app.db.models.email import Email
 from app.db.models.mailbox import Mailbox
 from app.db.session import SessionLocal
@@ -94,6 +94,18 @@ class StaticProvider:
         )
 
 
+class FailingProvider:
+    provider_id = "primary"
+    provider_type = "openai_compatible"
+    provider_name = "openai_compatible"
+    model_name = "qwen3.6-plus"
+
+    def generate_digest(self, prompt: str) -> LLMResponse:
+        raise LLMProviderError(
+            "Provider failed with api_key=secret sk-real-looking-secret"
+        )
+
+
 def _current_test_received_at() -> datetime:
     return datetime.now(UTC) - timedelta(minutes=5)
 
@@ -152,3 +164,19 @@ def test_refresh_today_digest_api_replaces_current_digest(monkeypatch) -> None:
     assert second.status_code == 200
     assert second.json()["data"]["digest"]["version"] == 2
     assert second.json()["data"]["digest"]["is_current"] is True
+
+
+def test_generate_today_digest_api_hides_provider_error_details(monkeypatch) -> None:
+    client, user_id = _register_client("digest-error-api")
+    _create_mailbox_and_email(user_id, prefix="digest-api")
+    monkeypatch.setattr("app.services.digest_service.get_llm_provider", lambda: FailingProvider())
+
+    response = client.post("/api/digest/today/generate")
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["error"]["code"] == "DIGEST_GENERATION_FAILED"
+    assert body["error"]["message"] == "Daily digest generation failed."
+    serialized = json.dumps(body)
+    assert "secret" not in serialized
+    assert "sk-real-looking-secret" not in serialized

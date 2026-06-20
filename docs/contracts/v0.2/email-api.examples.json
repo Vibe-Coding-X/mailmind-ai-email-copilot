@@ -1,0 +1,45 @@
+{
+  "getEmails": {
+    "request": {
+      "method": "GET",
+      "path": "/api/emails",
+      "query": {
+        "limit": 20,
+        "offset": 0,
+        "is_read": false,
+        "mailbox_id": "00000000-0000-0000-0000-000000000001",
+        "received_from": "2026-06-17T00:00:00Z",
+        "received_to": "2026-06-20T00:00:00Z",
+        "q": "quarterly",
+        "sort": "received_at_desc"
+      }
+    },
+    "response": {
+      "data": {
+        "emails": [
+          {
+            "id": "00000000-0000-0000-0000-000000000101",
+            "mailbox_id": "00000000-0000-0000-0000-000000000001",
+            "provider": "gmail",
+            "external_id": "gmail-message-id",
+            "thread_id": "gmail-thread-id",
+            "subject": "Quarterly planning",
+            "sender": "sender@example.com",
+            "recipients": ["me@example.com"],
+            "snippet": "Please review the plan.",
+            "received_at": "2026-06-19T10:00:00Z",
+            "is_read": false,
+            "labels": ["INBOX", "UNREAD"]
+          }
+        ],
+        "pagination": {
+          "limit": 20,
+          "offset": 0,
+          "count": 1,
+          "has_more": false
+        }
+      },
+      "meta": {}
+    }
+  }
+}

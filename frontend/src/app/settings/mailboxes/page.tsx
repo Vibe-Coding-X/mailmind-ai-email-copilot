@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { InlineFeedback } from "@/components/inline-feedback";
 import { SettingsSection } from "@/components/settings-section";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,7 +24,12 @@ import {
   triggerMailboxSync,
 } from "@/lib/api-client";
 import type { Mailbox } from "@/lib/api-types";
-import { requiresGmailReconnect, syncResultMessage } from "@/lib/mailboxes";
+import {
+  formatDateTimeWithRelative,
+  mailboxStateMessage,
+  requiresGmailReconnect,
+  syncResultMessage,
+} from "@/lib/mailboxes";
 
 type MailboxLoadState =
   | "loading"
@@ -104,19 +110,6 @@ function mailboxStatusTone(status: string): BadgeTone {
     default:
       return "info";
   }
-}
-
-function formatDateTime(value: string | null): string {
-  if (value === null) {
-    return "Never";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
 }
 
 function actionButtonStyle(disabled: boolean): React.CSSProperties {
@@ -292,6 +285,13 @@ export default function MailboxSettingsPage() {
   }
 
   async function onDisconnectGmail() {
+    const confirmed = window.confirm(
+      "Disconnect Gmail from MailMind? Email data already synced remains in MailMind, but new Gmail syncs will stop.",
+    );
+    if (!confirmed) {
+      return;
+    }
+
     setActionError(null);
     setActionMessage(null);
     setDisconnecting(true);
@@ -443,6 +443,9 @@ export default function MailboxSettingsPage() {
                 <p className="mm-muted" style={{ fontSize: 12, marginTop: 2 }}>
                   {mailbox.provider} account
                 </p>
+                <p className="mm-muted" style={{ fontSize: 12, marginTop: 6 }}>
+                  {mailboxStateMessage(mailbox)}
+                </p>
               </div>
               <Badge tone={mailboxStatusTone(mailbox.status)} dot>
                 {statusLabel(mailbox.status)}
@@ -494,8 +497,11 @@ export default function MailboxSettingsPage() {
                 <div style={{ fontSize: 13 }}>
                   <div>{gmailMailbox.email_address}</div>
                   <div className="mm-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                    Updated {formatDateTime(gmailMailbox.updated_at)}
+                    Updated {formatDateTimeWithRelative(gmailMailbox.updated_at)}
                   </div>
+                  <p className="mm-muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    {mailboxStateMessage(gmailMailbox)}
+                  </p>
                 </div>
               ) : (
                 <p className="mm-muted" style={{ fontSize: 13 }}>
@@ -543,24 +549,28 @@ export default function MailboxSettingsPage() {
 
           {actionError ? (
             <div style={{ marginTop: 14 }}>
-              <Badge tone="danger" dot>
+              <InlineFeedback tone="danger" title="Mailbox action error">
                 {actionError}
-              </Badge>
+              </InlineFeedback>
             </div>
           ) : null}
 
           {actionMessage ? (
             <div style={{ marginTop: 14 }}>
-              <Badge tone="ok" dot>
+              <InlineFeedback tone="success" title="Mailbox updated">
                 {actionMessage}
-              </Badge>
+              </InlineFeedback>
             </div>
           ) : null}
         </SettingsSection>
 
         <SettingsSection
           title="Mailbox list"
-          description="Connected mailbox state and sync activity."
+          description={
+            mailboxes.length > 1
+              ? "Connected mailbox state and sync activity. Each mailbox syncs independently."
+              : "Connected mailbox state and sync activity."
+          }
         >
           {renderMailboxList()}
         </SettingsSection>

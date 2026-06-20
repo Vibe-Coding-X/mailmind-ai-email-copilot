@@ -34,7 +34,14 @@ export const API_ROUTES = {
     today: "/api/digest/today",
     todayGenerate: "/api/digest/today/generate",
     todayRefresh: "/api/digest/today/refresh",
-    byId: (digestId: string) => `/api/digest/${digestId}`,
+    byId: <TDigestId extends string>(digestId: TDigestId) =>
+      `/api/digest/${digestId}` as const,
+    itemMarkDone: <TItemId extends string>(itemId: TItemId) =>
+      `/api/digest/items/${itemId}/mark-done` as const,
+    itemDismiss: <TItemId extends string>(itemId: TItemId) =>
+      `/api/digest/items/${itemId}/dismiss` as const,
+    itemSnooze: <TItemId extends string>(itemId: TItemId) =>
+      `/api/digest/items/${itemId}/snooze` as const,
   },
 
   // Section 4 — Email API (/api/emails)
@@ -67,9 +74,12 @@ export const API_ROUTES = {
 
   // Section 7 — User Action API (/api/actions)
   actions: {
+    list: "/api/actions",
     create: "/api/actions",
-    forDigestItem: (digestItemId: string) =>
-      `/api/actions/digest-items/${digestItemId}`,
+    byId: <TActionId extends string>(actionId: TActionId) =>
+      `/api/actions/${actionId}` as const,
+    forDigestItem: <TDigestItemId extends string>(digestItemId: TDigestItemId) =>
+      `/api/actions/digest-items/${digestItemId}` as const,
   },
 
   // Section 8 — Users API (/api/users)

@@ -194,3 +194,85 @@ export interface EmailMutationData {
 }
 
 export type EmailMutationResponse = ApiSuccess<EmailMutationData>;
+
+export type DigestStatus = "fresh" | "stale" | "failed" | string;
+export type DigestTriggerSource = "manual" | "refresh" | "scheduled" | string;
+export type DigestItemPriority = "high" | "medium" | "low" | string;
+
+export interface DigestItem {
+  id: string;
+  digest_id: string;
+  email_id: string;
+  item_type: string;
+  section: string;
+  title: string;
+  summary: string;
+  category: string;
+  suggested_action: string;
+  priority: DigestItemPriority;
+  reason: string | null;
+  deadline: string | null;
+  confidence: number;
+  display_order: number;
+}
+
+export interface Digest {
+  id: string;
+  mailbox_id: string;
+  digest_date: string;
+  version: number;
+  is_current: boolean;
+  status: DigestStatus;
+  trigger_source: DigestTriggerSource;
+  coverage_start: string;
+  coverage_end: string;
+  generated_at: string;
+  mail_count: number;
+  new_mail_count_after_digest: number;
+  overview: Record<string, unknown>;
+  summary: string | null;
+  items: DigestItem[];
+}
+
+export interface DigestData {
+  digest: Digest;
+}
+
+export type DigestResponse = ApiSuccess<DigestData>;
+
+export interface UserAction {
+  id: string;
+  user_id: string;
+  mailbox_id: string | null;
+  digest_id: string | null;
+  digest_item_id: string | null;
+  email_id: string | null;
+  action_type: string;
+  action_status: string;
+  source: string;
+  provider_effect: string;
+  created_at: string;
+  executed_at: string | null;
+  before_state?: Record<string, unknown> | null;
+  after_state?: Record<string, unknown> | null;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+export interface DigestItemActionData {
+  action: UserAction;
+}
+
+export type DigestItemActionResponse = ApiSuccess<DigestItemActionData>;
+
+export interface UserActionsData {
+  actions: UserAction[];
+}
+
+export type UserActionsResponse = ApiSuccess<UserActionsData>;
+
+export interface UserActionData {
+  action: UserAction;
+}
+
+export type UserActionResponse = ApiSuccess<UserActionData>;

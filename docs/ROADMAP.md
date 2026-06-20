@@ -1,6 +1,6 @@
 # MailMind Roadmap
 
-This roadmap describes planned product direction after `v0.1.0-local-mvp`. It is not a commitment that later items are implemented today.
+This roadmap describes planned product direction after `v0.2.0-digest-ai`. It is not a commitment that later items are implemented today.
 
 ## v0.1 Local MVP
 
@@ -18,23 +18,21 @@ Scope:
 - `daily_digests`, `digest_items`, `ai_runs`, `sync_jobs`, and `user_actions` persistence.
 - Frontend mailbox settings, email list/detail, theme system, and static digest preview.
 
-## v0.2 Digest Dashboard / Frontend Digest UI
+## v0.2 Digest AI
+
+Status: completed.
 
 - Wire the dashboard to `GET /api/digest/today`.
 - Add frontend generate and refresh actions.
 - Render digest sections from `digest_items`.
 - Expose digest freshness, failure, and empty states.
 - Surface digest item actions in the UI.
+- Add environment-configured OpenAI-compatible AI provider support.
+- Record AI provider/model metadata in `ai_runs`.
+- Add email query filters and action-history query filters.
+- Harden Gmail sync and secret redaction behavior.
 
-## v0.3 Real AI Provider
-
-- Add a real LLM provider implementation behind the existing AI abstraction.
-- Keep the mock provider for deterministic tests.
-- Add provider configuration and secret-handling rules.
-- Improve prompt and parser validation.
-- Add cost, latency, and failure reporting from real calls.
-
-## v0.4 Background Jobs / Scheduled Sync
+## v0.3 Background Jobs / Scheduled Sync
 
 - Introduce Celery worker and beat processes.
 - Move email sync and digest generation into background jobs.
@@ -42,14 +40,14 @@ Scope:
 - Add job polling or push-based status updates.
 - Revisit Redis usage for token cache and job coordination.
 
-## v0.5 Multi Mailbox
+## v0.4 Multi Mailbox
 
 - Support more than one connected mailbox per user.
 - Define aggregate digest behavior across mailboxes.
 - Add mailbox-level filters and per-mailbox sync controls.
 - Evaluate Outlook and IMAP provider implementations.
 
-## v0.6 Open Source Ready / CI / Docker Polish
+## v0.5 Open Source Ready / CI / Docker Polish
 
 - Add CI for backend tests, frontend typecheck/lint/build, and migration checks.
 - Improve Docker Compose for full-stack local runs.

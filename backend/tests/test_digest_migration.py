@@ -59,6 +59,9 @@ def test_digest_migration_upgrades_and_downgrades() -> None:
         }
         assert "generate_daily_digest" in checks["sync_jobs_job_type_check"]
         assert "refresh_daily_digest" in checks["sync_jobs_job_type_check"]
+        assert {"provider_id", "provider_type"}.issubset(
+            {column["name"] for column in inspector.get_columns("ai_runs")}
+        )
     finally:
         engine.dispose()
 

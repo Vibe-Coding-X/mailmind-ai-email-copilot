@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.ai.base import LLMProvider
+from app.ai.base import LLMProvider, LLMProviderError
 from app.ai.llm_client import get_llm_provider
 from app.ai.parsers.digest_parser import DigestParseError, parse_digest_output
 from app.ai.prompts.digest import build_digest_prompt
@@ -26,6 +26,7 @@ from app.services.ai_run_service import (
     mark_ai_run_failed,
     mark_ai_run_succeeded,
 )
+from app.utils.redaction import safe_error_message
 
 
 class DigestServiceError(Exception):
@@ -212,6 +213,8 @@ def _generate_digest(
             mailbox_id=mailbox.id,
             digest_id=digest.id,
             trigger_source=trigger_source,
+            provider_id=getattr(provider, "provider_id", None),
+            provider_type=getattr(provider, "provider_type", None),
             model_provider=provider.provider_name,
             model_name=provider.model_name,
             prompt_version=prompt.prompt_version,
@@ -224,6 +227,10 @@ def _generate_digest(
         started = time.perf_counter()
         response = provider.generate_digest(prompt.text)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+        ai_run.provider_id = response.provider_id or ai_run.provider_id
+        ai_run.provider_type = response.provider_type or ai_run.provider_type
+        ai_run.model_provider = response.model_provider
+        ai_run.model_name = response.model_name
         parsed = parse_digest_output(
             response.text,
             {email.external_id: email for email in emails},
@@ -263,7 +270,33 @@ def _generate_digest(
             },
             now=resolved_now,
         )
-    except (DigestParseError, Exception) as exc:
+    except LLMProviderError as exc:
+        _fail_generation(
+            digest=digest,
+            job=job,
+            ai_run=ai_run,
+            error_message="Provider request failed.",
+            now=resolved_now,
+        )
+        raise DigestServiceError(
+            "DIGEST_GENERATION_FAILED",
+            "Daily digest generation failed.",
+            502,
+        ) from exc
+    except DigestParseError as exc:
+        _fail_generation(
+            digest=digest,
+            job=job,
+            ai_run=ai_run,
+            error_message=_diagnostic_for_parse_error(exc),
+            now=resolved_now,
+        )
+        raise DigestServiceError(
+            "DIGEST_GENERATION_FAILED",
+            "Daily digest generation failed.",
+            502,
+        ) from exc
+    except Exception as exc:
         _fail_digest_job(
             digest=digest,
             job=job,
@@ -280,6 +313,33 @@ def _generate_digest(
 
     db.flush()
     return digest
+
+
+def _fail_generation(
+    *,
+    digest: DailyDigest,
+    job: SyncJob,
+    ai_run: AIRun | None,
+    error_message: str,
+    now: datetime,
+) -> None:
+    _fail_digest_job(
+        digest=digest,
+        job=job,
+        ai_run=ai_run,
+        error_code="DIGEST_GENERATION_FAILED",
+        error_message=error_message,
+        now=now,
+    )
+
+
+def _diagnostic_for_parse_error(error: DigestParseError) -> str:
+    message = str(error)
+    if "valid JSON" in message:
+        return "Provider response was not valid JSON."
+    if "Unknown email_id" in message:
+        return "Provider response referenced unknown email_id."
+    return "Provider response did not match digest.v1."
 
 
 def _get_user(db: Session, user_id: UUID | str) -> User:
@@ -443,7 +503,7 @@ def _fail_digest_job(
     digest.updated_at = now
     job.status = "failed"
     job.error_code = error_code
-    job.error_message = error_message
+    job.error_message = safe_error_message(error_message, max_length=1000) or ""
     job.finished_at = now
     if ai_run is not None:
         mark_ai_run_failed(

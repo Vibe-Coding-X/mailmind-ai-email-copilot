@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = Field(default=SecretStr(""), repr=False)
     llm_model: str = ""
 
+    ai_provider_mode: str = ""
+    ai_default_provider: str = ""
+    ai_provider_order: str = ""
+
     default_timezone: str = "Asia/Shanghai"
 
     digest_auto_generate: bool = True
