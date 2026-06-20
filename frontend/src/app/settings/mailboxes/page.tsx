@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { InlineFeedback } from "@/components/inline-feedback";
 import { SettingsSection } from "@/components/settings-section";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -548,17 +549,17 @@ export default function MailboxSettingsPage() {
 
           {actionError ? (
             <div style={{ marginTop: 14 }}>
-              <Badge tone="danger" dot>
+              <InlineFeedback tone="danger" title="Mailbox action error">
                 {actionError}
-              </Badge>
+              </InlineFeedback>
             </div>
           ) : null}
 
           {actionMessage ? (
             <div style={{ marginTop: 14 }}>
-              <Badge tone="ok" dot>
+              <InlineFeedback tone="success" title="Mailbox updated">
                 {actionMessage}
-              </Badge>
+              </InlineFeedback>
             </div>
           ) : null}
         </SettingsSection>

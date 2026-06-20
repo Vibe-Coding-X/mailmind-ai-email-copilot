@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge } from "@/components/ui/badge";
+import { InlineFeedback } from "@/components/inline-feedback";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EmailList } from "@/components/email-list";
 import { EmailLoadingState } from "@/components/email-loading-state";
@@ -275,9 +276,9 @@ export default function EmailsTodayPage() {
 
           {actionError ? (
             <div style={{ marginTop: 14 }}>
-              <Badge tone="danger" dot>
+              <InlineFeedback tone="danger" title="Email action error">
                 {actionError}
-              </Badge>
+              </InlineFeedback>
             </div>
           ) : null}
         </section>

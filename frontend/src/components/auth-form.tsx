@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/lib/auth";
 import { ApiRequestError } from "@/lib/api-client";
-import { Badge } from "@/components/ui/badge";
+import { InlineFeedback } from "@/components/inline-feedback";
 
 type Mode = "login" | "register";
 
@@ -115,9 +115,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       {error ? (
         <div style={{ marginBottom: 12 }}>
-          <Badge tone="danger" dot>
+          <InlineFeedback tone="danger" title="Sign-in error">
             {error}
-          </Badge>
+          </InlineFeedback>
         </div>
       ) : null}
 
