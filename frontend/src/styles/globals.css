@@ -2,7 +2,8 @@
  * MailMind frontend global styles — theme system.
  *
  * Theming has two orthogonal axes set on <html>:
- *   data-theme-preset = capsule | clean | minimal | soft   (shape / density / depth)
+ *   data-theme-preset = amber-focus | noir-pulse | paper-calm | dense-minimal
+ *                       (color language / density / depth)
  *   data-theme-mode   = light | dark                        (color)
  *
  * Tokens are split accordingly:
@@ -23,8 +24,9 @@
   --mm-display: Georgia, "Times New Roman", ui-serif, serif;
   --mm-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --mm-transition: 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  --mm-letter: 0;
 
-  /* Shape / space defaults (capsule). Overridden per preset below. */
+  /* Shape / space defaults (Amber Focus). Overridden per preset below. */
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
@@ -33,12 +35,16 @@
   --border-w: 1px;
   --space-page: 36px;
   --space-section: 22px;
+  --space-card-y: 20px;
+  --space-card-x: 22px;
+  --nav-gap: 6px;
+  --decor-opacity: 1;
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
     0 6px 18px rgba(15, 23, 42, 0.06);
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05),
     0 10px 30px rgba(15, 23, 42, 0.08);
 
-  /* Color defaults (capsule light). Overridden per mode below. */
+  /* Color defaults (Amber Focus light). Overridden per mode/preset below. */
   --color-bg: #fff7ed;
   --color-surface: #ffffff;
   --color-surface-muted: #ffedd5;
@@ -115,8 +121,13 @@
  * SHAPE / DENSITY / ELEVATION — per preset
  * ============================================================ */
 
-/* Capsule — rounded cards, pill controls, soft depth, light borders. */
-[data-theme-preset="capsule"] {
+/* Amber Focus — warm, clear, default productivity language. */
+[data-theme-preset="amber-focus"] {
+  --mm-display: Georgia, "Times New Roman", ui-serif, serif;
+  --mm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-transition: 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  --mm-letter: 0;
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 22px;
@@ -125,71 +136,170 @@
   --border-w: 1px;
   --space-page: 38px;
   --space-section: 24px;
+  --space-card-y: 20px;
+  --space-card-x: 22px;
+  --nav-gap: 6px;
+  --decor-opacity: 1;
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04),
     0 8px 22px rgba(15, 23, 42, 0.07);
   --shadow-card: 0 2px 4px rgba(15, 23, 42, 0.05),
     0 14px 36px rgba(15, 23, 42, 0.09);
 }
-[data-theme-preset="capsule"][data-theme-mode="dark"] {
+[data-theme-preset="amber-focus"][data-theme-mode="dark"] {
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 22px rgba(0, 0, 0, 0.32);
   --shadow-card: 0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.4);
 }
 
-/* Clean — crisp, moderate radius, defined borders, subtle shadow. */
-[data-theme-preset="clean"] {
-  --radius-sm: 6px;
+/* Noir Pulse — dark-first, high contrast, stronger signal color. */
+[data-theme-preset="noir-pulse"] {
+  --mm-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-transition: 110ms cubic-bezier(0.16, 1, 0.3, 1);
+  --mm-letter: 0.01em;
+  --radius-sm: 8px;
   --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-pill: 999px;
   --border-w: 1px;
-  --space-page: 32px;
+  --space-page: 34px;
   --space-section: 20px;
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
-}
-[data-theme-preset="clean"][data-theme-mode="dark"] {
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --space-card-y: 18px;
+  --space-card-x: 20px;
+  --nav-gap: 5px;
+  --decor-opacity: 1;
+  --shadow-soft: 0 0 0 1px rgba(245, 158, 11, 0.16),
+    0 12px 30px rgba(0, 0, 0, 0.24);
+  --shadow-card: 0 0 0 1px rgba(245, 158, 11, 0.2),
+    0 18px 38px rgba(0, 0, 0, 0.3);
+  --color-bg: #080b12;
+  --color-surface: #111827;
+  --color-surface-muted: #162033;
+  --color-text: #fff7ed;
+  --color-text-muted: #cbd5e1;
+  --color-text-faint: #94a3b8;
+  --color-border: #334155;
+  --color-border-strong: #f59e0b;
+  --color-primary: #f59e0b;
+  --color-primary-strong: #fde68a;
+  --color-on-primary: #080b12;
+  --color-primary-soft: rgba(245, 158, 11, 0.22);
+  --color-danger: #fb7185;
+  --color-warning: #facc15;
+  --color-success: #22c55e;
+  --color-danger-soft: rgba(251, 113, 133, 0.16);
+  --color-warning-soft: rgba(250, 204, 21, 0.16);
+  --color-success-soft: rgba(34, 197, 94, 0.16);
+  color-scheme: dark;
 }
 
-/* Minimal — hairline borders, flat, square-ish, quiet. */
-[data-theme-preset="minimal"] {
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
+[data-theme-preset="noir-pulse"][data-theme-mode="light"] {
+  --color-bg: #10141f;
+  --color-surface: #182132;
+  --color-surface-muted: #202c42;
+  --color-text: #fff7ed;
+  --color-text-muted: #dbe4f0;
+  --color-border: #3f4f68;
+  --shadow-soft: 0 0 0 1px rgba(245, 158, 11, 0.14),
+    0 10px 26px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 0 0 1px rgba(245, 158, 11, 0.18),
+    0 16px 34px rgba(0, 0, 0, 0.26);
+  color-scheme: dark;
+}
+
+[data-theme-preset="noir-pulse"][data-theme-mode="dark"] {
+  --color-bg: #05070d;
+  --color-surface: #0b1220;
+  --color-surface-muted: #111b2d;
+  --color-border: #273449;
+  --color-border-strong: #fbbf24;
+  --color-primary-strong: #fef3c7;
+  color-scheme: dark;
+}
+
+/* Paper Calm — reading-first, lower saturation, soft page contrast. */
+[data-theme-preset="paper-calm"] {
+  --mm-display: Georgia, "Times New Roman", ui-serif, serif;
+  --mm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-transition: 220ms ease;
+  --mm-letter: 0;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 999px;
   --border-w: 1px;
-  --space-page: 30px;
-  --space-section: 18px;
+  --space-page: 42px;
+  --space-section: 26px;
+  --space-card-y: 24px;
+  --space-card-x: 26px;
+  --nav-gap: 8px;
+  --decor-opacity: 0.65;
+  --shadow-soft: none;
+  --shadow-card: 0 1px 0 rgba(120, 113, 108, 0.12);
+  --color-bg: #f8f1e7;
+  --color-surface: #fffaf3;
+  --color-surface-muted: #efe4d4;
+  --color-text: #292524;
+  --color-text-muted: #78716c;
+  --color-text-faint: #a8a29e;
+  --color-border: #e7d8c7;
+  --color-border-strong: #d6b996;
+  --color-primary: #b45309;
+  --color-primary-strong: #92400e;
+  --color-on-primary: #fffaf3;
+  --color-primary-soft: rgba(180, 83, 9, 0.12);
+  --color-danger: #b91c1c;
+  --color-warning: #a16207;
+  --color-success: #15803d;
+  --color-danger-soft: rgba(185, 28, 28, 0.1);
+  --color-warning-soft: rgba(161, 98, 7, 0.12);
+  --color-success-soft: rgba(21, 128, 61, 0.1);
+  color-scheme: light;
+}
+
+[data-theme-preset="paper-calm"][data-theme-mode="dark"] {
+  --color-bg: #1c1917;
+  --color-surface: #292524;
+  --color-surface-muted: #332d2a;
+  --color-text: #faf7f2;
+  --color-text-muted: #d6d3d1;
+  --color-text-faint: #a8a29e;
+  --color-border: #57534e;
+  --color-border-strong: #78716c;
+  --color-primary: #f59e0b;
+  --color-primary-strong: #fbbf24;
+  --color-on-primary: #1c1917;
+  --color-primary-soft: rgba(245, 158, 11, 0.16);
+  --shadow-card: 0 1px 0 rgba(255, 247, 237, 0.08);
+  color-scheme: dark;
+}
+
+/* Dense Minimal — compact, flat, low decoration for heavy scanning. */
+[data-theme-preset="dense-minimal"] {
+  --mm-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --mm-transition: 90ms linear;
+  --mm-letter: 0;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-pill: 4px;
+  --border-w: 1px;
+  --space-page: 24px;
+  --space-section: 14px;
+  --space-card-y: 14px;
+  --space-card-x: 16px;
+  --nav-gap: 2px;
+  --decor-opacity: 0.35;
   --shadow-soft: none;
   --shadow-card: none;
-}
-
-/* Soft — gentle tints, larger radius, very low contrast elevation. */
-[data-theme-preset="soft"] {
-  --radius-sm: 12px;
-  --radius-md: 18px;
-  --radius-lg: 24px;
-  --radius-xl: 32px;
-  --radius-pill: 999px;
-  --border-w: 1px;
-  --space-page: 40px;
-  --space-section: 26px;
-  --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.05);
-  --shadow-card: 0 4px 20px rgba(15, 23, 42, 0.07);
-}
-[data-theme-preset="soft"][data-theme-mode="dark"] {
-  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.32);
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.36);
-}
-
-/* Soft mode tints the background a touch warmer/cooler for personality. */
-[data-theme-preset="soft"][data-theme-mode="light"] {
-  --color-bg: #fff7ed;
-  --color-surface-muted: #ffedd5;
-  --color-border: #fed7aa;
 }
 
 /* ============================================================
@@ -263,7 +373,7 @@ h4 {
   line-height: 1.25;
   margin: 0;
   font-family: var(--mm-display);
-  letter-spacing: 0;
+  letter-spacing: var(--mm-letter);
 }
 
 p {
@@ -342,7 +452,7 @@ p {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--nav-gap);
 }
 
 .mm-nav-link {
@@ -371,12 +481,21 @@ p {
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18);
 }
 
-[data-theme-preset="capsule"] .mm-nav-link {
+[data-theme-preset="amber-focus"] .mm-nav-link {
   border-left-width: 3px;
   border-radius: var(--radius-md);
 }
-[data-theme-preset="capsule"] .mm-nav-link[aria-current="page"] {
+[data-theme-preset="amber-focus"] .mm-nav-link[aria-current="page"] {
   padding-left: 14px;
+}
+
+[data-theme-preset="noir-pulse"] .mm-nav-link[aria-current="page"] {
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.32),
+    0 0 18px rgba(245, 158, 11, 0.12);
+}
+
+[data-theme-preset="dense-minimal"] .mm-nav-link {
+  padding: 6px 8px;
 }
 
 .mm-nav-icon {
@@ -509,7 +628,7 @@ p {
   border: var(--border-w) solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  padding: 20px 22px;
+  padding: var(--space-card-y) var(--space-card-x);
   box-shadow: var(--shadow-soft);
   position: relative;
 }
@@ -528,7 +647,7 @@ p {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: 3px;
+  width: calc(3px * var(--decor-opacity));
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   background: transparent;
 }
@@ -541,7 +660,7 @@ p {
 .mm-card--summary {
   border-color: var(--color-border-strong);
   background: linear-gradient(90deg, var(--color-primary-soft), var(--color-surface));
-  padding-left: 28px;
+  padding-left: calc(var(--space-card-x) + 6px);
 }
 
 .mm-card--summary::before {
@@ -701,7 +820,7 @@ p {
   font-size: 13px;
   color: var(--color-text-muted);
 }
-[data-theme-preset="capsule"] .mm-banner {
+[data-theme-preset="amber-focus"] .mm-banner {
   border-left-width: var(--border-w);
   border-radius: var(--radius-pill);
   padding-left: 20px;
@@ -822,7 +941,7 @@ p {
   font-family: inherit;
   transition: border-color var(--mm-transition);
 }
-[data-theme-preset="capsule"] .mm-input {
+[data-theme-preset="amber-focus"] .mm-input {
   border-radius: var(--radius-pill);
   padding: 10px 16px;
 }
@@ -852,7 +971,7 @@ p {
   transition: background var(--mm-transition), border-color var(--mm-transition),
     opacity var(--mm-transition);
 }
-[data-theme-preset="capsule"] .mm-btn {
+[data-theme-preset="amber-focus"] .mm-btn {
   border-radius: var(--radius-pill);
   padding: 9px 20px;
 }
