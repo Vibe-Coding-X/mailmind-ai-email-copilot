@@ -46,9 +46,9 @@ interface SnoozeOption {
 
 type TFunction = (key: TranslationKey) => string;
 
-function digestErrorView(error: unknown, t: TFunction): DigestErrorView {
+export function digestErrorView(error: unknown, t: TFunction): DigestErrorView {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401 || error.code === "UNAUTHORIZED") {
+    if (error.code === "UNAUTHORIZED") {
       return {
         state: "unauthorized",
         title: t("account.notSignedIn"),
@@ -161,7 +161,8 @@ function groupDigestItems(items: DigestItem[]): Array<{
   const grouped = new Map<string, DigestItem[]>();
 
   for (const item of items) {
-    const section = item.section.trim().length > 0 ? item.section : "review";
+    const trimmedSection = item.section?.trim() ?? "";
+    const section = trimmedSection.length > 0 ? trimmedSection : "review";
     grouped.set(section, [...(grouped.get(section) ?? []), item]);
   }
 
@@ -753,7 +754,9 @@ function DigestItemRow({
               overflowWrap: "anywhere",
             }}
           >
-            {item.title.trim().length > 0 ? item.title : t("digest.untitledItem")}
+            {(item.title?.trim() ?? "").length > 0
+              ? item.title
+              : t("digest.untitledItem")}
           </h3>
           <p
             className="mm-muted"
@@ -764,7 +767,7 @@ function DigestItemRow({
               whiteSpace: "pre-wrap",
             }}
           >
-            {item.summary}
+            {item.summary ?? ""}
           </p>
         </div>
         <Badge tone={priorityTone(item.priority)} dot>
@@ -818,7 +821,7 @@ function DigestItemRow({
         </button>
         <select
           className="mm-input"
-          aria-label={`Snooze ${item.title}`}
+          aria-label={`Snooze ${item.title ?? t("digest.untitledItem")}`}
           defaultValue={defaultSnoozeValue}
           disabled={busy}
           onChange={(event) => onSnoozeValueChange(item.id, event.target.value)}
