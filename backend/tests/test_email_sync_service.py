@@ -13,7 +13,12 @@ from app.db.session import SessionLocal
 from app.providers.base import ProviderEmailMessage, ProviderError
 from app.services.auth_service import register_user
 from app.services.credential_encryption_service import CredentialEncryptionService
-from app.services.email_sync_service import EmailSyncError, sync_today_emails
+from app.services.email_sync_service import (
+    EmailSyncError,
+    enqueue_sync_today_job,
+    execute_queued_sync_job,
+    sync_today_emails,
+)
 
 
 def _email(prefix: str) -> str:
@@ -276,3 +281,84 @@ def test_sync_today_emails_marks_mailbox_reauth_only_for_reauth_errors() -> None
         assert job is not None
         assert job.status == "failed"
         assert job.error_code == "MAILBOX_REAUTH_REQUIRED"
+
+
+def test_enqueue_sync_today_job_creates_queued_job_and_dispatches(monkeypatch) -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return "celery-job-123"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        result = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+        job_id = result.job_id
+
+    assert dispatched == [job_id]
+    assert result.status == "queued"
+    with SessionLocal() as db:
+        job = db.get(SyncJob, job_id)
+        assert job is not None
+        assert job.user_id == user_id
+        assert job.mailbox_id == mailbox_id
+        assert job.status == "queued"
+        assert job.celery_task_id == "celery-job-123"
+
+
+def test_execute_queued_sync_job_updates_same_job_and_mailbox() -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
+    provider = FakeProvider(
+        [
+            _message(
+                "queued-gmail-message",
+                subject="Queued subject",
+                unread=True,
+                received_at=datetime(2026, 6, 19, 2, 0, tzinfo=UTC),
+            )
+        ]
+    )
+
+    with SessionLocal() as db:
+        result = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            dispatch=False,
+            now=now,
+        )
+        job_id = result.job_id
+        executed = execute_queued_sync_job(
+            db,
+            job_id=job_id,
+            provider=provider,
+            now=now,
+        )
+        db.commit()
+
+    assert executed.job_id == job_id
+    assert executed.status == "completed"
+    assert executed.synced_count == 1
+    with SessionLocal() as db:
+        job = db.get(SyncJob, job_id)
+        mailbox = db.get(Mailbox, mailbox_id)
+        email = db.scalar(select(Email).where(Email.external_id == "queued-gmail-message"))
+        assert job is not None
+        assert job.status == "succeeded"
+        assert job.payload_json == {"synced_count": 1}
+        assert mailbox is not None
+        assert mailbox.last_successful_sync_at == now
+        assert email is not None
+        assert email.subject == "Queued subject"
