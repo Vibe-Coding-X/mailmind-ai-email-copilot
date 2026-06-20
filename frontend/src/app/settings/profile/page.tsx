@@ -5,6 +5,7 @@ import { AuthStatus } from "@/components/auth-status";
 import { SettingsSection, SettingRow } from "@/components/settings-section";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { InlineFeedback } from "@/components/inline-feedback";
 
 /**
  * /settings/profile — current system identity status. Profile editing remains
@@ -39,13 +40,20 @@ export default function ProfileSettingsPage() {
           />
           <div style={{ marginTop: 14, maxWidth: 320 }}>
             <Field label="Display name" placeholder="Your name" />
-            <Button variant="primary" disabled>
+            <Button
+              variant="primary"
+              disabled
+              disabledReason="Profile editing is not available until the profile update API is enabled."
+            >
               Save changes
             </Button>
           </div>
-          <p className="mm-muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Saving is disabled in this design preview.
-          </p>
+          <div style={{ marginTop: 12 }}>
+            <InlineFeedback tone="info" title="Unavailable">
+              Profile editing is not available until the profile update API is
+              enabled.
+            </InlineFeedback>
+          </div>
         </SettingsSection>
       </PageFrame>
     </AppShell>

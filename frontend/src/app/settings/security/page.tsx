@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { SettingsSection, SettingRow } from "@/components/settings-section";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { InlineFeedback } from "@/components/inline-feedback";
 
 /**
  * /settings/security (design preview).
@@ -64,13 +65,20 @@ export default function SecuritySettingsPage() {
               placeholder="••••••••"
               autoComplete="new-password"
             />
-            <Button variant="primary" disabled>
+            <Button
+              variant="primary"
+              disabled
+              disabledReason="Password change is not available until the password update API is enabled."
+            >
               Update password
             </Button>
           </div>
-          <p className="mm-muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Password change is disabled in this design preview.
-          </p>
+          <div style={{ marginTop: 12 }}>
+            <InlineFeedback tone="info" title="Unavailable">
+              Password change is not available until the password update API is
+              enabled.
+            </InlineFeedback>
+          </div>
         </SettingsSection>
       </PageFrame>
     </AppShell>
