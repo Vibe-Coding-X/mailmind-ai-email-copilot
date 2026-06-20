@@ -18,6 +18,44 @@
     },
     "meta": {}
   },
+  "async_digest_generate_response": {
+    "data": {
+      "job": {
+        "job_id": "99999999-9999-4999-8999-999999999999",
+        "job_type": "digest_generate",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T03:00:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "async_digest_refresh_response": {
+    "data": {
+      "job": {
+        "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "job_type": "digest_refresh",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T03:05:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
   "job_list_response": {
     "data": {
       "jobs": [

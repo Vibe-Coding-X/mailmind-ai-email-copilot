@@ -28,3 +28,22 @@ def run_email_sync_job(job_id: str) -> dict[str, object]:
         except Exception:
             db.rollback()
             raise
+
+
+@celery_app.task(name="app.jobs.digest")
+def run_digest_job(job_id: str) -> dict[str, object]:
+    from app.services.digest_service import execute_queued_digest_job
+
+    with SessionLocal() as db:
+        try:
+            digest = execute_queued_digest_job(db, job_id=UUID(job_id))
+            db.commit()
+            return {
+                "job_id": job_id,
+                "digest_id": str(digest.id),
+                "status": digest.status,
+                "mail_count": digest.mail_count,
+            }
+        except Exception:
+            db.rollback()
+            raise
