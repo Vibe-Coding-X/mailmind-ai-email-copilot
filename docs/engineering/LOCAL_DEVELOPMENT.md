@@ -41,6 +41,15 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Background worker for v0.3 local development:
+
+```powershell
+cd backend
+uv run celery -A app.jobs.worker:app worker --loglevel=info --pool=solo
+```
+
+The worker uses Redis by default through `REDIS_URL`. Override `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` only when the broker/result backend should differ from Redis. Tests can set `BACKGROUND_JOBS_EAGER=true` to execute Celery tasks in-process without a long-running worker.
+
 Backend verification:
 
 ```powershell
@@ -96,3 +105,11 @@ The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public product
 - Digest generation is triggered by an HTTP request and runs synchronously.
 - AI uses the mock provider by default.
 - Celery worker, Celery beat, scheduled sync, and scheduled digest generation are not implemented.
+
+## v0.3 Background Job Foundation
+
+- Celery is available as the local background-job runtime.
+- Redis is the default broker and result backend.
+- `app.jobs.worker:app` is the worker entrypoint.
+- `BACKGROUND_JOBS_EAGER=true` runs tasks eagerly for tests and local diagnostics.
+- Scheduled sync and scheduled digest are not enabled by this foundation task.
