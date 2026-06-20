@@ -11,15 +11,20 @@ import {
 export function EmailListItem({
   email,
   busy = false,
+  listHref = "/emails",
   onMarkRead,
   onMarkUnread,
 }: {
   email: EmailSummary;
   busy?: boolean;
+  listHref?: string;
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
   const statusLabel = email.is_read ? "Read" : "Unread";
+  const detailHref = listHref.includes("?")
+    ? `/emails/${email.id}?${listHref.split("?")[1]}`
+    : `/emails/${email.id}`;
 
   return (
     <article
@@ -34,17 +39,21 @@ export function EmailListItem({
       <div className="mm-spread" style={{ alignItems: "flex-start" }}>
         <div style={{ minWidth: 0 }}>
           <Link
-            href={`/emails/${email.id}`}
+            href={detailHref}
             style={{
               color: "var(--color-text)",
               fontSize: 15,
               fontWeight: email.is_read ? 560 : 700,
               textDecoration: "none",
+              overflowWrap: "anywhere",
             }}
           >
             {displaySubject(email.subject)}
           </Link>
-          <div className="mm-muted" style={{ fontSize: 13, marginTop: 3 }}>
+          <div
+            className="mm-muted"
+            style={{ fontSize: 13, marginTop: 3, overflowWrap: "anywhere" }}
+          >
             {email.sender}
           </div>
         </div>
@@ -61,7 +70,10 @@ export function EmailListItem({
         </div>
       </div>
 
-      <p className="mm-muted" style={{ fontSize: 13, marginTop: 10 }}>
+      <p
+        className="mm-muted"
+        style={{ fontSize: 13, marginTop: 10, overflowWrap: "anywhere" }}
+      >
         {displaySnippet(email.snippet)}
       </p>
 

@@ -92,6 +92,53 @@ export function filterEmails(
   return emails;
 }
 
+export function parseEmailReadFilter(value: string | null): EmailReadFilter {
+  return value === "read" || value === "unread" ? value : "all";
+}
+
+export function filterEmailsByQuery(
+  emails: EmailSummary[],
+  query: string,
+): EmailSummary[] {
+  const normalized = query.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return emails;
+  }
+
+  return emails.filter((email) =>
+    [
+      email.subject,
+      email.sender,
+      email.snippet,
+      ...email.recipients,
+      ...email.labels,
+    ].some((value) => value.toLowerCase().includes(normalized)),
+  );
+}
+
+export function buildEmailListHref({
+  filter,
+  query,
+}: {
+  filter?: string | null;
+  query?: string | null;
+}): string {
+  const params = new URLSearchParams();
+  const parsedFilter = parseEmailReadFilter(filter ?? null);
+  const trimmedQuery = query?.trim() ?? "";
+
+  if (parsedFilter !== "all") {
+    params.set("filter", parsedFilter);
+  }
+
+  if (trimmedQuery.length > 0) {
+    params.set("q", trimmedQuery);
+  }
+
+  const search = params.toString();
+  return search.length > 0 ? `/emails?${search}` : "/emails";
+}
+
 export function mergeEmailMutation<TEmail extends { id: string }>(
   email: TEmail,
   mutation: EmailMutation,
@@ -128,4 +175,18 @@ export function displaySubject(subject: string): string {
 export function displaySnippet(snippet: string): string {
   const trimmed = snippet.trim();
   return trimmed.length > 0 ? trimmed : "No preview text.";
+}
+
+export function displayBodyText(bodyText: string | null, snippet: string): string {
+  const trimmedBody = bodyText?.trim() ?? "";
+  if (trimmedBody.length > 0) {
+    return trimmedBody;
+  }
+
+  const trimmedSnippet = snippet.trim();
+  if (trimmedSnippet.length > 0) {
+    return `No readable body text was stored for this email.\n\nPreview:\n${trimmedSnippet}`;
+  }
+
+  return "No readable body text was stored for this email.";
 }

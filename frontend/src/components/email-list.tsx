@@ -4,11 +4,13 @@ import type { EmailSummary } from "@/lib/api-types";
 export function EmailList({
   emails,
   busyEmailId,
+  listHref,
   onMarkRead,
   onMarkUnread,
 }: {
   emails: EmailSummary[];
   busyEmailId?: string | null;
+  listHref?: string;
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
@@ -20,6 +22,7 @@ export function EmailList({
           key={email.id}
           email={email}
           busy={busyEmailId === email.id}
+          listHref={listHref}
           onMarkRead={onMarkRead}
           onMarkUnread={onMarkUnread}
         />
