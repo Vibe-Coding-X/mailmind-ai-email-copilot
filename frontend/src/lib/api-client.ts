@@ -17,6 +17,7 @@ import {
   type ApiError,
   type ApiResult,
   type AuthUserResponse,
+  type DigestResponse,
   type EmailMutationResponse,
   type EmailResponse,
   type GmailLoginResponse,
@@ -145,6 +146,30 @@ export function disconnectGmail(): Promise<ApiResult> {
   });
 }
 
+export function getTodayDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.today, {
+    method: "GET",
+  });
+}
+
+export function generateTodayDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.todayGenerate, {
+    method: "POST",
+  });
+}
+
+export function refreshTodayDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.todayRefresh, {
+    method: "POST",
+  });
+}
+
+export function getDigest(digestId: string): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.byId(digestId), {
+    method: "GET",
+  });
+}
+
 export function listTodayEmails(): Promise<TodayEmailsResponse> {
   return request<TodayEmailsResponse>(API_ROUTES.emails.today, {
     method: "GET",
@@ -202,18 +227,10 @@ export const apiClient = {
   },
 
   digest: {
-    today(): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.digest.today}`);
-    },
-    generateToday(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.digest.todayGenerate}`);
-    },
-    refreshToday(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.digest.todayRefresh}`);
-    },
-    byId(digestId: string): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.digest.byId(digestId)}`);
-    },
+    today: getTodayDigest,
+    generateToday: generateTodayDigest,
+    refreshToday: refreshTodayDigest,
+    byId: getDigest,
   },
 
   emails: {

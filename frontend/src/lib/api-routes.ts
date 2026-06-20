@@ -34,7 +34,8 @@ export const API_ROUTES = {
     today: "/api/digest/today",
     todayGenerate: "/api/digest/today/generate",
     todayRefresh: "/api/digest/today/refresh",
-    byId: (digestId: string) => `/api/digest/${digestId}`,
+    byId: <TDigestId extends string>(digestId: TDigestId) =>
+      `/api/digest/${digestId}` as const,
   },
 
   // Section 4 — Email API (/api/emails)
