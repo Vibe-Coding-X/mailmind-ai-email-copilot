@@ -35,6 +35,9 @@ Every job response object should include:
 - `finished_at`: ISO-8601 UTC datetime or `null`.
 - `error_code`: safe machine-readable code or `null`.
 - `error_message`: safe redacted message or `null`.
+- `retry_count`: integer retry attempt count for this job.
+- `max_retries`: integer retry limit enforced by the backend.
+- `retry_of_job_id`: original failed job UUID string when this job is a retry, otherwise `null`.
 - `related_resource_type`: `mailbox`, `digest`, `email`, or `null`.
 - `related_resource_id`: UUID string or `null`.
 - `result`: object with safe job output metadata.
@@ -71,7 +74,10 @@ Every job response object should include:
   - Returns `404 INVALID_REQUEST` when the job is absent or belongs to another user.
 - `POST /api/jobs/{job_id}/retry`
   - Requires login.
-  - The current foundation accepts failed jobs and creates a new `queued` retry row.
-  - Deeper retry limits and worker dispatch behavior are staged for the retry/failure-handling task.
+  - Accepts failed jobs owned by the current user.
+  - Creates a new `queued` retry row and dispatches it to the matching worker when the job type is supported.
+  - Enforces `max_retries = 3`.
+  - Returns `409 JOB_RETRY_LIMIT_EXCEEDED` when the failed job has reached the retry limit.
+  - Returns `400 INVALID_REQUEST` when the job is not failed or the job type cannot be retried.
 
 All endpoints use the existing project envelope: `{ "data": ..., "meta": ... }` for success and `{ "error": ... }` for errors.

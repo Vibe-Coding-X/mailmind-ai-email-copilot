@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.db.models.sync_job import SyncJob
+from app.services.job_service import MAX_JOB_RETRIES
 from app.utils.redaction import safe_error_message, sanitize_sensitive_data
 
 
@@ -35,6 +36,9 @@ def job_payload(job: SyncJob) -> dict[str, Any]:
         "finished_at": job.finished_at,
         "error_code": job.error_code,
         "error_message": safe_error_message(job.error_message, max_length=500),
+        "retry_count": job.retry_count,
+        "max_retries": MAX_JOB_RETRIES,
+        "retry_of_job_id": _retry_of_job_id(job.payload_json),
         "related_resource_type": related_resource_type,
         "related_resource_id": related_resource_id,
         "result": _safe_result(job.payload_json),
@@ -74,3 +78,9 @@ def _safe_result(value: object) -> dict[str, object]:
     sanitized = sanitize_sensitive_data(value or {})
     return sanitized if isinstance(sanitized, dict) else {}
 
+
+def _retry_of_job_id(value: object) -> object | None:
+    if not isinstance(value, dict):
+        return None
+    retry_of_job_id = value.get("retry_of_job_id")
+    return retry_of_job_id if isinstance(retry_of_job_id, str) else None

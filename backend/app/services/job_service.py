@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models.sync_job import SyncJob
+from app.utils.redaction import safe_error_message
 
 
 class JobServiceError(Exception):
@@ -25,6 +26,8 @@ class JobQueryResult:
     offset: int
     has_more: bool
 
+
+MAX_JOB_RETRIES = 3
 
 PUBLIC_STATUS_TO_INTERNAL = {
     "queued": {"queued"},
@@ -109,6 +112,12 @@ def retry_job(
     job = get_job(db, user_id=user_id, job_id=job_id)
     if job.status != "failed":
         raise JobServiceError("INVALID_REQUEST", "Only failed jobs can be retried.")
+    if job.retry_count >= MAX_JOB_RETRIES:
+        raise JobServiceError(
+            "JOB_RETRY_LIMIT_EXCEEDED",
+            "Job has reached the retry limit.",
+            409,
+        )
     resolved_now = _ensure_utc(now or datetime.now(UTC))
     retry = SyncJob(
         user_id=job.user_id,
@@ -125,11 +134,34 @@ def retry_job(
     )
     db.add(retry)
     db.flush()
+    try:
+        retry.celery_task_id = _dispatch_retry_job(retry)
+    except JobServiceError:
+        raise
+    except Exception as exc:
+        raise JobServiceError(
+            "JOB_DISPATCH_FAILED",
+            safe_error_message("Job retry could not be queued.", max_length=200)
+            or "Job retry could not be queued.",
+            502,
+        ) from exc
+    db.flush()
     return retry
+
+
+def _dispatch_retry_job(job: SyncJob) -> str:
+    if job.job_type in {"sync_today_emails", "refresh_access_token"}:
+        from app.services.email_sync_service import dispatch_email_sync_job
+
+        return dispatch_email_sync_job(job.id)
+    if job.job_type in {"generate_daily_digest", "refresh_daily_digest"}:
+        from app.services.digest_service import dispatch_digest_job
+
+        return dispatch_digest_job(job.id)
+    raise JobServiceError("INVALID_REQUEST", "Job type cannot be retried.")
 
 
 def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
-
