@@ -2,7 +2,7 @@
  * Theme model for MailMind (frontend theme system).
  *
  * A theme is two orthogonal axes:
- *   - preset: the visual personality (shape language, density, elevation)
+ *   - preset: the visual personality (color language, density, elevation)
  *   - mode:   light / dark
  *
  * This module is pure data + helpers — NO React, NO DOM side effects beyond the
@@ -13,21 +13,28 @@
 
 export type ThemeMode = "light" | "dark";
 
-export type ThemePreset = "capsule" | "clean" | "minimal" | "soft";
+export type ThemePreset =
+  | "amber-focus"
+  | "noir-pulse"
+  | "paper-calm"
+  | "dense-minimal";
 
 export interface ThemeChoice {
   preset: ThemePreset;
   mode: ThemeMode;
 }
 
-/** Capsule (card-pill) is the product's default personality. */
-export const DEFAULT_THEME: ThemeChoice = { preset: "capsule", mode: "light" };
+/** Amber Focus is the product's default productivity theme. */
+export const DEFAULT_THEME: ThemeChoice = {
+  preset: "amber-focus",
+  mode: "light",
+};
 
 export const THEME_PRESETS: ThemePreset[] = [
-  "capsule",
-  "clean",
-  "minimal",
-  "soft",
+  "amber-focus",
+  "noir-pulse",
+  "paper-calm",
+  "dense-minimal",
 ];
 
 export const THEME_MODES: ThemeMode[] = ["light", "dark"];
@@ -37,10 +44,22 @@ export const PRESET_META: Record<
   ThemePreset,
   { label: string; hint: string }
 > = {
-  capsule: { label: "Capsule", hint: "Rounded cards, pill controls, soft depth" },
-  clean: { label: "Clean", hint: "Crisp surfaces, high contrast" },
-  minimal: { label: "Minimal", hint: "Hairline borders, flat and quiet" },
-  soft: { label: "Soft", hint: "Gentle tints, low contrast" },
+  "amber-focus": {
+    label: "Amber Focus",
+    hint: "Warm canvas, amber emphasis, balanced spacing",
+  },
+  "noir-pulse": {
+    label: "Noir Pulse",
+    hint: "Dark contrast, saturated signal color, faster motion",
+  },
+  "paper-calm": {
+    label: "Paper Calm",
+    hint: "Reading-first paper surfaces, quiet borders",
+  },
+  "dense-minimal": {
+    label: "Dense Minimal",
+    hint: "Compact, flat, low decoration for fast scanning",
+  },
 };
 
 export const MODE_META: Record<ThemeMode, { label: string }> = {
