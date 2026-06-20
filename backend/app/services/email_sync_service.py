@@ -17,6 +17,7 @@ from app.db.models.user import User
 from app.providers.base import ProviderEmailMessage, ProviderError
 from app.providers.gmail import GmailProvider
 from app.services.credential_encryption_service import CredentialEncryptionService
+from app.utils.redaction import safe_error_message
 
 
 class EmailSyncError(Exception):
@@ -35,6 +36,13 @@ class SyncTodayResult:
     job_id: UUID
 
 
+@dataclass(slots=True)
+class QueuedSyncJobResult:
+    mailbox_id: UUID
+    status: str
+    job_id: UUID
+
+
 def sync_today_emails(
     db: Session,
     *,
@@ -46,33 +54,18 @@ def sync_today_emails(
     resolved_user_id = _as_uuid(user_id)
     resolved_mailbox_id = _as_uuid(mailbox_id)
     resolved_now = _ensure_utc(now or datetime.now(UTC))
-    user = db.get(User, resolved_user_id)
-    mailbox = db.scalar(
-        select(Mailbox).where(
-            Mailbox.id == resolved_mailbox_id,
-            Mailbox.user_id == resolved_user_id,
-        )
+    user, mailbox = _get_sync_context(
+        db,
+        user_id=resolved_user_id,
+        mailbox_id=resolved_mailbox_id,
     )
-    if user is None or mailbox is None:
-        raise EmailSyncError("INVALID_REQUEST", "Mailbox not found.", 404)
-    if mailbox.provider != "gmail":
-        raise EmailSyncError("INVALID_REQUEST", "Unsupported mailbox provider.")
-    if mailbox.status != "active":
-        raise EmailSyncError(
-            "MAILBOX_REAUTH_REQUIRED",
-            "Mailbox is not connected.",
-            401,
-        )
-
-    window_start, window_end = calculate_today_window(user.timezone, now=resolved_now)
-    target_date = window_start.astimezone(_user_zone(user.timezone)).date()
     job = SyncJob(
         user_id=user.id,
         mailbox_id=mailbox.id,
         job_type="sync_today_emails",
         trigger_source="manual",
-        job_key=f"sync_today_emails:{mailbox.id}:{target_date.isoformat()}",
-        target_date=target_date,
+        job_key=f"sync_today_emails:{mailbox.id}:{_target_date(user, resolved_now)}",
+        target_date=_target_date(user, resolved_now),
         status="running",
         started_at=resolved_now,
         payload_json={},
@@ -80,6 +73,102 @@ def sync_today_emails(
     db.add(job)
     mailbox.last_sync_at = resolved_now
     db.flush()
+    return _execute_sync_today(
+        db,
+        user=user,
+        mailbox=mailbox,
+        job=job,
+        provider=provider,
+        now=resolved_now,
+    )
+
+
+def enqueue_sync_today_job(
+    db: Session,
+    *,
+    user_id: UUID | str,
+    mailbox_id: UUID | str,
+    dispatch: bool = True,
+    now: datetime | None = None,
+) -> QueuedSyncJobResult:
+    resolved_user_id = _as_uuid(user_id)
+    resolved_mailbox_id = _as_uuid(mailbox_id)
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    user, mailbox = _get_sync_context(
+        db,
+        user_id=resolved_user_id,
+        mailbox_id=resolved_mailbox_id,
+    )
+    job = SyncJob(
+        user_id=user.id,
+        mailbox_id=mailbox.id,
+        job_type="sync_today_emails",
+        trigger_source="manual",
+        job_key=None,
+        target_date=_target_date(user, resolved_now),
+        status="queued",
+        payload_json={},
+        created_at=resolved_now,
+    )
+    db.add(job)
+    db.flush()
+    if dispatch:
+        job.celery_task_id = dispatch_email_sync_job(job.id)
+        db.flush()
+    return QueuedSyncJobResult(mailbox_id=mailbox.id, status="queued", job_id=job.id)
+
+
+def execute_queued_sync_job(
+    db: Session,
+    *,
+    job_id: UUID | str,
+    provider: object | None = None,
+    now: datetime | None = None,
+) -> SyncTodayResult:
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    job = db.get(SyncJob, _as_uuid(job_id))
+    if job is None:
+        raise EmailSyncError("INVALID_REQUEST", "Sync job not found.", 404)
+    if job.status != "queued":
+        raise EmailSyncError("INVALID_REQUEST", "Sync job is not queued.")
+    if job.mailbox_id is None:
+        raise EmailSyncError("INVALID_REQUEST", "Sync job is missing mailbox.")
+    user, mailbox = _get_sync_context(
+        db,
+        user_id=job.user_id,
+        mailbox_id=job.mailbox_id,
+    )
+    job.status = "running"
+    job.started_at = resolved_now
+    mailbox.last_sync_at = resolved_now
+    db.flush()
+    return _execute_sync_today(
+        db,
+        user=user,
+        mailbox=mailbox,
+        job=job,
+        provider=provider,
+        now=resolved_now,
+    )
+
+
+def dispatch_email_sync_job(job_id: UUID) -> str:
+    from app.jobs.celery_app import celery_app
+
+    result = celery_app.send_task("app.jobs.email_sync", args=[str(job_id)])
+    return str(result.id)
+
+
+def _execute_sync_today(
+    db: Session,
+    *,
+    user: User,
+    mailbox: Mailbox,
+    job: SyncJob,
+    provider: object | None,
+    now: datetime,
+) -> SyncTodayResult:
+    window_start, window_end = calculate_today_window(user.timezone, now=now)
 
     try:
         refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
@@ -96,15 +185,15 @@ def sync_today_emails(
             messages=messages,
             window_start=window_start,
             window_end=window_end,
-            synced_at=resolved_now,
+            synced_at=now,
         )
     except ProviderError as exc:
         if exc.code == "MAILBOX_REAUTH_REQUIRED":
             mailbox.status = "reauth_required"
-        _fail_job(db, job=job, code=exc.code, message=exc.message, now=resolved_now)
+        _fail_job(db, job=job, code=exc.code, message=exc.message, now=now)
         raise EmailSyncError(exc.code, exc.message, exc.status_code) from exc
     except EmailSyncError as exc:
-        _fail_job(db, job=job, code=exc.code, message=exc.message, now=resolved_now)
+        _fail_job(db, job=job, code=exc.code, message=exc.message, now=now)
         raise
     except Exception as exc:
         _fail_job(
@@ -112,13 +201,13 @@ def sync_today_emails(
             job=job,
             code="PROVIDER_SYNC_FAILED",
             message="Email sync failed.",
-            now=resolved_now,
+            now=now,
         )
         raise EmailSyncError("PROVIDER_SYNC_FAILED", "Email sync failed.", 502) from exc
 
-    mailbox.last_successful_sync_at = resolved_now
+    mailbox.last_successful_sync_at = now
     job.status = "succeeded"
-    job.finished_at = resolved_now
+    job.finished_at = now
     job.payload_json = {"synced_count": synced_count}
     db.flush()
     return SyncTodayResult(
@@ -211,6 +300,37 @@ def _decrypt_refresh_token(db: Session, *, mailbox_id: UUID) -> str:
         ) from exc
 
 
+def _get_sync_context(
+    db: Session,
+    *,
+    user_id: UUID,
+    mailbox_id: UUID,
+) -> tuple[User, Mailbox]:
+    user = db.get(User, user_id)
+    mailbox = db.scalar(
+        select(Mailbox).where(
+            Mailbox.id == mailbox_id,
+            Mailbox.user_id == user_id,
+        )
+    )
+    if user is None or mailbox is None:
+        raise EmailSyncError("INVALID_REQUEST", "Mailbox not found.", 404)
+    if mailbox.provider != "gmail":
+        raise EmailSyncError("INVALID_REQUEST", "Unsupported mailbox provider.")
+    if mailbox.status != "active":
+        raise EmailSyncError(
+            "MAILBOX_REAUTH_REQUIRED",
+            "Mailbox is not connected.",
+            401,
+        )
+    return user, mailbox
+
+
+def _target_date(user: User, now: datetime) -> object:
+    window_start, _ = calculate_today_window(user.timezone, now=now)
+    return window_start.astimezone(_user_zone(user.timezone)).date()
+
+
 def _fail_job(
     db: Session,
     *,
@@ -221,7 +341,7 @@ def _fail_job(
 ) -> None:
     job.status = "failed"
     job.error_code = code
-    job.error_message = message[:1000]
+    job.error_message = safe_error_message(message, max_length=1000) or ""
     job.finished_at = now
     db.flush()
 

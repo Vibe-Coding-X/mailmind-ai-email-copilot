@@ -1,0 +1,216 @@
+{
+  "async_mailbox_sync_response": {
+    "data": {
+      "job": {
+        "job_id": "88888888-8888-4888-8888-888888888888",
+        "job_type": "email_sync",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T00:55:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "retry_count": 0,
+        "max_retries": 3,
+        "retry_of_job_id": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "async_digest_generate_response": {
+    "data": {
+      "job": {
+        "job_id": "99999999-9999-4999-8999-999999999999",
+        "job_type": "digest_generate",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T03:00:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "retry_count": 0,
+        "max_retries": 3,
+        "retry_of_job_id": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "async_digest_refresh_response": {
+    "data": {
+      "job": {
+        "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "job_type": "digest_refresh",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T03:05:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "retry_count": 0,
+        "max_retries": 3,
+        "retry_of_job_id": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "scheduled_email_sync_job_response": {
+    "data": {
+      "job": {
+        "job_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "job_type": "scheduled_email_sync",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T08:00:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "retry_count": 0,
+        "max_retries": 3,
+        "retry_of_job_id": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "scheduled_digest_job_response": {
+    "data": {
+      "job": {
+        "job_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "job_type": "scheduled_digest",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T08:05:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "retry_count": 0,
+        "max_retries": 3,
+        "retry_of_job_id": null,
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "job_list_response": {
+    "data": {
+      "jobs": [
+        {
+          "job_id": "11111111-1111-4111-8111-111111111111",
+          "job_type": "email_sync",
+          "status": "running",
+          "progress": 35,
+          "created_at": "2026-06-20T01:00:00Z",
+          "started_at": "2026-06-20T01:00:02Z",
+          "finished_at": null,
+          "error_code": null,
+          "error_message": null,
+          "retry_count": 0,
+          "max_retries": 3,
+          "retry_of_job_id": null,
+          "related_resource_type": "mailbox",
+          "related_resource_id": "22222222-2222-4222-8222-222222222222",
+          "result": {}
+        },
+        {
+          "job_id": "33333333-3333-4333-8333-333333333333",
+          "job_type": "digest_generate",
+          "status": "completed",
+          "progress": 100,
+          "created_at": "2026-06-20T01:10:00Z",
+          "started_at": "2026-06-20T01:10:01Z",
+          "finished_at": "2026-06-20T01:10:15Z",
+          "error_code": null,
+          "error_message": null,
+          "retry_count": 0,
+          "max_retries": 3,
+          "retry_of_job_id": null,
+          "related_resource_type": "digest",
+          "related_resource_id": "44444444-4444-4444-8444-444444444444",
+          "result": {
+            "item_count": 3,
+            "mail_count": 8
+          }
+        }
+      ],
+      "pagination": {
+        "limit": 20,
+        "offset": 0,
+        "count": 2,
+        "has_more": false
+      }
+    },
+    "meta": {}
+  },
+  "job_failure_response": {
+    "data": {
+      "job": {
+        "job_id": "55555555-5555-4555-8555-555555555555",
+        "job_type": "digest_refresh",
+        "status": "failed",
+        "progress": 100,
+        "created_at": "2026-06-20T02:00:00Z",
+        "started_at": "2026-06-20T02:00:01Z",
+        "finished_at": "2026-06-20T02:00:05Z",
+        "error_code": "DIGEST_GENERATION_FAILED",
+        "error_message": "Provider response was not valid JSON.",
+        "retry_count": 0,
+        "max_retries": 3,
+        "retry_of_job_id": null,
+        "related_resource_type": "digest",
+        "related_resource_id": "66666666-6666-4666-8666-666666666666",
+        "result": {}
+      }
+    },
+    "meta": {}
+  },
+  "job_retry_response": {
+    "data": {
+      "job": {
+        "job_id": "77777777-7777-4777-8777-777777777777",
+        "job_type": "email_sync",
+        "status": "queued",
+        "progress": 0,
+        "created_at": "2026-06-20T02:05:00Z",
+        "started_at": null,
+        "finished_at": null,
+        "error_code": null,
+        "error_message": null,
+        "retry_count": 1,
+        "max_retries": 3,
+        "retry_of_job_id": "55555555-5555-4555-8555-555555555555",
+        "related_resource_type": "mailbox",
+        "related_resource_id": "22222222-2222-4222-8222-222222222222",
+        "result": {
+          "retry_of_job_id": "55555555-5555-4555-8555-555555555555"
+        }
+      }
+    },
+    "meta": {}
+  },
+  "job_retry_limit_error": {
+    "error": {
+      "code": "JOB_RETRY_LIMIT_EXCEEDED",
+      "message": "Job has reached the retry limit.",
+      "retryable": false,
+      "details": {}
+    }
+  }
+}
