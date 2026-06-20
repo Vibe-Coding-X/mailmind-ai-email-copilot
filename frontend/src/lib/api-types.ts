@@ -194,3 +194,48 @@ export interface EmailMutationData {
 }
 
 export type EmailMutationResponse = ApiSuccess<EmailMutationData>;
+
+export type DigestStatus = "fresh" | "stale" | "failed" | string;
+export type DigestTriggerSource = "manual" | "refresh" | "scheduled" | string;
+export type DigestItemPriority = "high" | "medium" | "low" | string;
+
+export interface DigestItem {
+  id: string;
+  digest_id: string;
+  email_id: string;
+  item_type: string;
+  section: string;
+  title: string;
+  summary: string;
+  category: string;
+  suggested_action: string;
+  priority: DigestItemPriority;
+  reason: string | null;
+  deadline: string | null;
+  confidence: number;
+  display_order: number;
+}
+
+export interface Digest {
+  id: string;
+  mailbox_id: string;
+  digest_date: string;
+  version: number;
+  is_current: boolean;
+  status: DigestStatus;
+  trigger_source: DigestTriggerSource;
+  coverage_start: string;
+  coverage_end: string;
+  generated_at: string;
+  mail_count: number;
+  new_mail_count_after_digest: number;
+  overview: Record<string, unknown>;
+  summary: string | null;
+  items: DigestItem[];
+}
+
+export interface DigestData {
+  digest: Digest;
+}
+
+export type DigestResponse = ApiSuccess<DigestData>;
