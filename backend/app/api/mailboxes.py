@@ -8,6 +8,7 @@ from app.api.deps import error_response, get_current_user, get_db
 from app.db.models.mailbox import Mailbox
 from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
+from app.schemas.job import job_payload
 from app.schemas.mailbox import mailbox_payload
 from app.schemas.sync_job import sync_job_payload, sync_status_for_api
 from app.services import email_sync_service
@@ -111,3 +112,26 @@ def trigger_sync(
         },
         "meta": {},
     }
+
+
+@router.post("/{mailbox_id}/sync-jobs")
+def trigger_async_sync(
+    mailbox_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    mailbox = _get_owned_mailbox(db, user=current_user, mailbox_id=mailbox_id)
+    try:
+        result = email_sync_service.enqueue_sync_today_job(
+            db,
+            user_id=current_user.id,
+            mailbox_id=mailbox.id,
+        )
+    except EmailSyncError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=error_response(exc.code, exc.message, retryable=False)["error"],
+        ) from exc
+
+    job = db.get(SyncJob, result.job_id)
+    return {"data": {"job": job_payload(job)}, "meta": {}}
