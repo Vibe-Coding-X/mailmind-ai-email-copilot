@@ -18,6 +18,7 @@ import {
 } from "@/lib/api-client";
 import type { EmailDetail } from "@/lib/api-types";
 import {
+  buildEmailListHref,
   displaySubject,
   emailErrorView,
   mergeEmailMutation,
@@ -42,6 +43,17 @@ export default function EmailDetailPage() {
   const [pageError, setPageError] = useState<EmailErrorView | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
+  const [backHref, setBackHref] = useState("/emails");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setBackHref(
+      buildEmailListHref({
+        filter: params.get("filter"),
+        query: params.get("q"),
+      }),
+    );
+  }, []);
 
   const loadEmail = useCallback(async (): Promise<boolean> => {
     if (!emailId) {
@@ -171,7 +183,7 @@ export default function EmailDetailPage() {
               <a href="/login">Sign in</a>
             ) : (
               <div className="mm-row">
-                <Link className="mm-btn" href="/emails">
+                <Link className="mm-btn" href={backHref}>
                   Back to emails
                 </Link>
                 <button type="button" className="mm-btn" onClick={onRetry}>
@@ -189,6 +201,7 @@ export default function EmailDetailPage() {
         email={email}
         busy={marking}
         actionError={actionError}
+        backHref={backHref}
         onMarkRead={() => void updateReadState(true)}
         onMarkUnread={() => void updateReadState(false)}
       />
