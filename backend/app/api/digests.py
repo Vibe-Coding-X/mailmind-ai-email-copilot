@@ -9,9 +9,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import error_response, get_current_user, get_db
 from app.db.models.user import User
 from app.schemas.digest import digest_payload
+from app.schemas.job import job_payload
 from app.schemas.user_action import user_action_payload
 from app.services.digest_service import (
     DigestServiceError,
+    enqueue_generate_today_digest_job,
+    enqueue_refresh_today_digest_job,
     generate_today_digest,
     get_digest,
     get_today_digest,
@@ -73,6 +76,21 @@ def generate_digest(
     return {"data": {"digest": digest_payload(digest)}, "meta": {}}
 
 
+@router.post("/today/generate-jobs")
+def generate_digest_job(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        result = enqueue_generate_today_digest_job(db, user_id=current_user.id)
+    except DigestServiceError as exc:
+        _raise_digest_error(exc)
+    from app.db.models.sync_job import SyncJob
+
+    job = db.get(SyncJob, result.job_id)
+    return {"data": {"job": job_payload(job)}, "meta": {}}
+
+
 @router.post("/today/refresh")
 def refresh_digest(
     current_user: User = Depends(get_current_user),
@@ -84,6 +102,21 @@ def refresh_digest(
         db.commit()
         _raise_digest_error(exc)
     return {"data": {"digest": digest_payload(digest)}, "meta": {}}
+
+
+@router.post("/today/refresh-jobs")
+def refresh_digest_job(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        result = enqueue_refresh_today_digest_job(db, user_id=current_user.id)
+    except DigestServiceError as exc:
+        _raise_digest_error(exc)
+    from app.db.models.sync_job import SyncJob
+
+    job = db.get(SyncJob, result.job_id)
+    return {"data": {"job": job_payload(job)}, "meta": {}}
 
 
 @router.post("/items/{item_id}/mark-done")

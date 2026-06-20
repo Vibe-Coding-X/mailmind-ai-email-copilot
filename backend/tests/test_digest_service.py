@@ -18,6 +18,9 @@ from app.db.session import SessionLocal
 from app.services.auth_service import register_user
 from app.services.digest_service import (
     DigestServiceError,
+    enqueue_generate_today_digest_job,
+    enqueue_refresh_today_digest_job,
+    execute_queued_digest_job,
     generate_today_digest,
     get_today_digest,
     refresh_today_digest,
@@ -509,3 +512,101 @@ def test_provider_error_records_safe_diagnostic_without_secret() -> None:
     assert run.error_message == "Provider request failed."
     for secret in ["secret", "sk-real-looking-secret", "Authorization: Bearer"]:
         assert secret not in (run.error_message or "")
+
+
+def test_enqueue_generate_today_digest_job_creates_queued_job_and_dispatches(
+    monkeypatch,
+) -> None:
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-queue")
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-digest-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.digest_service.dispatch_digest_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        result = enqueue_generate_today_digest_job(
+            db,
+            user_id=user_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+        job_id = result.job_id
+
+    assert dispatched == [job_id]
+    assert result.status == "queued"
+    with SessionLocal() as db:
+        job = db.get(SyncJob, job_id)
+        assert job is not None
+        assert job.user_id == user_id
+        assert job.mailbox_id == mailbox_id
+        assert job.job_type == "generate_daily_digest"
+        assert job.status == "queued"
+        assert job.celery_task_id == f"celery-digest-{job_id}"
+
+
+def test_execute_queued_digest_job_generates_digest_and_updates_job() -> None:
+    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-worker")
+    now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
+
+    with SessionLocal() as db:
+        queued = enqueue_generate_today_digest_job(
+            db,
+            user_id=user_id,
+            dispatch=False,
+            now=now,
+        )
+        digest = execute_queued_digest_job(
+            db,
+            job_id=queued.job_id,
+            llm_provider=StaticProvider("digest-worker-gmail-1"),
+            now=now,
+        )
+        db.commit()
+        digest_id = digest.id
+        job_id = queued.job_id
+
+    with SessionLocal() as db:
+        job = db.get(SyncJob, job_id)
+        stored = db.get(DailyDigest, digest_id)
+        item = db.scalar(select(DigestItem).where(DigestItem.digest_id == digest_id))
+        ai_run = db.scalar(select(AIRun).where(AIRun.digest_id == digest_id))
+
+        assert job is not None
+        assert job.status == "succeeded"
+        assert job.payload_json["digest_id"] == str(digest_id)
+        assert job.payload_json["item_count"] == 1
+        assert stored is not None
+        assert stored.is_current is True
+        assert item is not None
+        assert ai_run is not None
+        assert ai_run.status == "succeeded"
+
+
+def test_enqueue_refresh_today_digest_job_uses_refresh_job_type(monkeypatch) -> None:
+    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-refresh-queue")
+    monkeypatch.setattr(
+        "app.services.digest_service.dispatch_digest_job",
+        lambda job_id: f"celery-digest-refresh-{job_id}",
+    )
+
+    with SessionLocal() as db:
+        result = enqueue_refresh_today_digest_job(
+            db,
+            user_id=user_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+        job_id = result.job_id
+
+    with SessionLocal() as db:
+        job = db.get(SyncJob, job_id)
+        assert job is not None
+        assert job.job_type == "refresh_daily_digest"
+        assert job.status == "queued"
+        assert job.celery_task_id == f"celery-digest-refresh-{job_id}"

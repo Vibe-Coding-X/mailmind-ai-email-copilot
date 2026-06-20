@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
@@ -107,7 +107,7 @@ class FailingProvider:
 
 
 def _current_test_received_at() -> datetime:
-    return datetime.now(UTC) - timedelta(minutes=5)
+    return datetime.now(UTC)
 
 
 def test_get_today_digest_requires_login() -> None:
@@ -164,6 +164,44 @@ def test_refresh_today_digest_api_replaces_current_digest(monkeypatch) -> None:
     assert second.status_code == 200
     assert second.json()["data"]["digest"]["version"] == 2
     assert second.json()["data"]["digest"]["is_current"] is True
+
+
+def test_generate_today_digest_async_job_api_returns_queued_job(monkeypatch) -> None:
+    client, user_id = _register_client("digest-generate-job-api")
+    _create_mailbox_and_email(user_id, prefix="digest-api")
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-digest-generate-{job_id}"
+
+    monkeypatch.setattr("app.services.digest_service.dispatch_digest_job", fake_dispatch)
+
+    response = client.post("/api/digest/today/generate-jobs")
+
+    assert response.status_code == 200
+    job = response.json()["data"]["job"]
+    assert job["job_type"] == "digest_generate"
+    assert job["status"] == "queued"
+    assert job["progress"] == 0
+    assert job["related_resource_type"] == "mailbox"
+    assert dispatched == [UUID(job["job_id"])]
+
+
+def test_refresh_today_digest_async_job_api_returns_queued_job(monkeypatch) -> None:
+    client, user_id = _register_client("digest-refresh-job-api")
+    _create_mailbox_and_email(user_id, prefix="digest-api")
+    monkeypatch.setattr(
+        "app.services.digest_service.dispatch_digest_job",
+        lambda job_id: f"celery-digest-refresh-{job_id}",
+    )
+
+    response = client.post("/api/digest/today/refresh-jobs")
+
+    assert response.status_code == 200
+    job = response.json()["data"]["job"]
+    assert job["job_type"] == "digest_refresh"
+    assert job["status"] == "queued"
 
 
 def test_generate_today_digest_api_hides_provider_error_details(monkeypatch) -> None:
