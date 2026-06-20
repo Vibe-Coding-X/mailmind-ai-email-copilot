@@ -190,6 +190,45 @@ def test_all_provider_failures_are_sanitized() -> None:
     assert "[REDACTED]" in str(exc_info.value)
 
 
+def test_provider_failures_redact_headers_cookies_and_tokens() -> None:
+    provider = build_llm_provider_from_env(
+        {
+            "AI_PROVIDER_ORDER": "primary",
+            "AI_PROVIDER_PRIMARY_TYPE": "openai_compatible",
+            "AI_PROVIDER_PRIMARY_BASE_URL": "https://primary.example/v1",
+            "AI_PROVIDER_PRIMARY_API_KEY": "provider-secret-12345",
+            "AI_PROVIDER_PRIMARY_MODEL": "primary-model",
+            "AI_PROVIDER_PRIMARY_MAX_RETRIES": "0",
+        },
+        client_factory=lambda profile: FakeHttpClient(
+            [
+                FakeResponse(
+                    500,
+                    {
+                        "error": {
+                            "message": (
+                                "Authorization: Bearer bearer-secret-12345 "
+                                "Cookie: sessionid=session-secret-12345; "
+                                "access_token=access-secret-12345"
+                            )
+                        }
+                    },
+                )
+            ]
+        ),
+    )
+
+    with pytest.raises(LLMProviderError) as exc_info:
+        provider.generate_digest("prompt")
+
+    error_text = str(exc_info.value)
+    assert "provider-secret-12345" not in error_text
+    assert "bearer-secret-12345" not in error_text
+    assert "session-secret-12345" not in error_text
+    assert "access-secret-12345" not in error_text
+    assert "[REDACTED]" in error_text
+
+
 def test_missing_api_key_fails_fast() -> None:
     with pytest.raises(LLMProviderError, match="API key is required"):
         build_llm_provider_from_env(

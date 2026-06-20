@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -11,6 +10,7 @@ import httpx
 
 from app.ai.base import LLMProvider, LLMProviderError, LLMResponse
 from app.ai.mock_provider import MockLLMProvider
+from app.utils.redaction import redact_text
 
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
@@ -70,10 +70,10 @@ class OpenAICompatibleProvider:
                 status_code = int(getattr(response, "status_code", 500))
                 if status_code >= 400:
                     raise LLMProviderError(
-                        _redact(
+                        redact_text(
                             f"Provider returned HTTP {status_code}: "
                             f"{_response_error_message(response)}",
-                            [self.profile.api_key],
+                            extra_secrets=[self.profile.api_key],
                         ),
                         provider_id=self.profile.provider_id,
                     )
@@ -82,12 +82,18 @@ class OpenAICompatibleProvider:
                 last_error = exc
             except (httpx.TimeoutException, TimeoutError) as exc:
                 last_error = LLMProviderError(
-                    _redact("Provider request timed out.", [self.profile.api_key]),
+                    redact_text(
+                        "Provider request timed out.",
+                        extra_secrets=[self.profile.api_key],
+                    ),
                     provider_id=self.profile.provider_id,
                 )
             except Exception as exc:
                 last_error = LLMProviderError(
-                    _redact(f"Provider request failed: {exc}", [self.profile.api_key]),
+                    redact_text(
+                        f"Provider request failed: {exc}",
+                        extra_secrets=[self.profile.api_key],
+                    ),
                     provider_id=self.profile.provider_id,
                 )
         if isinstance(last_error, LLMProviderError):
@@ -147,8 +153,8 @@ class FallbackLLMProvider:
                 return provider.generate_digest(prompt)
             except LLMProviderError as exc:
                 provider_id = getattr(provider, "provider_id", "unknown")
-                failures.append(f"{provider_id}: {exc}")
-        raise LLMProviderError(f"All AI providers failed: {'; '.join(failures)}")
+                failures.append(redact_text(f"{provider_id}: {exc}"))
+        raise LLMProviderError(redact_text(f"All AI providers failed: {'; '.join(failures)}"))
 
 
 def build_llm_provider_from_env(
@@ -280,17 +286,3 @@ def _optional_nonnegative_int(value: str, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return parsed if parsed >= 0 else default
-
-
-def _redact(message: str, secrets: list[str]) -> str:
-    redacted = message
-    for secret in secrets:
-        if secret:
-            redacted = redacted.replace(secret, "[REDACTED]")
-    redacted = re.sub(r"sk-[A-Za-z0-9_-]{6,}", "[REDACTED]", redacted)
-    redacted = re.sub(
-        r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+",
-        r"\1[REDACTED]",
-        redacted,
-    )
-    return redacted

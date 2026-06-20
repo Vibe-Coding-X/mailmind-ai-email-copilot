@@ -11,6 +11,7 @@ from app.db.models.digest_item import DigestItem
 from app.db.models.email import Email
 from app.db.models.mailbox import Mailbox
 from app.db.models.user_action import UserAction
+from app.utils.redaction import safe_error_message, sanitize_sensitive_data
 
 
 class UserActionServiceError(Exception):
@@ -19,19 +20,6 @@ class UserActionServiceError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(message)
-
-
-SENSITIVE_KEY_PARTS = {
-    "token",
-    "authorization",
-    "password",
-    "secret",
-    "api_key",
-    "apikey",
-    "body_text",
-    "raw_payload",
-    "mime",
-}
 
 
 def create_action(
@@ -244,17 +232,7 @@ def record_digest_item_action(
 
 
 def sanitize_audit_state(value: object) -> object:
-    if isinstance(value, dict):
-        sanitized: dict[str, object] = {}
-        for key, nested_value in value.items():
-            lowered = str(key).lower()
-            if any(part in lowered for part in SENSITIVE_KEY_PARTS):
-                continue
-            sanitized[str(key)] = sanitize_audit_state(nested_value)
-        return sanitized
-    if isinstance(value, list):
-        return [sanitize_audit_state(item) for item in value]
-    return value
+    return sanitize_sensitive_data(value)
 
 
 def _ensure_mailbox_owner(db: Session, *, user_id: UUID, mailbox_id: UUID) -> None:
@@ -317,10 +295,7 @@ def _normalize_and_validate_scope(
 
 
 def _safe_error_message(message: str | None) -> str | None:
-    if message is None:
-        return None
-    sanitized = str(sanitize_audit_state({"message": message}).get("message", ""))
-    return sanitized[:500]
+    return safe_error_message(message, max_length=500)
 
 
 def _ensure_utc(value: datetime) -> datetime:

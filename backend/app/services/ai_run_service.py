@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.models.ai_run import AIRun
+from app.utils.redaction import safe_error_message
 
 
 def create_ai_run(
@@ -82,7 +83,7 @@ def mark_ai_run_failed(
 ) -> AIRun:
     run.status = "failed"
     run.error_code = error_code
-    run.error_message = error_message[:1000]
+    run.error_message = safe_error_message(error_message, max_length=1000) or ""
     run.finished_at = _ensure_utc(now or datetime.now(UTC))
     return run
 

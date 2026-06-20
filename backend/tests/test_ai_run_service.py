@@ -119,3 +119,45 @@ def test_ai_run_service_records_failed_run() -> None:
         assert stored.status == "failed"
         assert stored.error_code == "DIGEST_GENERATION_FAILED"
         assert stored.error_message == "Mock provider failed."
+
+
+def test_ai_run_service_redacts_failed_run_error_message() -> None:
+    user, mailbox = _create_user_and_mailbox()
+    now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
+
+    with SessionLocal() as db:
+        run = create_ai_run(
+            db,
+            user_id=user.id,
+            mailbox_id=mailbox.id,
+            digest_id=None,
+            trigger_source="manual",
+            provider_id="primary",
+            provider_type="openai_compatible",
+            model_provider="mock",
+            model_name="mock-digest-v1",
+            prompt_version="digest_prompt.v1",
+            output_schema_version="digest.v1",
+            input_text="safe prompt",
+            input_summary={"mail_count": 0},
+            now=now,
+        )
+        mark_ai_run_failed(
+            run,
+            error_code="DIGEST_GENERATION_FAILED",
+            error_message=(
+                "Provider failed with Authorization: Bearer bearer-secret-12345 "
+                "and refresh_token=refresh-secret-12345"
+            ),
+            now=now,
+        )
+        db.commit()
+        run_id = run.id
+
+    with SessionLocal() as db:
+        stored = db.get(AIRun, run_id)
+        assert stored is not None
+        assert stored.error_message is not None
+        assert "bearer-secret-12345" not in stored.error_message
+        assert "refresh-secret-12345" not in stored.error_message
+        assert "[REDACTED]" in stored.error_message
