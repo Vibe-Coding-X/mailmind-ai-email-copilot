@@ -92,6 +92,8 @@ def parse_gmail_message(
     body_source = "\n".join(part for part in plain_parts if part.strip())
     if not body_source:
         body_source = "\n".join(part for part in html_parts if part.strip())
+    if not body_source:
+        body_source = str(message.get("snippet") or "")
     body_text, body_text_truncated = clean_email_body(
         body_source, max_length=max_body_length
     )
