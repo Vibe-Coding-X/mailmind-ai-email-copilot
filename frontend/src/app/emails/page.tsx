@@ -30,6 +30,7 @@ import {
   type EmailErrorView,
   type EmailReadFilter,
 } from "@/lib/emails";
+import { useI18n } from "@/i18n/provider";
 
 type EmailsPageState =
   | "loading"
@@ -39,6 +40,7 @@ type EmailsPageState =
   | "error";
 
 export default function EmailsTodayPage() {
+  const { t } = useI18n();
   const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [pageState, setPageState] = useState<EmailsPageState>("loading");
   const [emails, setEmails] = useState<EmailSummary[]>([]);
@@ -108,8 +110,8 @@ export default function EmailsTodayPage() {
       setEmails([]);
       setPageError({
         kind: "unauthorized",
-        title: "Not signed in",
-        message: "Sign in with your MailMind account to load emails.",
+        title: t("account.notSignedIn"),
+        message: t("emails.notSignedInMessage"),
       });
       setPageState("unauthorized");
       return;
@@ -119,15 +121,15 @@ export default function EmailsTodayPage() {
       setEmails([]);
       setPageError({
         kind: "backend_unavailable",
-        title: "Backend unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        title: t("account.backendUnavailable"),
+        message: t("digest.backendUnavailableMessage"),
       });
       setPageState("backend_unavailable");
       return;
     }
 
     void loadEmails();
-  }, [authStatus, loadEmails]);
+  }, [authStatus, loadEmails, t]);
 
   async function onRefresh() {
     if (authStatus === "authenticated") {
@@ -172,8 +174,8 @@ export default function EmailsTodayPage() {
         pageError ??
         ({
           kind: "error",
-          title: "Email error",
-          message: "Something went wrong. Please try again.",
+          title: t("emails.errorTitle"),
+          message: t("digest.genericError"),
         } satisfies EmailErrorView);
 
       return (
@@ -181,10 +183,10 @@ export default function EmailsTodayPage() {
           error={error}
           action={
             error.kind === "unauthorized" ? (
-              <a href="/login">Sign in</a>
+              <a href="/login">{t("account.signIn")}</a>
             ) : (
               <button type="button" className="mm-btn" onClick={onRefresh}>
-                Retry
+                {t("common.retry")}
               </button>
             )
           }
@@ -195,11 +197,11 @@ export default function EmailsTodayPage() {
     if (emails.length === 0) {
       return (
         <EmailEmptyState
-          title="No emails today"
-          hint="No messages were returned for today."
+          title={t("emails.noTodayTitle")}
+          hint={t("emails.noTodayHint")}
           action={
             <button type="button" className="mm-btn" onClick={onRefresh}>
-              Refresh
+              {t("common.refresh")}
             </button>
           }
         />
@@ -209,11 +211,11 @@ export default function EmailsTodayPage() {
     if (filteredEmails.length === 0) {
       return (
         <EmailEmptyState
-          title="No matching emails"
+          title={t("emails.noMatchingTitle")}
           hint={
             searchQuery.trim().length > 0
-              ? "No messages match the current search and read filter."
-              : "The current read filter has no matching messages."
+              ? t("emails.noMatchingSearchHint")
+              : t("emails.noMatchingFilterHint")
           }
         />
       );
@@ -235,32 +237,32 @@ export default function EmailsTodayPage() {
       <StatusBanner />
       <div style={{ height: 20 }} />
       <PageFrame
-        title="Emails"
-        description="Messages received today from connected mailboxes."
+        title={t("emails.title")}
+        description={t("emails.description")}
         badge={false}
       >
         <section className="mm-card">
           <div className="mm-spread" style={{ alignItems: "flex-start" }}>
             <div className="mm-row">
               <SegmentedControl
-                label="Read filter"
+                label={t("emails.readFilter")}
                 value={filter}
                 options={EMAIL_READ_FILTERS}
                 onChange={setFilter}
               />
               <label className="mm-field" style={{ marginBottom: 0 }}>
-                <span className="mm-label">Search</span>
+                <span className="mm-label">{t("common.search")}</span>
                 <input
                   className="mm-input"
                   type="search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Subject, sender, label"
+                  placeholder={t("emails.searchPlaceholder")}
                   style={{ minWidth: 220 }}
                 />
               </label>
               <Badge tone="neutral" dot>
-                {filteredEmails.length} shown
+                {t("emails.shown").replace("{{count}}", String(filteredEmails.length))}
               </Badge>
             </div>
             <button
@@ -270,13 +272,13 @@ export default function EmailsTodayPage() {
               disabled={pageState === "loading"}
               aria-disabled={pageState === "loading"}
             >
-              Refresh
+              {t("common.refresh")}
             </button>
           </div>
 
           {actionError ? (
             <div style={{ marginTop: 14 }}>
-              <InlineFeedback tone="danger" title="Email action error">
+              <InlineFeedback tone="danger" title={t("emails.actionError")}>
                 {actionError}
               </InlineFeedback>
             </div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/components/theme-provider";
+import { MailMindI18nProvider } from "@/i18n/provider";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -52,7 +53,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <MailMindI18nProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </MailMindI18nProvider>
         </ThemeProvider>
       </body>
     </html>

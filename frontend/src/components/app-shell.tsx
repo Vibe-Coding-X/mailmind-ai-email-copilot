@@ -1,5 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
+import { useI18n } from "@/i18n/provider";
 
 /**
  * AppShell — product layout frame for MailMind (design preview).
@@ -10,33 +13,39 @@ import { AccountMenu } from "@/components/account-menu";
 
 interface NavLink {
   href: string;
-  label: string;
+  labelKey:
+    | "nav.dashboard"
+    | "nav.emails"
+    | "nav.actions"
+    | "nav.mailboxes";
   icon: "dashboard" | "emails" | "actions" | "mailboxes";
 }
 
 // Routes reflect docs/frontend/FRONTEND_DESIGN.md section 2 page structure.
 // Product direction is dashboard-first, so Dashboard leads (not the inbox).
 const PRIMARY_NAV: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/emails", label: "Emails", icon: "emails" },
-  { href: "/actions", label: "Actions", icon: "actions" },
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: "dashboard" },
+  { href: "/emails", labelKey: "nav.emails", icon: "emails" },
+  { href: "/actions", labelKey: "nav.actions", icon: "actions" },
 ];
 
 const SETTINGS_NAV: NavLink[] = [
-  { href: "/settings/mailboxes", label: "Mailboxes", icon: "mailboxes" },
+  { href: "/settings/mailboxes", labelKey: "nav.mailboxes", icon: "mailboxes" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+
   return (
     <div className="mm-shell">
       <aside className="mm-sidebar">
         <div>
           <div className="mm-brand-name">MailMind</div>
-          <div className="mm-brand-sub">AI Email Copilot</div>
+          <div className="mm-brand-sub">{t("app.subtitle")}</div>
         </div>
 
-        <NavSection title="Workspace" links={PRIMARY_NAV} />
-        <NavSection title="Settings" links={SETTINGS_NAV} />
+        <NavSection title={t("nav.workspace")} links={PRIMARY_NAV} />
+        <NavSection title={t("nav.settings")} links={SETTINGS_NAV} />
 
         <div style={{ marginTop: "auto" }}>
           <AccountMenu />
@@ -49,6 +58,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 function NavSection({ title, links }: { title: string; links: NavLink[] }) {
+  const { t } = useI18n();
+
   return (
     <nav>
       <div className="mm-nav-label">{title}</div>
@@ -57,7 +68,7 @@ function NavSection({ title, links }: { title: string; links: NavLink[] }) {
           <li key={link.href}>
             <a className="mm-nav-link" href={link.href}>
               <NavIcon icon={link.icon} />
-              {link.label}
+              {t(link.labelKey)}
             </a>
           </li>
         ))}

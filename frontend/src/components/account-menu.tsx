@@ -13,6 +13,9 @@ import {
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { useI18n } from "@/i18n/provider";
+import type { Language } from "@/i18n/language";
 import { useAuth } from "@/lib/auth";
 
 function initials(email: string | undefined): string {
@@ -29,6 +32,7 @@ function initials(email: string | undefined): string {
 export function AccountMenu({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { status, user, logout } = useAuth();
+  const { language, setLanguage, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -63,7 +67,11 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   }
 
   const signedIn = status === "authenticated" && user !== null;
-  const avatarLabel = signedIn ? user.email : "Account";
+  const avatarLabel = signedIn ? user.email : t("account.account");
+  const languageOptions = [
+    { value: "en" as Language, label: t("language.english") },
+    { value: "zh" as Language, label: t("language.chinese") },
+  ];
 
   return (
     <div
@@ -84,10 +92,14 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
         </span>
         <span className="mm-account-copy">
           <span className="mm-account-name">
-            {signedIn ? user.email : status === "loading" ? "Checking session" : "Not signed in"}
+            {signedIn
+              ? user.email
+              : status === "loading"
+                ? t("account.checkingSession")
+                : t("account.notSignedIn")}
           </span>
           <span className="mm-account-sub">
-            {signedIn ? user.timezone : "Open account menu"}
+            {signedIn ? user.timezone : t("account.openMenu")}
           </span>
         </span>
       </button>
@@ -97,10 +109,10 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
           <div className="mm-account-menu-head">
             <Badge tone={signedIn ? "ok" : status === "unavailable" ? "danger" : "neutral"} dot>
               {signedIn
-                ? "Signed in"
+                ? t("account.signedIn")
                 : status === "unavailable"
-                  ? "Backend unavailable"
-                  : "Not signed in"}
+                  ? t("account.backendUnavailable")
+                  : t("account.notSignedIn")}
             </Badge>
             {signedIn ? (
               <div className="mm-account-email">{user.email}</div>
@@ -109,26 +121,28 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
 
           <div className="mm-account-menu-section">
             <Link role="menuitem" className="mm-menu-link" href="/settings/profile" onClick={() => setOpen(false)}>
-              Profile
+              {t("account.profile")}
             </Link>
             <Link role="menuitem" className="mm-menu-link" href="/settings/security" onClick={() => setOpen(false)}>
-              Security
+              {t("account.security")}
             </Link>
-            <button
-              type="button"
-              role="menuitem"
-              className="mm-menu-link"
-              disabled
-              aria-disabled="true"
-              title="Language switching is wired in FE-R5."
-            >
-              Language
-            </button>
+            <div className="mm-stack" style={{ gap: 6, marginTop: 8 }}>
+              <span className="mm-nav-label" style={{ marginBottom: 0 }}>
+                {t("account.language")}
+              </span>
+              <SegmentedControl
+                label={t("account.language")}
+                value={language}
+                options={languageOptions}
+                onChange={setLanguage}
+                block
+              />
+            </div>
           </div>
 
           <div className="mm-account-menu-section">
             <div className="mm-nav-label" style={{ marginBottom: 8 }}>
-              Theme
+              {t("account.theme")}
             </div>
             <ThemeSwitcher />
           </div>
@@ -138,18 +152,18 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
               <Button
                 variant="ghost"
                 disabled={loggingOut}
-                disabledReason="Sign out is already in progress."
+                disabledReason={t("account.signOutBusy")}
                 onClick={() => void onLogout()}
               >
-                {loggingOut ? "Signing out..." : "Sign out"}
+                {loggingOut ? t("account.signingOut") : t("account.signOut")}
               </Button>
             ) : (
               <div className="mm-row">
                 <Link className="mm-btn mm-btn--primary" href="/login" onClick={() => setOpen(false)}>
-                  Sign in
+                  {t("account.signIn")}
                 </Link>
                 <Link className="mm-btn" href="/register" onClick={() => setOpen(false)}>
-                  Create account
+                  {t("account.createAccount")}
                 </Link>
               </div>
             )}

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useI18n } from "@/i18n/provider";
 
 export function EmailToolbar({
   isRead,
@@ -13,10 +16,12 @@ export function EmailToolbar({
   onMarkRead: () => void;
   onMarkUnread: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="mm-row">
       <Link className="mm-btn" href={backHref}>
-        Back to emails
+        {t("emails.backToEmails")}
       </Link>
       <button
         type="button"
@@ -25,7 +30,7 @@ export function EmailToolbar({
         aria-disabled={busy || isRead}
         onClick={onMarkRead}
       >
-        {busy && !isRead ? "Marking..." : "Mark as read"}
+        {busy && !isRead ? t("emails.marking") : t("emails.markAsRead")}
       </button>
       <button
         type="button"
@@ -34,7 +39,7 @@ export function EmailToolbar({
         aria-disabled={busy || !isRead}
         onClick={onMarkUnread}
       >
-        {busy && isRead ? "Marking..." : "Mark as unread"}
+        {busy && isRead ? t("emails.marking") : t("emails.markAsUnread")}
       </button>
     </div>
   );

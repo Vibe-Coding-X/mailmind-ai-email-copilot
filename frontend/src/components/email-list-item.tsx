@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/i18n/provider";
 import type { EmailSummary } from "@/lib/api-types";
 import {
   displaySnippet,
@@ -21,7 +24,8 @@ export function EmailListItem({
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
-  const statusLabel = email.is_read ? "Read" : "Unread";
+  const { t } = useI18n();
+  const statusLabel = email.is_read ? t("emails.read") : t("emails.unread");
   const detailHref = listHref.includes("?")
     ? `/emails/${email.id}?${listHref.split("?")[1]}`
     : `/emails/${email.id}`;
@@ -91,7 +95,7 @@ export function EmailListItem({
           onClick={() => onMarkRead(email.id)}
           style={{ fontSize: 12, padding: "6px 12px" }}
         >
-          Mark read
+          {t("emails.markRead")}
         </button>
         <button
           type="button"
@@ -101,7 +105,7 @@ export function EmailListItem({
           onClick={() => onMarkUnread(email.id)}
           style={{ fontSize: 12, padding: "6px 12px" }}
         >
-          Mark unread
+          {t("emails.markUnread")}
         </button>
       </div>
     </article>
