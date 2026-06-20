@@ -52,6 +52,16 @@ Every job response object should include:
   - Creates an `email_sync` job with `queued` status.
   - Returns a common job object.
   - Does not replace the existing synchronous `POST /api/mailboxes/{mailbox_id}/sync`.
+- `POST /api/digest/today/generate-jobs`
+  - Requires login.
+  - Creates a `digest_generate` job with `queued` status for the current user's active mailbox.
+  - Returns a common job object.
+  - Does not replace the existing synchronous `POST /api/digest/today/generate`.
+- `POST /api/digest/today/refresh-jobs`
+  - Requires login.
+  - Creates a `digest_refresh` job with `queued` status for the current user's active mailbox.
+  - Returns a common job object.
+  - Does not replace the existing synchronous `POST /api/digest/today/refresh`.
 - `GET /api/jobs`
   - Requires login.
   - Query params: `limit`, `offset`, `job_type`, `status`, `created_from`, `created_to`.

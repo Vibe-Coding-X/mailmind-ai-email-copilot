@@ -52,6 +52,12 @@ class DigestWindow:
     digest_date: object
 
 
+@dataclass(slots=True)
+class QueuedDigestJobResult:
+    job_id: UUID
+    status: str
+
+
 def get_today_digest(
     db: Session,
     *,
@@ -135,6 +141,107 @@ def refresh_today_digest(
     )
 
 
+def enqueue_generate_today_digest_job(
+    db: Session,
+    *,
+    user_id: UUID | str,
+    dispatch: bool = True,
+    now: datetime | None = None,
+) -> QueuedDigestJobResult:
+    return _enqueue_digest_job(
+        db,
+        user_id=user_id,
+        job_type="generate_daily_digest",
+        trigger_source="manual",
+        dispatch=dispatch,
+        now=now,
+    )
+
+
+def enqueue_refresh_today_digest_job(
+    db: Session,
+    *,
+    user_id: UUID | str,
+    dispatch: bool = True,
+    now: datetime | None = None,
+) -> QueuedDigestJobResult:
+    return _enqueue_digest_job(
+        db,
+        user_id=user_id,
+        job_type="refresh_daily_digest",
+        trigger_source="refresh",
+        dispatch=dispatch,
+        now=now,
+    )
+
+
+def execute_queued_digest_job(
+    db: Session,
+    *,
+    job_id: UUID | str,
+    llm_provider: LLMProvider | None = None,
+    now: datetime | None = None,
+) -> DailyDigest:
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    job = db.get(SyncJob, _as_uuid(job_id))
+    if job is None:
+        raise DigestServiceError("INVALID_REQUEST", "Digest job not found.", 404)
+    if job.status != "queued":
+        raise DigestServiceError("INVALID_REQUEST", "Digest job is not queued.")
+
+    job.status = "running"
+    job.started_at = resolved_now
+    db.flush()
+    try:
+        if job.job_type == "generate_daily_digest":
+            digest = generate_today_digest(
+                db,
+                user_id=job.user_id,
+                llm_provider=llm_provider,
+                now=resolved_now,
+            )
+        elif job.job_type == "refresh_daily_digest":
+            digest = refresh_today_digest(
+                db,
+                user_id=job.user_id,
+                llm_provider=llm_provider,
+                now=resolved_now,
+            )
+        else:
+            raise DigestServiceError("INVALID_REQUEST", "Unsupported digest job type.")
+    except DigestServiceError as exc:
+        job.status = "failed"
+        job.error_code = exc.code
+        job.error_message = safe_error_message(exc.message, max_length=1000) or ""
+        job.finished_at = resolved_now
+        db.flush()
+        raise
+
+    item_count = int(
+        db.scalar(select(func.count(DigestItem.id)).where(DigestItem.digest_id == digest.id))
+        or 0
+    )
+    job.digest_id = digest.id
+    job.status = "succeeded"
+    job.finished_at = resolved_now
+    job.error_code = None
+    job.error_message = None
+    job.payload_json = {
+        "digest_id": str(digest.id),
+        "item_count": item_count,
+        "mail_count": digest.mail_count,
+    }
+    db.flush()
+    return digest
+
+
+def dispatch_digest_job(job_id: UUID) -> str:
+    from app.jobs.celery_app import celery_app
+
+    result = celery_app.send_task("app.jobs.digest", args=[str(job_id)])
+    return str(result.id)
+
+
 def calculate_digest_window(timezone: str, *, now: datetime) -> DigestWindow:
     resolved_now = _ensure_utc(now)
     user_zone = _user_zone(timezone)
@@ -145,6 +252,38 @@ def calculate_digest_window(timezone: str, *, now: datetime) -> DigestWindow:
         end=resolved_now,
         digest_date=local_now.date(),
     )
+
+
+def _enqueue_digest_job(
+    db: Session,
+    *,
+    user_id: UUID | str,
+    job_type: str,
+    trigger_source: str,
+    dispatch: bool,
+    now: datetime | None,
+) -> QueuedDigestJobResult:
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    user = _get_user(db, user_id)
+    mailbox = _get_active_mailbox(db, user_id=user.id)
+    window = calculate_digest_window(user.timezone, now=resolved_now)
+    job = SyncJob(
+        user_id=user.id,
+        mailbox_id=mailbox.id,
+        job_type=job_type,
+        trigger_source=trigger_source,
+        job_key=None,
+        target_date=window.digest_date,
+        status="queued",
+        payload_json={},
+        created_at=resolved_now,
+    )
+    db.add(job)
+    db.flush()
+    if dispatch:
+        job.celery_task_id = dispatch_digest_job(job.id)
+        db.flush()
+    return QueuedDigestJobResult(job_id=job.id, status="queued")
 
 
 def _generate_digest(
