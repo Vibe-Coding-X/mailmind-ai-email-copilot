@@ -609,7 +609,7 @@ function DigestLoadedView({
         />
       </div>
 
-      <section className="mm-card">
+      <section className="mm-card mm-card--summary">
         <div className="mm-spread" style={{ alignItems: "flex-start" }}>
           <div>
             <div className="mm-card-title">Summary</div>
@@ -677,7 +677,7 @@ function MetricCard({
   detail?: string;
 }) {
   return (
-    <section className="mm-card">
+    <section className="mm-card mm-card--metric">
       <div className="mm-muted" style={{ fontSize: 12 }}>
         {label}
       </div>
