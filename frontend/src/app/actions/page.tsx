@@ -95,9 +95,9 @@ function providerTone(effect: string): BadgeTone {
   }
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null, t: TFunction): string {
   if (!value) {
-    return "Not executed";
+    return t("actions.notExecuted");
   }
 
   const date = new Date(value);
@@ -341,6 +341,7 @@ export default function ActionsPage() {
                   selected={selectedActionId === action.id}
                   showTopBorder={index > 0}
                   onSelect={onSelectAction}
+                  t={t}
                 />
               ))}
             </div>
@@ -377,11 +378,13 @@ function ActionListRow({
   selected,
   showTopBorder,
   onSelect,
+  t,
 }: {
   action: UserAction;
   selected: boolean;
   showTopBorder: boolean;
   onSelect: (actionId: string) => Promise<void>;
+  t: TFunction;
 }) {
   return (
     <button
@@ -408,7 +411,7 @@ function ActionListRow({
             {statusLabel(action.action_type)}
           </div>
           <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
-            {formatDateTime(action.created_at)}
+            {formatDateTime(action.created_at, t)}
           </p>
         </div>
         <Badge tone={actionTone(action.action_status)} dot>
@@ -457,8 +460,8 @@ function ActionDetailPanel({
 
           <DetailLine label={t("actions.actionType")} value={statusLabel(action.action_type)} />
           <DetailLine label={t("actions.source")} value={statusLabel(action.source)} />
-          <DetailLine label={t("actions.created")} value={formatDateTime(action.created_at)} />
-          <DetailLine label={t("actions.executed")} value={formatDateTime(action.executed_at)} />
+          <DetailLine label={t("actions.created")} value={formatDateTime(action.created_at, t)} />
+          <DetailLine label={t("actions.executed")} value={formatDateTime(action.executed_at, t)} />
 
           {action.error_message ? (
             <div>
