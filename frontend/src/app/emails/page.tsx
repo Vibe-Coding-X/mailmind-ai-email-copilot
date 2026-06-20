@@ -20,9 +20,12 @@ import {
 import type { EmailSummary } from "@/lib/api-types";
 import {
   EMAIL_READ_FILTERS,
+  buildEmailListHref,
   emailErrorView,
   filterEmails,
+  filterEmailsByQuery,
   mergeEmailMutation,
+  parseEmailReadFilter,
   type EmailErrorView,
   type EmailReadFilter,
 } from "@/lib/emails";
@@ -39,14 +42,35 @@ export default function EmailsTodayPage() {
   const [pageState, setPageState] = useState<EmailsPageState>("loading");
   const [emails, setEmails] = useState<EmailSummary[]>([]);
   const [filter, setFilter] = useState<EmailReadFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [urlStateLoaded, setUrlStateLoaded] = useState(false);
   const [pageError, setPageError] = useState<EmailErrorView | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyEmailId, setBusyEmailId] = useState<string | null>(null);
 
   const filteredEmails = useMemo(
-    () => filterEmails(emails, filter),
-    [emails, filter],
+    () => filterEmailsByQuery(filterEmails(emails, filter), searchQuery),
+    [emails, filter, searchQuery],
   );
+  const listHref = useMemo(
+    () => buildEmailListHref({ filter, query: searchQuery }),
+    [filter, searchQuery],
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setFilter(parseEmailReadFilter(params.get("filter")));
+    setSearchQuery(params.get("q") ?? "");
+    setUrlStateLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!urlStateLoaded) {
+      return;
+    }
+
+    window.history.replaceState(null, "", listHref);
+  }, [listHref, urlStateLoaded]);
 
   const loadEmails = useCallback(async (): Promise<boolean> => {
     setPageState("loading");
@@ -185,7 +209,11 @@ export default function EmailsTodayPage() {
       return (
         <EmailEmptyState
           title="No matching emails"
-          hint="The current read filter has no matching messages."
+          hint={
+            searchQuery.trim().length > 0
+              ? "No messages match the current search and read filter."
+              : "The current read filter has no matching messages."
+          }
         />
       );
     }
@@ -194,6 +222,7 @@ export default function EmailsTodayPage() {
       <EmailList
         emails={filteredEmails}
         busyEmailId={busyEmailId}
+        listHref={listHref}
         onMarkRead={(emailId) => void updateReadState(emailId, true)}
         onMarkUnread={(emailId) => void updateReadState(emailId, false)}
       />
@@ -218,6 +247,17 @@ export default function EmailsTodayPage() {
                 options={EMAIL_READ_FILTERS}
                 onChange={setFilter}
               />
+              <label className="mm-field" style={{ marginBottom: 0 }}>
+                <span className="mm-label">Search</span>
+                <input
+                  className="mm-input"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Subject, sender, label"
+                  style={{ minWidth: 220 }}
+                />
+              </label>
               <Badge tone="neutral" dot>
                 {filteredEmails.length} shown
               </Badge>
