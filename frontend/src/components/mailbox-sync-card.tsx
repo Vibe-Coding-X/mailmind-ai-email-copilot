@@ -1,4 +1,7 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/i18n/provider";
 import type { Mailbox, MailboxSyncStatusData } from "@/lib/api-types";
 import {
   formatDateTimeWithRelative,
@@ -27,6 +30,7 @@ export function MailboxSyncCard({
   syncing?: boolean;
   onSync: (mailboxId: string) => void;
 }) {
+  const { t } = useI18n();
   const loaded = syncStatus?.state === "loaded" ? syncStatus.data : undefined;
   const disabled = !isConnectedMailbox(mailbox) || syncing;
   const lastJob = loaded?.last_job ?? null;
@@ -48,11 +52,11 @@ export function MailboxSyncCard({
       <div className="mm-spread" style={{ alignItems: "flex-start" }}>
         <div>
           <div className="mm-card-title" style={{ marginBottom: 4 }}>
-            Sync Today
+            {t("mailboxes.syncToday")}
           </div>
           <p className="mm-muted" style={{ fontSize: 13 }}>
             {syncStatus?.state === "loading"
-              ? "Checking sync status..."
+              ? t("mailboxes.checkingSync")
               : syncStatusSummary(loaded)}
           </p>
           {syncStatus?.state !== "loading" ? (
@@ -71,15 +75,15 @@ export function MailboxSyncCard({
         style={{ marginTop: 14, fontSize: 13 }}
       >
         <SyncDatum
-          label="Last successful sync"
+          label={t("mailboxes.lastSuccessfulSync")}
           value={formatDateTimeWithRelative(loaded?.last_successful_sync_at)}
         />
         <SyncDatum
-          label="Last job"
+          label={t("mailboxes.lastJob")}
           value={
             lastJob
               ? `${statusLabel(lastJob.status)} (${lastJob.job_type})`
-              : "No job"
+              : t("mailboxes.noJob")
           }
         />
       </div>
@@ -101,13 +105,13 @@ export function MailboxSyncCard({
           onClick={() => onSync(mailbox.id)}
           style={{ cursor: disabled ? "not-allowed" : "pointer" }}
         >
-          {syncing ? "Syncing..." : "Sync Today"}
+          {syncing ? t("mailboxes.syncing") : t("mailboxes.syncToday")}
         </button>
         {!isConnectedMailbox(mailbox) ? (
           <span className="mm-muted" style={{ fontSize: 12 }}>
             {needsReconnect
-              ? "Reconnect Gmail before syncing."
-              : "Connect Gmail before syncing."}
+              ? t("mailboxes.reconnectBeforeSync")
+              : t("mailboxes.connectBeforeSync")}
           </span>
         ) : null}
       </div>

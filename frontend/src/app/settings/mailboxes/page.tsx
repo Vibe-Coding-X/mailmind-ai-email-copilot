@@ -30,6 +30,7 @@ import {
   requiresGmailReconnect,
   syncResultMessage,
 } from "@/lib/mailboxes";
+import { useI18n, type TranslationKey } from "@/i18n/provider";
 
 type MailboxLoadState =
   | "loading"
@@ -52,15 +53,17 @@ function isGmailReauthError(error: unknown): boolean {
   );
 }
 
-function toErrorMessage(error: unknown): string {
+type TFunction = (key: TranslationKey) => string;
+
+function toErrorMessage(error: unknown, t: TFunction): string {
   if (error instanceof ApiRequestError) {
-    return error.status === 0 ? "Backend unavailable" : error.message;
+    return error.status === 0 ? t("account.backendUnavailable") : error.message;
   }
 
-  return "Something went wrong. Please try again.";
+  return t("digest.genericError");
 }
 
-function toMailboxLoadState(error: unknown): {
+function toMailboxLoadState(error: unknown, t: TFunction): {
   state: MailboxLoadState;
   message: string;
 } {
@@ -68,14 +71,14 @@ function toMailboxLoadState(error: unknown): {
     if (isSystemAuthError(error)) {
       return {
         state: "not_signed_in",
-        message: "Sign in before managing Gmail authorization.",
+        message: t("mailboxes.signInBeforeGmail"),
       };
     }
 
     if (error.status === 0) {
       return {
         state: "backend_unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        message: t("digest.backendUnavailableMessage"),
       };
     }
 
@@ -84,7 +87,7 @@ function toMailboxLoadState(error: unknown): {
 
   return {
     state: "error",
-    message: "Something went wrong. Please try again.",
+    message: t("digest.genericError"),
   };
 }
 
@@ -119,25 +122,26 @@ function actionButtonStyle(disabled: boolean): React.CSSProperties {
 function gmailOverview(
   loadState: MailboxLoadState,
   gmailMailbox: Mailbox | null,
+  t: TFunction,
 ): { text: string; tone: BadgeTone } {
   if (loadState === "loading") {
-    return { text: "Checking Gmail", tone: "neutral" };
+    return { text: t("mailboxes.checkingGmail"), tone: "neutral" };
   }
 
   if (loadState === "not_signed_in") {
-    return { text: "Not signed in", tone: "neutral" };
+    return { text: t("account.notSignedIn"), tone: "neutral" };
   }
 
   if (loadState === "backend_unavailable") {
-    return { text: "Backend unavailable", tone: "danger" };
+    return { text: t("account.backendUnavailable"), tone: "danger" };
   }
 
   if (loadState === "error") {
-    return { text: "Gmail state unavailable", tone: "danger" };
+    return { text: t("mailboxes.stateUnavailable"), tone: "danger" };
   }
 
   if (gmailMailbox === null) {
-    return { text: "Gmail not connected", tone: "neutral" };
+    return { text: t("mailboxes.notConnectedStatus"), tone: "neutral" };
   }
 
   return {
@@ -147,6 +151,7 @@ function gmailOverview(
 }
 
 export default function MailboxSettingsPage() {
+  const { t } = useI18n();
   const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [loadState, setLoadState] = useState<MailboxLoadState>("loading");
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
@@ -185,7 +190,7 @@ export default function MailboxSettingsPage() {
             mailbox.id,
             {
               state: "error",
-              message: toErrorMessage(error),
+              message: toErrorMessage(error, t),
             } satisfies MailboxSyncStatusView,
           ] as const;
         }
@@ -193,7 +198,7 @@ export default function MailboxSettingsPage() {
     );
 
     setSyncStatuses(Object.fromEntries(entries));
-  }, []);
+  }, [t]);
 
   const loadMailboxList = useCallback(async (): Promise<boolean> => {
     setLoadState("loading");
@@ -206,14 +211,14 @@ export default function MailboxSettingsPage() {
       void refreshSyncStatuses(response.data.mailboxes);
       return true;
     } catch (error) {
-      const resolved = toMailboxLoadState(error);
+      const resolved = toMailboxLoadState(error, t);
       setMailboxes([]);
       setSyncStatuses({});
       setLoadState(resolved.state);
       setLoadError(resolved.message);
       return false;
     }
-  }, [refreshSyncStatuses]);
+  }, [refreshSyncStatuses, t]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -233,12 +238,12 @@ export default function MailboxSettingsPage() {
       setMailboxes([]);
       setSyncStatuses({});
       setLoadState("backend_unavailable");
-      setLoadError("Unable to reach the server. Check that the backend is running.");
+      setLoadError(t("digest.backendUnavailableMessage"));
       return;
     }
 
     void loadMailboxList();
-  }, [authStatus, loadMailboxList]);
+  }, [authStatus, loadMailboxList, t]);
 
   const gmailMailbox = useMemo(
     () => mailboxes.find(isGmailMailbox) ?? null,
@@ -246,7 +251,7 @@ export default function MailboxSettingsPage() {
   );
 
   const gmailStatus = gmailMailbox?.status ?? "not_connected";
-  const gmailSummary = gmailOverview(loadState, gmailMailbox);
+  const gmailSummary = gmailOverview(loadState, gmailMailbox, t);
   const canAct = authStatus === "authenticated";
   const showConnect =
     canAct &&
@@ -271,7 +276,7 @@ export default function MailboxSettingsPage() {
 
       window.location.href = response.data.authorization_url;
     } catch (error) {
-      const resolved = toMailboxLoadState(error);
+      const resolved = toMailboxLoadState(error, t);
       if (
         resolved.state === "not_signed_in" ||
         resolved.state === "backend_unavailable"
@@ -279,15 +284,13 @@ export default function MailboxSettingsPage() {
         setLoadState(resolved.state);
         setLoadError(resolved.message);
       }
-      setActionError(toErrorMessage(error));
+      setActionError(toErrorMessage(error, t));
       setConnecting(false);
     }
   }
 
   async function onDisconnectGmail() {
-    const confirmed = window.confirm(
-      "Disconnect Gmail from MailMind? Email data already synced remains in MailMind, but new Gmail syncs will stop.",
-    );
+    const confirmed = window.confirm(t("mailboxes.disconnectConfirm"));
     if (!confirmed) {
       return;
     }
@@ -300,10 +303,10 @@ export default function MailboxSettingsPage() {
       await disconnectGmail();
       const refreshed = await loadMailboxList();
       if (refreshed) {
-        setActionMessage("Gmail disconnected. Mailbox list refreshed.");
+        setActionMessage(t("mailboxes.disconnectedMessage"));
       }
     } catch (error) {
-      const resolved = toMailboxLoadState(error);
+      const resolved = toMailboxLoadState(error, t);
       if (
         resolved.state === "not_signed_in" ||
         resolved.state === "backend_unavailable"
@@ -311,7 +314,7 @@ export default function MailboxSettingsPage() {
         setLoadState(resolved.state);
         setLoadError(resolved.message);
       }
-      setActionError(toErrorMessage(error));
+      setActionError(toErrorMessage(error, t));
     } finally {
       setDisconnecting(false);
     }
@@ -331,8 +334,8 @@ export default function MailboxSettingsPage() {
       setActionMessage(syncResultMessage(response.data));
       await loadMailboxList();
     } catch (error) {
-      const message = toErrorMessage(error);
-      const resolved = toMailboxLoadState(error);
+      const message = toErrorMessage(error, t);
+      const resolved = toMailboxLoadState(error, t);
       if (
         resolved.state === "not_signed_in" ||
         resolved.state === "backend_unavailable"
@@ -373,9 +376,9 @@ export default function MailboxSettingsPage() {
     if (loadState === "not_signed_in") {
       return (
         <EmptyState
-          title="Not signed in"
-          hint="Sign in with your MailMind account before connecting Gmail."
-          action={<a href="/login">Sign in</a>}
+          title={t("account.notSignedIn")}
+          hint={t("mailboxes.signInHint")}
+          action={<a href="/login">{t("account.signIn")}</a>}
         />
       );
     }
@@ -383,8 +386,8 @@ export default function MailboxSettingsPage() {
     if (loadState === "backend_unavailable") {
       return (
         <EmptyState
-          title="Backend unavailable"
-          hint={loadError ?? "Unable to reach the server."}
+          title={t("account.backendUnavailable")}
+          hint={loadError ?? t("mailboxes.unableToReachFallback")}
           action={
             <button
               type="button"
@@ -392,7 +395,7 @@ export default function MailboxSettingsPage() {
               onClick={onRetry}
               style={actionButtonStyle(false)}
             >
-              Retry
+              {t("common.retry")}
             </button>
           }
         />
@@ -402,8 +405,8 @@ export default function MailboxSettingsPage() {
     if (loadState === "error") {
       return (
         <EmptyState
-          title="Mailbox error"
-          hint={loadError ?? "The backend returned an error."}
+          title={t("mailboxes.errorTitle")}
+          hint={loadError ?? t("mailboxes.backendErrorFallback")}
           action={
             <button
               type="button"
@@ -411,7 +414,7 @@ export default function MailboxSettingsPage() {
               onClick={onRetry}
               style={actionButtonStyle(false)}
             >
-              Retry
+              {t("common.retry")}
             </button>
           }
         />
@@ -421,8 +424,8 @@ export default function MailboxSettingsPage() {
     if (mailboxes.length === 0) {
       return (
         <EmptyState
-          title="Not connected"
-          hint="No mailboxes are connected."
+          title={t("mailboxes.notConnectedTitle")}
+          hint={t("mailboxes.notConnectedHint")}
         />
       );
     }
@@ -479,12 +482,12 @@ export default function MailboxSettingsPage() {
       <StatusBanner />
       <div style={{ height: 20 }} />
       <PageFrame
-        title="Mailboxes"
-        description="Connect and manage email accounts. System login is separate from Gmail authorization."
+        title={t("mailboxes.pageTitle")}
+        description={t("mailboxes.pageDescription")}
       >
         <SettingsSection
-          title="Gmail"
-          description="Manage the Gmail account authorized for MailMind."
+          title={t("mailboxes.title")}
+          description={t("mailboxes.description")}
         >
           <div className="mm-spread" style={{ alignItems: "flex-start" }}>
             <div className="mm-stack" style={{ gap: 8 }}>
@@ -506,10 +509,10 @@ export default function MailboxSettingsPage() {
               ) : (
                 <p className="mm-muted" style={{ fontSize: 13 }}>
                   {loadState === "not_signed_in"
-                    ? "Sign in before connecting Gmail."
+                    ? t("mailboxes.signInBeforeGmail")
                     : loadState === "backend_unavailable"
-                      ? "Mailbox state cannot be loaded until the backend is reachable."
-                      : "No Gmail mailbox was returned by the backend."}
+                      ? t("mailboxes.stateBackendUnavailable")
+                      : t("mailboxes.noGmailReturned")}
                 </p>
               )}
             </div>
@@ -525,10 +528,10 @@ export default function MailboxSettingsPage() {
                   style={actionButtonStyle(connectDisabled)}
                 >
                   {connecting
-                    ? "Starting Gmail..."
+                    ? t("mailboxes.startingGmail")
                     : gmailMailbox && requiresGmailReconnect(gmailMailbox)
-                      ? "Reconnect Gmail"
-                      : "Connect Gmail"}
+                      ? t("mailboxes.reconnectGmail")
+                      : t("mailboxes.connectGmail")}
                 </button>
               ) : null}
 
@@ -541,7 +544,7 @@ export default function MailboxSettingsPage() {
                   aria-disabled={disconnectDisabled}
                   style={actionButtonStyle(disconnectDisabled)}
                 >
-                  {disconnecting ? "Disconnecting..." : "Disconnect Gmail"}
+                  {disconnecting ? t("mailboxes.disconnecting") : t("mailboxes.disconnectGmail")}
                 </button>
               ) : null}
             </div>
@@ -549,7 +552,7 @@ export default function MailboxSettingsPage() {
 
           {actionError ? (
             <div style={{ marginTop: 14 }}>
-              <InlineFeedback tone="danger" title="Mailbox action error">
+              <InlineFeedback tone="danger" title={t("mailboxes.actionError")}>
                 {actionError}
               </InlineFeedback>
             </div>
@@ -557,7 +560,7 @@ export default function MailboxSettingsPage() {
 
           {actionMessage ? (
             <div style={{ marginTop: 14 }}>
-              <InlineFeedback tone="success" title="Mailbox updated">
+              <InlineFeedback tone="success" title={t("mailboxes.updated")}>
                 {actionMessage}
               </InlineFeedback>
             </div>
@@ -565,11 +568,11 @@ export default function MailboxSettingsPage() {
         </SettingsSection>
 
         <SettingsSection
-          title="Mailbox list"
+          title={t("mailboxes.listTitle")}
           description={
             mailboxes.length > 1
-              ? "Connected mailbox state and sync activity. Each mailbox syncs independently."
-              : "Connected mailbox state and sync activity."
+              ? t("mailboxes.listMultiDescription")
+              : t("mailboxes.listDescription")
           }
         >
           {renderMailboxList()}

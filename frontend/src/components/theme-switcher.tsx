@@ -23,6 +23,7 @@ import {
   type ThemeMode,
   type ThemePreset,
 } from "@/lib/theme";
+import { useI18n } from "@/i18n/provider";
 
 const PRESET_OPTIONS: SegmentedOption<ThemePreset>[] = THEME_PRESETS.map(
   (preset) => ({
@@ -39,11 +40,12 @@ const MODE_OPTIONS: SegmentedOption<ThemeMode>[] = THEME_MODES.map((mode) => ({
 
 export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   const { preset, mode, setPreset, setMode } = useTheme();
+  const { t } = useI18n();
 
   if (compact) {
     return (
       <SegmentedControl
-        label="Color mode"
+        label={t("theme.modeLabel")}
         value={mode}
         options={MODE_OPTIONS}
         onChange={setMode}
@@ -58,10 +60,10 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
     >
       <div className="mm-stack" style={{ gap: 6, alignItems: "stretch" }}>
         <span className="mm-nav-label" style={{ marginBottom: 0 }}>
-          Style
+          {t("theme.style")}
         </span>
         <SegmentedControl
-          label="Theme style"
+          label={t("theme.styleLabel")}
           value={preset}
           options={PRESET_OPTIONS}
           onChange={setPreset}
@@ -70,10 +72,10 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
       </div>
       <div className="mm-stack" style={{ gap: 6, alignItems: "stretch" }}>
         <span className="mm-nav-label" style={{ marginBottom: 0 }}>
-          Mode
+          {t("theme.mode")}
         </span>
         <SegmentedControl
-          label="Color mode"
+          label={t("theme.modeLabel")}
           value={mode}
           options={MODE_OPTIONS}
           onChange={setMode}
