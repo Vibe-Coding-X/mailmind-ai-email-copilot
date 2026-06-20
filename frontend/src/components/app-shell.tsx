@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
-import { AuthStatus } from "@/components/auth-status";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+import { AccountMenu } from "@/components/account-menu";
 
 /**
  * AppShell — product layout frame for MailMind (design preview).
@@ -21,13 +19,10 @@ const PRIMARY_NAV: NavLink[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/emails", label: "Emails" },
   { href: "/actions", label: "Actions" },
-  { href: "/emails/new", label: "New Emails" },
 ];
 
 const SETTINGS_NAV: NavLink[] = [
-  { href: "/settings/profile", label: "Profile" },
   { href: "/settings/mailboxes", label: "Mailboxes" },
-  { href: "/settings/security", label: "Security" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -42,7 +37,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <NavSection title="Workspace" links={PRIMARY_NAV} />
         <NavSection title="Settings" links={SETTINGS_NAV} />
 
-        <SidebarStatus />
+        <div style={{ marginTop: "auto" }}>
+          <AccountMenu />
+        </div>
       </aside>
 
       <main className="mm-main">{children}</main>
@@ -64,28 +61,5 @@ function NavSection({ title, links }: { title: string; links: NavLink[] }) {
         ))}
       </ul>
     </nav>
-  );
-}
-
-function SidebarStatus() {
-  return (
-    <div style={{ marginTop: "auto" }} className="mm-stack" >
-      <div>
-        <div className="mm-nav-label">Theme</div>
-        <ThemeSwitcher />
-      </div>
-      <div>
-        <div className="mm-nav-label">Status</div>
-        <div
-          className="mm-stack"
-          style={{ gap: 6, alignItems: "flex-start" }}
-        >
-          <AuthStatus compact />
-          <Badge tone="neutral" dot>
-            Gmail not connected
-          </Badge>
-        </div>
-      </div>
-    </div>
   );
 }
