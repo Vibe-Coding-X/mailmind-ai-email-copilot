@@ -31,7 +31,12 @@ def _email(body_text: str) -> Email:
 
 def test_digest_prompt_uses_safe_email_fields_and_redacts_tokens() -> None:
     prompt = build_digest_prompt(
-        [_email("access_token=secret-token refresh_token=secret-refresh sk-testsecret123")],
+        [
+            _email(
+                "access_token=secret-token refresh_token=secret-refresh "
+                "api_key=secret-api-key sk-testsecret123"
+            )
+        ],
         coverage_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
         coverage_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
     )
@@ -40,8 +45,40 @@ def test_digest_prompt_uses_safe_email_fields_and_redacts_tokens() -> None:
     assert "alice@example.com" in prompt.text
     assert "secret-token" not in prompt.text
     assert "secret-refresh" not in prompt.text
+    assert "secret-api-key" not in prompt.text
     assert "sk-testsecret123" not in prompt.text
     assert prompt.input_summary["mail_count"] == 1
+
+
+def test_digest_prompt_includes_digest_v1_schema_contract() -> None:
+    prompt = build_digest_prompt(
+        [_email("Please review the plan.")],
+        coverage_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+        coverage_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+    )
+
+    required_fragments = [
+        "Return ONLY a JSON object",
+        "Do not wrap it in markdown",
+        '"overview"',
+        '"mail_count"',
+        '"summary"',
+        '"items"',
+        '"email_id"',
+        '"item_type"',
+        '"section"',
+        '"suggested_action"',
+        '"priority"',
+        '"confidence"',
+        '"work" | "notification" | "marketing" | "social" | "other"',
+        '"reply_today" | "review_today" | "handle_before_deadline"',
+        '"high" | "medium" | "low"',
+        "Use provided email_id exactly",
+        "Do not invent email_id",
+    ]
+
+    for fragment in required_fragments:
+        assert fragment in prompt.text
 
 
 def test_digest_prompt_truncates_email_body_before_llm_input() -> None:

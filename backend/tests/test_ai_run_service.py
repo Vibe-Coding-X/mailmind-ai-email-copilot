@@ -147,7 +147,10 @@ def test_ai_run_service_redacts_failed_run_error_message() -> None:
             error_code="DIGEST_GENERATION_FAILED",
             error_message=(
                 "Provider failed with Authorization: Bearer bearer-secret-12345 "
-                "and refresh_token=refresh-secret-12345"
+                "and refresh_token=refresh-secret-12345 "
+                "access_token=access-secret-12345 "
+                "api_key=api-secret-12345 "
+                "sk-real-looking-secret"
             ),
             now=now,
         )
@@ -160,4 +163,7 @@ def test_ai_run_service_redacts_failed_run_error_message() -> None:
         assert stored.error_message is not None
         assert "bearer-secret-12345" not in stored.error_message
         assert "refresh-secret-12345" not in stored.error_message
+        assert "access-secret-12345" not in stored.error_message
+        assert "api-secret-12345" not in stored.error_message
+        assert "sk-real-looking-secret" not in stored.error_message
         assert "[REDACTED]" in stored.error_message

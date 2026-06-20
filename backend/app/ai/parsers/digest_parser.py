@@ -83,6 +83,12 @@ CATEGORY_ALIASES = {
     "personal": "social",
     "other": "other",
 }
+FIELD_ALIASES = {
+    "email_id": ("emailId", "emailID"),
+    "item_type": ("type", "itemType"),
+    "suggested_action": ("action", "suggestedAction"),
+    "priority": ("priority_level", "priorityLevel"),
+}
 
 
 class DigestParseError(ValueError):
@@ -194,12 +200,13 @@ def _parse_item(
     if not isinstance(value, dict):
         raise DigestParseError(f"items[{index}] must be an object.")
 
+    raw_email_id = _field_value(value, "email_id")
     item_type = _enum_value(
         value,
         "item_type",
         ALLOWED_ITEM_TYPES,
         index,
-        default="email" if value.get("email_id") is not None else "todo",
+        default="email" if raw_email_id is not None else "todo",
         aliases=ITEM_TYPE_ALIASES,
     )
     section = _enum_value(
@@ -229,7 +236,7 @@ def _parse_item(
         aliases=PRIORITY_ALIASES,
     )
     confidence = _confidence(value)
-    email_id = _resolve_email_id(value.get("email_id"), item_type, emails_by_external_id, index)
+    email_id = _resolve_email_id(raw_email_id, item_type, emails_by_external_id, index)
 
     category = _enum_value(
         value,
@@ -287,7 +294,7 @@ def _enum_value(
     default: str,
     aliases: Mapping[str, str] | None = None,
 ) -> str:
-    raw_value = value.get(key)
+    raw_value = _field_value(value, key)
     if not isinstance(raw_value, str) or not raw_value.strip():
         return default
     normalized = _normalize_label(raw_value)
@@ -296,6 +303,15 @@ def _enum_value(
     if normalized in allowed:
         return normalized
     return default
+
+
+def _field_value(value: dict[str, Any], key: str) -> object:
+    if key in value:
+        return value[key]
+    for alias in FIELD_ALIASES.get(key, ()):
+        if alias in value:
+            return value[alias]
+    return None
 
 
 def _confidence(value: dict[str, Any]) -> float:

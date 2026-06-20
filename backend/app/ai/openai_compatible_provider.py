@@ -50,7 +50,8 @@ class OpenAICompatibleProvider:
                 {
                     "role": "system",
                     "content": (
-                        "Return only valid JSON matching the MailMind digest schema."
+                        "Return ONLY a JSON object matching the MailMind digest.v1 "
+                        "schema. Do not wrap it in markdown. Do not add prose."
                     ),
                 },
                 {"role": "user", "content": prompt},

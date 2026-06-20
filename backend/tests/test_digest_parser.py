@@ -54,6 +54,16 @@ def test_parse_digest_output_accepts_markdown_fenced_json() -> None:
     assert parsed.output_json["overview"]["mail_count"] == 1
 
 
+def test_parse_digest_output_accepts_json_surrounded_by_short_prose() -> None:
+    email_id = uuid4()
+    raw_output = f"Here is the digest JSON:\n{_valid_output('gmail-1')}\nDone."
+
+    parsed = parse_digest_output(raw_output, {"gmail-1": email_id})
+
+    assert parsed.items[0].email_id == email_id
+    assert parsed.overview["summary"] == "One important email."
+
+
 def test_parse_digest_output_falls_back_for_empty_output() -> None:
     parsed = parse_digest_output("   ", {"gmail-1": uuid4(), "gmail-2": uuid4()})
 
@@ -62,6 +72,25 @@ def test_parse_digest_output_falls_back_for_empty_output() -> None:
         "summary": "No digest items were returned.",
     }
     assert parsed.items == []
+
+
+def test_parse_digest_output_treats_missing_or_null_items_as_empty_list() -> None:
+    missing_items = parse_digest_output(
+        json.dumps({"overview": {"mail_count": 1, "summary": "No actions."}}),
+        {"gmail-1": uuid4()},
+    )
+    null_items = parse_digest_output(
+        json.dumps(
+            {
+                "overview": {"mail_count": 1, "summary": "No actions."},
+                "items": None,
+            }
+        ),
+        {"gmail-1": uuid4()},
+    )
+
+    assert missing_items.items == []
+    assert null_items.items == []
 
 
 def test_parse_digest_output_fills_missing_item_fields() -> None:
@@ -100,6 +129,44 @@ def test_parse_digest_output_normalizes_enum_values_and_confidence() -> None:
     assert parsed.items[0].priority == "high"
     assert parsed.items[0].suggested_action == "reply_today"
     assert parsed.items[0].confidence == 1.0
+
+
+def test_parse_digest_output_maps_low_risk_field_aliases() -> None:
+    email_id = uuid4()
+    payload = {
+        "overview": {"mail_count": 1, "summary": "One item."},
+        "items": [
+            {
+                "emailId": "gmail-1",
+                "type": "email",
+                "section": "Needs Review",
+                "title": "Planning review",
+                "summary": "Alice asked for review.",
+                "category": "business",
+                "action": "review",
+                "priority_level": "critical",
+                "confidence": "0.88",
+            }
+        ],
+    }
+
+    parsed = parse_digest_output(json.dumps(payload), {"gmail-1": email_id})
+    item = parsed.items[0]
+
+    assert item.email_id == email_id
+    assert item.item_type == "email"
+    assert item.section == "review"
+    assert item.category == "work"
+    assert item.suggested_action == "review_today"
+    assert item.priority == "high"
+    assert item.confidence == 0.88
+
+
+def test_parse_digest_output_rejects_non_object_item() -> None:
+    payload = {"overview": {"mail_count": 1, "summary": "Bad item."}, "items": ["bad"]}
+
+    with pytest.raises(DigestParseError, match="items\\[0\\] must be an object"):
+        parse_digest_output(json.dumps(payload), {"gmail-1": uuid4()})
 
 
 def test_parse_digest_output_rejects_bad_json() -> None:

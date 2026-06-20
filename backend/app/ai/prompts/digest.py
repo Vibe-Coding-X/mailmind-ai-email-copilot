@@ -12,6 +12,58 @@ from app.db.models.email import Email
 PROMPT_VERSION = "digest_prompt.v1"
 OUTPUT_SCHEMA_VERSION = "digest.v1"
 MAX_BODY_CHARS = 1200
+DIGEST_SCHEMA_INSTRUCTIONS = """Return ONLY a JSON object. Do not wrap it in markdown. Do not add prose.
+
+Required top-level shape:
+{
+  "overview": {
+    "mail_count": <number>,
+    "summary": <string>
+  },
+  "items": [
+    {
+      "email_id": <one of the provided email_id values or null>,
+      "item_type": "email" | "todo" | "risk",
+      "section": "urgent" | "review" | "ignore" | "todo" | "risk",
+      "title": <string>,
+      "summary": <string>,
+      "category": "work" | "notification" | "marketing" | "social" | "other",
+      "suggested_action": "reply_today" | "review_today" | "handle_before_deadline" | "ignore" | "archive_candidate" | "follow_up_later" | "no_action_required",
+      "priority": "high" | "medium" | "low",
+      "reason": <string or null>,
+      "deadline": <YYYY-MM-DD string or null>,
+      "confidence": <number between 0 and 1>
+    }
+  ]
+}
+
+Rules:
+- Use provided email_id exactly.
+- Do not invent email_id.
+- Use null email_id only for todo or risk items not tied to a specific email.
+- If no item is useful, return "items": [].
+- Do not include raw credentials, tokens, secrets, or raw provider payloads.
+
+Minimal example:
+{
+  "overview": {"mail_count": 1, "summary": "One email may need attention."},
+  "items": [
+    {
+      "email_id": "provided-email-id",
+      "item_type": "email",
+      "section": "review",
+      "title": "Review requested",
+      "summary": "The sender asked for review today.",
+      "category": "work",
+      "suggested_action": "review_today",
+      "priority": "medium",
+      "reason": "The request needs a human decision.",
+      "deadline": null,
+      "confidence": 0.8
+    }
+  ]
+}
+"""
 
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b(access_token|refresh_token|api[_ -]?key|authorization)\s*[:=]\s*[^\s,;]+"
@@ -60,9 +112,8 @@ def build_digest_prompt(
         "emails": email_inputs,
     }
     text = (
-        "You are MailMind's Daily Digest classifier. Return only valid JSON matching "
-        "the digest.v1 schema. Use the provided email_id values exactly when creating "
-        "email items. Do not include secrets, credentials, or raw payloads.\n"
+        "You are MailMind's Daily Digest classifier.\n"
+        f"{DIGEST_SCHEMA_INSTRUCTIONS}\n"
         "EMAIL_INPUT_JSON:\n"
         f"{json.dumps(payload, ensure_ascii=False, default=str)}"
     )
