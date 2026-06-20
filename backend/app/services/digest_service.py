@@ -194,16 +194,20 @@ def execute_queued_digest_job(
     db.flush()
     try:
         if job.job_type == "generate_daily_digest":
-            digest = generate_today_digest(
+            digest = _generate_digest(
                 db,
                 user_id=job.user_id,
+                trigger_source=job.trigger_source,
+                job_type=job.job_type,
                 llm_provider=llm_provider,
                 now=resolved_now,
             )
         elif job.job_type == "refresh_daily_digest":
-            digest = refresh_today_digest(
+            digest = _generate_digest(
                 db,
                 user_id=job.user_id,
+                trigger_source=job.trigger_source,
+                job_type=job.job_type,
                 llm_provider=llm_provider,
                 now=resolved_now,
             )
