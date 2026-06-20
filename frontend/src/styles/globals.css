@@ -1077,13 +1077,13 @@ p {
 }
 
 .mm-seg--block {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   width: 100%;
 }
 
 .mm-seg--block .mm-seg-btn {
-  flex: 1 1 0;
+  min-width: 0;
   padding-inline: 6px;
   text-align: center;
 }
@@ -1099,7 +1099,10 @@ p {
   padding: 5px 12px;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
   transition: background var(--mm-transition), color var(--mm-transition);
 }
 
