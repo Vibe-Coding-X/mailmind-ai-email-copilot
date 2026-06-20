@@ -1,6 +1,6 @@
 # Current API Summary
 
-This document summarizes the API implemented in `backend/app/api` for `v0.1.0-local-mvp`. It intentionally excludes planned routes that are only described in older design docs.
+This document summarizes the API implemented in `backend/app/api` for `v0.2.0-digest-ai`. It intentionally excludes planned routes that are only described in older design docs.
 
 All application responses use either:
 
@@ -167,9 +167,9 @@ Implemented behavior:
 - Creates a user action record.
 - Lists actions associated with one digest item.
 
-## Planned But Not Implemented in v0.1
+## Planned But Not Implemented in v0.2
 
-The following appear in earlier design docs or frontend placeholders but are not implemented backend routes in v0.1:
+The following appear in earlier design docs or frontend placeholders but are not implemented backend routes in v0.2:
 
 - `GET /api/emails/new`
 - `GET /api/jobs/{job_id}`

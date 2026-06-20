@@ -37,3 +37,4 @@ MailMind 文档入口。
 | 架构决策记录 | [`engineering/DECISION_LOG.md`](engineering/DECISION_LOG.md) |
 | 文档冻结检查 | [`engineering/DOCS_FREEZE_CHECKLIST.md`](engineering/DOCS_FREEZE_CHECKLIST.md) |
 | 审查清单 | [`engineering/REVIEW_CHECKLIST.md`](engineering/REVIEW_CHECKLIST.md) |
+| Release notes | [`release-notes/v0.2.0-digest-ai.md`](release-notes/v0.2.0-digest-ai.md) |

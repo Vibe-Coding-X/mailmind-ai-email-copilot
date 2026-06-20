@@ -1,17 +1,17 @@
 # Current Schema Summary
 
-This document summarizes the SQLAlchemy models and Alembic migrations present in `v0.1.0-local-mvp`.
+This document summarizes the SQLAlchemy models and Alembic migrations present in `v0.2.0-digest-ai`.
 
 Current Alembic migration line:
 
 ```text
-20260618_0001 -> 20260619_0002 -> 20260619_0003 -> 20260619_0004 -> 20260619_0005 -> 20260619_0006
+20260618_0001 -> 20260619_0002 -> 20260619_0003 -> 20260619_0004 -> 20260619_0005 -> 20260619_0006 -> 20260620_0007
 ```
 
 Expected Alembic head:
 
 ```text
-20260619_0006
+20260620_0007
 ```
 
 ## Tables
@@ -30,7 +30,7 @@ HttpOnly cookie session backing store. Stores hashed session tokens, expiration,
 
 ### `mailboxes`
 
-Connected mailbox records. v0.1 implements Gmail only, with provider account id, email address, permission mode, granted scopes, connection status, and sync timestamps.
+Connected mailbox records. The current release implements Gmail only, with provider account id, email address, permission mode, granted scopes, connection status, and sync timestamps.
 
 ### `mailbox_credentials`
 
@@ -42,7 +42,7 @@ Synced Gmail message facts for the user's local day. Stores provider ids, header
 
 ### `sync_jobs`
 
-Tracks sync and digest job attempts. In v0.1 these jobs are created by synchronous service calls, not Celery workers. `digest_id` exists in the current head and has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
+Tracks sync and digest job attempts. In the current release these jobs are created by synchronous service calls, not Celery workers. `digest_id` exists in the current head and has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
 
 ### `daily_digests`
 
@@ -77,7 +77,7 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 - The database has digest and AI audit tables with v0.2 provider metadata. Real
   provider values must come from environment configuration outside Git; the mock
   provider remains available as fallback.
-- `sync_jobs` records synchronous service work in v0.1; Celery task execution is not implemented.
+- `sync_jobs` records synchronous service work in the current release; Celery task execution is not implemented.
 - The schema is local-MVP oriented and has not been hardened for production multi-tenant SaaS operation.
 
 ## Verification
