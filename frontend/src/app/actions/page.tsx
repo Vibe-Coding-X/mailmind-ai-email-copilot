@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { ApiRequestError, getAction, listActions } from "@/lib/api-client";
 import type { UserAction } from "@/lib/api-types";
+import { useI18n, type TranslationKey } from "@/i18n/provider";
 
 type PageState =
   | "loading"
@@ -25,13 +26,15 @@ interface ActionErrorView {
   message: string;
 }
 
-function actionErrorView(error: unknown): ActionErrorView {
+type TFunction = (key: TranslationKey) => string;
+
+function actionErrorView(error: unknown, t: TFunction): ActionErrorView {
   if (error instanceof ApiRequestError) {
     if (error.status === 401 || error.code === "UNAUTHORIZED") {
       return {
         state: "unauthorized",
-        title: "Not signed in",
-        message: "Sign in with your MailMind account to view action history.",
+        title: t("account.notSignedIn"),
+        message: t("actions.notSignedInMessage"),
       };
     }
 
@@ -42,22 +45,22 @@ function actionErrorView(error: unknown): ActionErrorView {
     ) {
       return {
         state: "backend_unavailable",
-        title: "Backend unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        title: t("account.backendUnavailable"),
+        message: t("digest.backendUnavailableMessage"),
       };
     }
 
     return {
       state: "error",
-      title: "Actions error",
+      title: t("actions.errorTitle"),
       message: error.message,
     };
   }
 
   return {
     state: "error",
-    title: "Actions error",
-    message: "Something went wrong. Please try again.",
+    title: t("actions.errorTitle"),
+    message: t("digest.genericError"),
   };
 }
 
@@ -92,9 +95,9 @@ function providerTone(effect: string): BadgeTone {
   }
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null, t: TFunction): string {
   if (!value) {
-    return "Not executed";
+    return t("actions.notExecuted");
   }
 
   const date = new Date(value);
@@ -116,6 +119,7 @@ function uniqueValues(actions: UserAction[], key: keyof UserAction): string[] {
 }
 
 export default function ActionsPage() {
+  const { t } = useI18n();
   const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [pageState, setPageState] = useState<PageState>("loading");
   const [actions, setActions] = useState<UserAction[]>([]);
@@ -160,7 +164,7 @@ export default function ActionsPage() {
       setPageState("loaded");
       return true;
     } catch (error) {
-      const view = actionErrorView(error);
+      const view = actionErrorView(error, t);
       setActions([]);
       setSelectedActionId(null);
       setSelectedAction(null);
@@ -168,7 +172,7 @@ export default function ActionsPage() {
       setPageState(view.state);
       return false;
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -180,8 +184,8 @@ export default function ActionsPage() {
       setActions([]);
       setPageError({
         state: "unauthorized",
-        title: "Not signed in",
-        message: "Sign in with your MailMind account to view action history.",
+        title: t("account.notSignedIn"),
+        message: t("actions.notSignedInMessage"),
       });
       setPageState("unauthorized");
       return;
@@ -191,15 +195,15 @@ export default function ActionsPage() {
       setActions([]);
       setPageError({
         state: "backend_unavailable",
-        title: "Backend unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        title: t("account.backendUnavailable"),
+        message: t("digest.backendUnavailableMessage"),
       });
       setPageState("backend_unavailable");
       return;
     }
 
     void loadActions();
-  }, [authStatus, loadActions]);
+  }, [authStatus, loadActions, t]);
 
   async function onRetry() {
     if (authStatus === "authenticated") {
@@ -220,7 +224,7 @@ export default function ActionsPage() {
       const response = await getAction(actionId);
       setSelectedAction(response.data.action);
     } catch (error) {
-      setDetailError(actionErrorView(error).message);
+      setDetailError(actionErrorView(error, t).message);
     } finally {
       setDetailLoading(false);
     }
@@ -245,8 +249,8 @@ export default function ActionsPage() {
         pageError ??
         ({
           state: "error",
-          title: "Actions error",
-          message: "Something went wrong. Please try again.",
+          title: t("actions.errorTitle"),
+          message: t("digest.genericError"),
         } satisfies ActionErrorView);
 
       return (
@@ -255,10 +259,10 @@ export default function ActionsPage() {
           hint={error.message}
           action={
             error.state === "unauthorized" ? (
-              <a href="/login">Sign in</a>
+              <a href="/login">{t("account.signIn")}</a>
             ) : (
               <button type="button" className="mm-btn" onClick={onRetry}>
-                Retry
+                {t("common.retry")}
               </button>
             )
           }
@@ -271,25 +275,27 @@ export default function ActionsPage() {
         <section className="mm-card">
           <div className="mm-spread" style={{ alignItems: "flex-start" }}>
             <div>
-              <div className="mm-card-title">Action history</div>
+              <div className="mm-card-title">{t("actions.history")}</div>
               <p className="mm-muted" style={{ fontSize: 13 }}>
-                {filteredActions.length} shown from {actions.length} recorded actions.
+                {t("actions.shown")
+                  .replace("{{filtered}}", String(filteredActions.length))
+                  .replace("{{total}}", String(actions.length))}
               </p>
             </div>
             <button type="button" className="mm-btn" onClick={() => void loadActions()}>
-              Refresh
+              {t("common.refresh")}
             </button>
           </div>
 
           <div className="mm-row" style={{ marginTop: 14 }}>
             <label className="mm-field" style={{ marginBottom: 0 }}>
-              <span className="mm-label">Action type</span>
+              <span className="mm-label">{t("actions.actionType")}</span>
               <select
                 className="mm-input"
                 value={actionTypeFilter}
                 onChange={(event) => setActionTypeFilter(event.target.value)}
               >
-                <option value="all">All</option>
+                <option value="all">{t("actions.all")}</option>
                 {actionTypes.map((type) => (
                   <option key={type} value={type}>
                     {statusLabel(type)}
@@ -299,13 +305,13 @@ export default function ActionsPage() {
             </label>
 
             <label className="mm-field" style={{ marginBottom: 0 }}>
-              <span className="mm-label">Status</span>
+              <span className="mm-label">{t("actions.status")}</span>
               <select
                 className="mm-input"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
               >
-                <option value="all">All</option>
+                <option value="all">{t("actions.all")}</option>
                 {statuses.map((status) => (
                   <option key={status} value={status}>
                     {statusLabel(status)}
@@ -318,11 +324,11 @@ export default function ActionsPage() {
           {filteredActions.length === 0 ? (
             <div style={{ marginTop: 18 }}>
               <EmptyState
-                title={actions.length === 0 ? "No actions recorded" : "No matching actions"}
+                title={actions.length === 0 ? t("actions.noActionsTitle") : t("actions.noMatchingTitle")}
                 hint={
                   actions.length === 0
-                    ? "User actions will appear here after email or digest operations."
-                    : "Adjust the filters to view more action history."
+                    ? t("actions.noActionsHint")
+                    : t("actions.noMatchingHint")
                 }
               />
             </div>
@@ -335,6 +341,7 @@ export default function ActionsPage() {
                   selected={selectedActionId === action.id}
                   showTopBorder={index > 0}
                   onSelect={onSelectAction}
+                  t={t}
                 />
               ))}
             </div>
@@ -345,6 +352,7 @@ export default function ActionsPage() {
           action={selectedAction}
           loading={detailLoading}
           error={detailError}
+          t={t}
         />
       </div>
     );
@@ -355,8 +363,8 @@ export default function ActionsPage() {
       <StatusBanner />
       <div style={{ height: 20 }} />
       <PageFrame
-        title="Actions"
-        description="Recent MailMind actions and provider effects."
+        title={t("actions.title")}
+        description={t("actions.pageDescription")}
         badge={false}
       >
         {renderContent()}
@@ -370,11 +378,13 @@ function ActionListRow({
   selected,
   showTopBorder,
   onSelect,
+  t,
 }: {
   action: UserAction;
   selected: boolean;
   showTopBorder: boolean;
   onSelect: (actionId: string) => Promise<void>;
+  t: TFunction;
 }) {
   return (
     <button
@@ -401,7 +411,7 @@ function ActionListRow({
             {statusLabel(action.action_type)}
           </div>
           <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
-            {formatDateTime(action.created_at)}
+            {formatDateTime(action.created_at, t)}
           </p>
         </div>
         <Badge tone={actionTone(action.action_status)} dot>
@@ -422,19 +432,21 @@ function ActionDetailPanel({
   action,
   loading,
   error,
+  t,
 }: {
   action: UserAction | null;
   loading: boolean;
   error: string | null;
+  t: TFunction;
 }) {
   return (
     <section className="mm-card">
-      <div className="mm-card-title">Action detail</div>
+      <div className="mm-card-title">{t("actions.detail")}</div>
 
       {loading ? (
         <Skeleton lines={5} widths={["40%", "82%", "70%", "62%", "52%"]} />
       ) : error ? (
-        <EmptyState title="Action detail unavailable" hint={error} />
+        <EmptyState title={t("actions.detailUnavailable")} hint={error} />
       ) : action ? (
         <div className="mm-stack">
           <div className="mm-row">
@@ -446,14 +458,14 @@ function ActionDetailPanel({
             </Badge>
           </div>
 
-          <DetailLine label="Action type" value={statusLabel(action.action_type)} />
-          <DetailLine label="Source" value={statusLabel(action.source)} />
-          <DetailLine label="Created" value={formatDateTime(action.created_at)} />
-          <DetailLine label="Executed" value={formatDateTime(action.executed_at)} />
+          <DetailLine label={t("actions.actionType")} value={statusLabel(action.action_type)} />
+          <DetailLine label={t("actions.source")} value={statusLabel(action.source)} />
+          <DetailLine label={t("actions.created")} value={formatDateTime(action.created_at, t)} />
+          <DetailLine label={t("actions.executed")} value={formatDateTime(action.executed_at, t)} />
 
           {action.error_message ? (
             <div>
-              <div className="mm-label">Error</div>
+              <div className="mm-label">{t("actions.error")}</div>
               <p
                 style={{
                   color: "var(--color-danger)",
@@ -467,8 +479,8 @@ function ActionDetailPanel({
         </div>
       ) : (
         <EmptyState
-          title="Select an action"
-          hint="Choose an action from the list to view status and provider effect."
+          title={t("actions.selectTitle")}
+          hint={t("actions.selectHint")}
         />
       )}
     </section>

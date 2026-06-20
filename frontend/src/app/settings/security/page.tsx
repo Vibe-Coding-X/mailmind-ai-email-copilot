@@ -1,3 +1,5 @@
+"use client";
+
 import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
@@ -5,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { SettingsSection, SettingRow } from "@/components/settings-section";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
+import { InlineFeedback } from "@/components/inline-feedback";
+import { useI18n } from "@/i18n/provider";
 
 /**
  * /settings/security (design preview).
@@ -14,63 +18,71 @@ import { Button } from "@/components/ui/button";
  * PATCH /api/users/me/password (API_DESIGN.md §8).
  */
 export default function SecuritySettingsPage() {
+  const { t } = useI18n();
+
   return (
     <AppShell>
       <StatusBanner />
       <div style={{ height: 20 }} />
       <PageFrame
-        title="Security"
-        description="System login security. Session, cookie, and encryption status are described here."
+        title={t("security.title")}
+        description={t("security.description")}
       >
         <SettingsSection
-          title="Session"
-          description="MVP uses HttpOnly cookie sessions (per design docs). Status is descriptive only."
+          title={t("profile.session")}
+          description={t("security.sessionDescription")}
         >
           <SettingRow
-            label="Session cookie"
+            label={t("security.sessionCookie")}
             value={
               <Badge tone="neutral" dot>
-                HttpOnly (planned) · not connected
+                {t("security.httpOnlyPlanned")}
               </Badge>
             }
           />
           <SettingRow
-            label="Token encryption"
+            label={t("security.tokenEncryption")}
             value={
               <Badge tone="neutral" dot>
-                At-rest encryption (planned)
+                {t("security.encryptionPlanned")}
               </Badge>
             }
           />
           <p className="mm-muted" style={{ fontSize: 12, marginTop: 12 }}>
-            No real keys, tokens, or secrets are displayed or generated here.
+            {t("security.noSecrets")}
           </p>
         </SettingsSection>
 
         <SettingsSection
-          title="Change password"
-          description="Password change requires the current password (future)."
+          title={t("security.changePassword")}
+          description={t("security.changePasswordDescription")}
         >
           <div style={{ maxWidth: 320 }}>
             <Field
-              label="Current password"
+              label={t("security.currentPassword")}
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
             />
             <Field
-              label="New password"
+              label={t("security.newPassword")}
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
             />
-            <Button variant="primary" disabled>
-              Update password
+            <Button
+              variant="primary"
+              disabled
+              disabledReason={t("security.disabledReason")}
+            >
+              {t("security.updatePassword")}
             </Button>
           </div>
-          <p className="mm-muted" style={{ fontSize: 12, marginTop: 12 }}>
-            Password change is disabled in this design preview.
-          </p>
+          <div style={{ marginTop: 12 }}>
+            <InlineFeedback tone="info" title={t("profile.unavailable")}>
+              {t("security.disabledReason")}
+            </InlineFeedback>
+          </div>
         </SettingsSection>
       </PageFrame>
     </AppShell>

@@ -1,13 +1,18 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { AuthForm } from "@/components/auth-form";
 import { AuthStatus } from "@/components/auth-status";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { useI18n } from "@/i18n/provider";
 
 /**
  * /login — system authentication. System login is separate from Gmail
  * authorization; the form only calls POST /api/auth/login.
  */
 export default function LoginPage() {
+  const { t } = useI18n();
+
   return (
     <main
       style={{
@@ -22,12 +27,12 @@ export default function LoginPage() {
           <div className="mm-brand-name" style={{ fontSize: 22 }}>
             MailMind
           </div>
-          <div className="mm-brand-sub">AI Email Copilot</div>
+          <div className="mm-brand-sub">{t("app.subtitle")}</div>
         </div>
 
         <section className="mm-card" style={{ padding: "24px 24px 22px" }}>
           <div className="mm-spread" style={{ marginBottom: 16 }}>
-            <h1 style={{ fontSize: 18 }}>Sign in</h1>
+            <h1 style={{ fontSize: 18 }}>{t("login.title")}</h1>
             <Badge tone="ok" dot>
               Auth API
             </Badge>
@@ -43,7 +48,7 @@ export default function LoginPage() {
 
           <div className="mm-spread">
             <p className="mm-muted" style={{ fontSize: 13 }}>
-              No account yet? <a href="/register">Create one</a>
+              {t("login.noAccount")} <a href="/register">{t("login.createOne")}</a>
             </p>
             <ThemeSwitcher compact />
           </div>

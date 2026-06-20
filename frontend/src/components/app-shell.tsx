@@ -1,7 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
-import { AuthStatus } from "@/components/auth-status";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+import { AccountMenu } from "@/components/account-menu";
+import { useI18n } from "@/i18n/provider";
 
 /**
  * AppShell — product layout frame for MailMind (design preview).
@@ -12,37 +13,43 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 
 interface NavLink {
   href: string;
-  label: string;
+  labelKey:
+    | "nav.dashboard"
+    | "nav.emails"
+    | "nav.actions"
+    | "nav.mailboxes";
+  icon: "dashboard" | "emails" | "actions" | "mailboxes";
 }
 
 // Routes reflect docs/frontend/FRONTEND_DESIGN.md section 2 page structure.
 // Product direction is dashboard-first, so Dashboard leads (not the inbox).
 const PRIMARY_NAV: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/emails", label: "Emails" },
-  { href: "/actions", label: "Actions" },
-  { href: "/emails/new", label: "New Emails" },
+  { href: "/dashboard", labelKey: "nav.dashboard", icon: "dashboard" },
+  { href: "/emails", labelKey: "nav.emails", icon: "emails" },
+  { href: "/actions", labelKey: "nav.actions", icon: "actions" },
 ];
 
 const SETTINGS_NAV: NavLink[] = [
-  { href: "/settings/profile", label: "Profile" },
-  { href: "/settings/mailboxes", label: "Mailboxes" },
-  { href: "/settings/security", label: "Security" },
+  { href: "/settings/mailboxes", labelKey: "nav.mailboxes", icon: "mailboxes" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+
   return (
     <div className="mm-shell">
       <aside className="mm-sidebar">
         <div>
           <div className="mm-brand-name">MailMind</div>
-          <div className="mm-brand-sub">AI Email Copilot</div>
+          <div className="mm-brand-sub">{t("app.subtitle")}</div>
         </div>
 
-        <NavSection title="Workspace" links={PRIMARY_NAV} />
-        <NavSection title="Settings" links={SETTINGS_NAV} />
+        <NavSection title={t("nav.workspace")} links={PRIMARY_NAV} />
+        <NavSection title={t("nav.settings")} links={SETTINGS_NAV} />
 
-        <SidebarStatus />
+        <div style={{ marginTop: "auto" }}>
+          <AccountMenu />
+        </div>
       </aside>
 
       <main className="mm-main">{children}</main>
@@ -51,6 +58,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 function NavSection({ title, links }: { title: string; links: NavLink[] }) {
+  const { t } = useI18n();
+
   return (
     <nav>
       <div className="mm-nav-label">{title}</div>
@@ -58,7 +67,8 @@ function NavSection({ title, links }: { title: string; links: NavLink[] }) {
         {links.map((link) => (
           <li key={link.href}>
             <a className="mm-nav-link" href={link.href}>
-              {link.label}
+              <NavIcon icon={link.icon} />
+              {t(link.labelKey)}
             </a>
           </li>
         ))}
@@ -67,25 +77,51 @@ function NavSection({ title, links }: { title: string; links: NavLink[] }) {
   );
 }
 
-function SidebarStatus() {
+function NavIcon({ icon }: { icon: NavLink["icon"] }) {
+  const paths: Record<NavLink["icon"], ReactNode> = {
+    dashboard: (
+      <>
+        <path d="M4 5h7v7H4z" />
+        <path d="M13 5h7v4h-7z" />
+        <path d="M13 11h7v8h-7z" />
+        <path d="M4 14h7v5H4z" />
+      </>
+    ),
+    emails: (
+      <>
+        <path d="M4 6h16v12H4z" />
+        <path d="m4 7 8 6 8-6" />
+      </>
+    ),
+    actions: (
+      <>
+        <path d="M5 7h14" />
+        <path d="M5 12h10" />
+        <path d="M5 17h7" />
+        <path d="m16 15 2 2 4-5" />
+      </>
+    ),
+    mailboxes: (
+      <>
+        <path d="M4 8h16v9H4z" />
+        <path d="M8 8V6h8v2" />
+        <path d="M4 12h16" />
+      </>
+    ),
+  };
+
   return (
-    <div style={{ marginTop: "auto" }} className="mm-stack" >
-      <div>
-        <div className="mm-nav-label">Theme</div>
-        <ThemeSwitcher />
-      </div>
-      <div>
-        <div className="mm-nav-label">Status</div>
-        <div
-          className="mm-stack"
-          style={{ gap: 6, alignItems: "flex-start" }}
-        >
-          <AuthStatus compact />
-          <Badge tone="neutral" dot>
-            Gmail not connected
-          </Badge>
-        </div>
-      </div>
-    </div>
+    <svg
+      className="mm-nav-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths[icon]}
+    </svg>
   );
 }
