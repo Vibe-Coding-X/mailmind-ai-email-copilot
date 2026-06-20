@@ -53,7 +53,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       setError(
         err instanceof ApiRequestError
           ? err.status === 0
-            ? "Backend unavailable"
+            ? t("account.backendUnavailable")
             : err.message
           : t("digest.genericError"),
       );

@@ -7,8 +7,7 @@ import "@/styles/globals.css";
 
 export const metadata: Metadata = {
   title: "MailMind · AI Email Copilot",
-  description:
-    "MailMind is a dashboard-first AI Email Copilot. This is an early scaffold.",
+  description: "MailMind is a dashboard-first AI Email Copilot.",
 };
 
 /**
