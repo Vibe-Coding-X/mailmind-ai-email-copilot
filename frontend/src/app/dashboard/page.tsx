@@ -1,14 +1,10 @@
 import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
-import { DashboardPreview } from "@/components/dashboard-preview";
+import { DigestDashboard } from "@/components/digest-dashboard";
 
 /**
- * /dashboard (design preview).
- *
- * Daily Digest decision board. Static design preview only — does NOT call
- * GET /api/digest/today, does NOT generate a digest, and does NOT render real
- * or mock email content.
+ * /dashboard — Daily Digest decision board backed by the digest API.
  */
 export default function DashboardPage() {
   return (
@@ -17,9 +13,10 @@ export default function DashboardPage() {
       <div style={{ height: 20 }} />
       <PageFrame
         title="Daily Digest"
-        description="Today's AI email decision board. Future data source: GET /api/digest/today."
+        description="Today's email summary and recommended review items."
+        badge={false}
       >
-        <DashboardPreview />
+        <DigestDashboard />
       </PageFrame>
     </AppShell>
   );

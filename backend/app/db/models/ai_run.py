@@ -79,6 +79,8 @@ class AIRun(Base):
     )
     run_type: Mapped[str] = mapped_column(String(30), nullable=False)
     trigger_source: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    provider_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     model_provider: Mapped[str] = mapped_column(String(50), nullable=False)
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)

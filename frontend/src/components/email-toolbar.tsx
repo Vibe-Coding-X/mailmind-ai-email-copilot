@@ -3,17 +3,19 @@ import Link from "next/link";
 export function EmailToolbar({
   isRead,
   busy = false,
+  backHref = "/emails",
   onMarkRead,
   onMarkUnread,
 }: {
   isRead: boolean;
   busy?: boolean;
+  backHref?: string;
   onMarkRead: () => void;
   onMarkUnread: () => void;
 }) {
   return (
     <div className="mm-row">
-      <Link className="mm-btn" href="/emails">
+      <Link className="mm-btn" href={backHref}>
         Back to emails
       </Link>
       <button

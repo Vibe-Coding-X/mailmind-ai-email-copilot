@@ -17,6 +17,8 @@ import {
   type ApiError,
   type ApiResult,
   type AuthUserResponse,
+  type DigestItemActionResponse,
+  type DigestResponse,
   type EmailMutationResponse,
   type EmailResponse,
   type GmailLoginResponse,
@@ -25,6 +27,8 @@ import {
   type MailboxSyncStatusResponse,
   type MailboxesResponse,
   type TodayEmailsResponse,
+  type UserActionResponse,
+  type UserActionsResponse,
 } from "./api-types";
 
 function notImplemented(operation: string): never {
@@ -145,6 +149,65 @@ export function disconnectGmail(): Promise<ApiResult> {
   });
 }
 
+export function getTodayDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.today, {
+    method: "GET",
+  });
+}
+
+export function generateTodayDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.todayGenerate, {
+    method: "POST",
+  });
+}
+
+export function refreshTodayDigest(): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.todayRefresh, {
+    method: "POST",
+  });
+}
+
+export function getDigest(digestId: string): Promise<DigestResponse> {
+  return request<DigestResponse>(API_ROUTES.digest.byId(digestId), {
+    method: "GET",
+  });
+}
+
+export function markDigestItemDone(
+  itemId: string,
+): Promise<DigestItemActionResponse> {
+  return request<DigestItemActionResponse>(
+    API_ROUTES.digest.itemMarkDone(itemId),
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function dismissDigestItem(
+  itemId: string,
+): Promise<DigestItemActionResponse> {
+  return request<DigestItemActionResponse>(
+    API_ROUTES.digest.itemDismiss(itemId),
+    {
+      method: "POST",
+    },
+  );
+}
+
+export function snoozeDigestItem(
+  itemId: string,
+  input: { snoozed_until: string },
+): Promise<DigestItemActionResponse> {
+  return request<DigestItemActionResponse>(
+    API_ROUTES.digest.itemSnooze(itemId),
+    {
+      method: "POST",
+      body: input,
+    },
+  );
+}
+
 export function listTodayEmails(): Promise<TodayEmailsResponse> {
   return request<TodayEmailsResponse>(API_ROUTES.emails.today, {
     method: "GET",
@@ -168,6 +231,18 @@ export function markEmailUnread(
 ): Promise<EmailMutationResponse> {
   return request<EmailMutationResponse>(API_ROUTES.emails.markUnread(emailId), {
     method: "POST",
+  });
+}
+
+export function listActions(): Promise<UserActionsResponse> {
+  return request<UserActionsResponse>(API_ROUTES.actions.list, {
+    method: "GET",
+  });
+}
+
+export function getAction(actionId: string): Promise<UserActionResponse> {
+  return request<UserActionResponse>(API_ROUTES.actions.byId(actionId), {
+    method: "GET",
   });
 }
 
@@ -202,18 +277,13 @@ export const apiClient = {
   },
 
   digest: {
-    today(): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.digest.today}`);
-    },
-    generateToday(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.digest.todayGenerate}`);
-    },
-    refreshToday(): Promise<ApiResult> {
-      return notImplemented(`POST ${API_ROUTES.digest.todayRefresh}`);
-    },
-    byId(digestId: string): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.digest.byId(digestId)}`);
-    },
+    today: getTodayDigest,
+    generateToday: generateTodayDigest,
+    refreshToday: refreshTodayDigest,
+    byId: getDigest,
+    markItemDone: markDigestItemDone,
+    dismissItem: dismissDigestItem,
+    snoozeItem: snoozeDigestItem,
   },
 
   emails: {
@@ -245,9 +315,11 @@ export const apiClient = {
   },
 
   actions: {
+    list: listActions,
     create(): Promise<ApiResult> {
       return notImplemented(`POST ${API_ROUTES.actions.create}`);
     },
+    byId: getAction,
     forDigestItem(digestItemId: string): Promise<ApiResult> {
       return notImplemented(
         `GET ${API_ROUTES.actions.forDigestItem(digestItemId)}`,

@@ -414,6 +414,45 @@ p {
   }
 }
 
+@media (max-width: 760px) {
+  .mm-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .mm-sidebar {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: var(--border-w) solid var(--color-border);
+  }
+
+  .mm-main {
+    padding: 24px 16px 48px;
+  }
+
+  .mm-nav-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .mm-nav-link {
+    padding: 7px 10px;
+  }
+
+  .mm-card {
+    padding: 16px;
+  }
+
+  .mm-spread {
+    align-items: flex-start;
+  }
+
+  .mm-feedback {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 /* ---------- Badges, chips, banners ---------- */
 
 .mm-badge {
@@ -487,6 +526,54 @@ p {
   border-left-width: var(--border-w);
   border-radius: var(--radius-pill);
   padding-left: 20px;
+}
+
+.mm-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: var(--border-w) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  padding: 10px 12px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.mm-feedback-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mm-feedback-main span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.mm-feedback-action {
+  flex-shrink: 0;
+}
+
+.mm-feedback--success {
+  border-color: var(--color-success-soft);
+  background: var(--color-success-soft);
+}
+
+.mm-feedback--warning {
+  border-color: var(--color-warning-soft);
+  background: var(--color-warning-soft);
+}
+
+.mm-feedback--danger {
+  border-color: var(--color-danger-soft);
+  background: var(--color-danger-soft);
+}
+
+.mm-feedback--info {
+  border-color: var(--color-primary-soft);
+  background: var(--color-primary-soft);
 }
 
 .mm-chip {

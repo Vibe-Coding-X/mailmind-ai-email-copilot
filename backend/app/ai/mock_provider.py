@@ -6,6 +6,8 @@ from app.ai.base import LLMResponse
 
 
 class MockLLMProvider:
+    provider_id = "mock"
+    provider_type = "mock"
     provider_name = "mock"
     model_name = "mock-digest-v1"
 
@@ -44,6 +46,8 @@ class MockLLMProvider:
             text=json.dumps(output),
             model_provider=self.provider_name,
             model_name=self.model_name,
+            provider_id=self.provider_id,
+            provider_type=self.provider_type,
         )
 
 

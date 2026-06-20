@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from app.db.models.digest_item import DigestItem
 from app.db.models.email import Email
 from app.db.models.mailbox import Mailbox
 from app.db.models.user_action import UserAction
+from app.utils.redaction import safe_error_message, sanitize_sensitive_data
 
 
 class UserActionServiceError(Exception):
@@ -21,17 +23,12 @@ class UserActionServiceError(Exception):
         super().__init__(message)
 
 
-SENSITIVE_KEY_PARTS = {
-    "token",
-    "authorization",
-    "password",
-    "secret",
-    "api_key",
-    "apikey",
-    "body_text",
-    "raw_payload",
-    "mime",
-}
+@dataclass(slots=True)
+class UserActionQueryResult:
+    actions: list[UserAction]
+    limit: int
+    offset: int
+    has_more: bool
 
 
 def create_action(
@@ -174,6 +171,58 @@ def list_user_actions(
     return list(db.scalars(statement).all())
 
 
+def query_user_actions(
+    db: Session,
+    *,
+    user_id: UUID,
+    limit: int = 50,
+    offset: int = 0,
+    action_type: str | None = None,
+    status: str | None = None,
+    provider_effect: str | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    related_resource_type: str | None = None,
+    related_resource_id: UUID | None = None,
+) -> UserActionQueryResult:
+    resolved_limit = max(1, min(limit, 100))
+    resolved_offset = max(0, offset)
+    statement = select(UserAction).where(UserAction.user_id == user_id)
+    if action_type is not None:
+        statement = statement.where(UserAction.action_type == action_type)
+    if status is not None:
+        statement = statement.where(UserAction.action_status == status)
+    if provider_effect is not None:
+        statement = statement.where(UserAction.provider_effect == provider_effect)
+    if created_from is not None:
+        statement = statement.where(UserAction.created_at >= _ensure_utc(created_from))
+    if created_to is not None:
+        statement = statement.where(UserAction.created_at <= _ensure_utc(created_to))
+    if related_resource_type is not None or related_resource_id is not None:
+        if related_resource_type is None or related_resource_id is None:
+            raise UserActionServiceError(
+                "INVALID_REQUEST",
+                "related_resource_type and related_resource_id are required together.",
+            )
+        statement = statement.where(
+            _related_resource_column(related_resource_type) == related_resource_id
+        )
+
+    rows = list(
+        db.scalars(
+            statement.order_by(UserAction.created_at.desc(), UserAction.id.desc())
+            .offset(resolved_offset)
+            .limit(resolved_limit + 1)
+        ).all()
+    )
+    return UserActionQueryResult(
+        actions=rows[:resolved_limit],
+        limit=resolved_limit,
+        offset=resolved_offset,
+        has_more=len(rows) > resolved_limit,
+    )
+
+
 def list_digest_item_actions(
     db: Session,
     *,
@@ -193,6 +242,22 @@ def list_digest_item_actions(
         .limit(resolved_limit)
     )
     return list(db.scalars(statement).all())
+
+
+def _related_resource_column(related_resource_type: str):
+    columns = {
+        "mailbox": UserAction.mailbox_id,
+        "email": UserAction.email_id,
+        "digest": UserAction.digest_id,
+        "digest_item": UserAction.digest_item_id,
+    }
+    column = columns.get(related_resource_type)
+    if column is None:
+        raise UserActionServiceError(
+            "INVALID_REQUEST",
+            "Unsupported related_resource_type.",
+        )
+    return column
 
 
 def get_user_action(db: Session, *, user_id: UUID, action_id: UUID) -> UserAction:
@@ -244,17 +309,7 @@ def record_digest_item_action(
 
 
 def sanitize_audit_state(value: object) -> object:
-    if isinstance(value, dict):
-        sanitized: dict[str, object] = {}
-        for key, nested_value in value.items():
-            lowered = str(key).lower()
-            if any(part in lowered for part in SENSITIVE_KEY_PARTS):
-                continue
-            sanitized[str(key)] = sanitize_audit_state(nested_value)
-        return sanitized
-    if isinstance(value, list):
-        return [sanitize_audit_state(item) for item in value]
-    return value
+    return sanitize_sensitive_data(value)
 
 
 def _ensure_mailbox_owner(db: Session, *, user_id: UUID, mailbox_id: UUID) -> None:
@@ -317,10 +372,7 @@ def _normalize_and_validate_scope(
 
 
 def _safe_error_message(message: str | None) -> str | None:
-    if message is None:
-        return None
-    sanitized = str(sanitize_audit_state({"message": message}).get("message", ""))
-    return sanitized[:500]
+    return safe_error_message(message, max_length=500)
 
 
 def _ensure_utc(value: datetime) -> datetime:

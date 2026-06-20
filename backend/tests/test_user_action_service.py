@@ -70,6 +70,42 @@ def test_record_completed_action_sanitizes_payload_and_sets_executed_status() ->
         assert stored.after_state == {"status": "done"}
 
 
+def test_record_completed_action_sanitizes_nested_cookies_and_body_text() -> None:
+    user_id, mailbox_id = _create_user_and_mailbox("action-nested-redaction")
+
+    with SessionLocal() as db:
+        action = record_completed_action(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            action_type="mark_done",
+            source="dashboard",
+            provider_effect="none",
+            before_state={
+                "subject": "Keep this",
+                "nested": {
+                    "Cookie": "sessionid=session-secret-12345",
+                    "body_text": "Full private email body",
+                    "safe": "visible",
+                },
+                "items": [
+                    {"api_key": "api-secret-12345", "status": "ok"},
+                    {"authorization": "Bearer bearer-secret-12345", "count": 1},
+                ],
+            },
+        )
+        db.commit()
+        action_id = action.id
+
+    with SessionLocal() as db:
+        stored = get_user_action(db, user_id=user_id, action_id=action_id)
+        assert stored.before_state == {
+            "subject": "Keep this",
+            "nested": {"safe": "visible"},
+            "items": [{"status": "ok"}, {"count": 1}],
+        }
+
+
 def test_record_failed_action_preserves_audit_without_swallowing_business_error() -> None:
     user_id, mailbox_id = _create_user_and_mailbox("action-failed")
 

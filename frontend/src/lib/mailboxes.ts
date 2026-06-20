@@ -50,6 +50,52 @@ export function formatDateTime(value: string | null | undefined): string {
   return date.toLocaleString();
 }
 
+export function formatDateTimeWithRelative(
+  value: string | null | undefined,
+): string {
+  if (!value) {
+    return "Never";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+  const relative =
+    diffMinutes < 1
+      ? "just now"
+      : diffMinutes < 60
+        ? `${diffMinutes} min ago`
+        : diffMinutes < 1440
+          ? `${Math.round(diffMinutes / 60)} hr ago`
+          : `${Math.round(diffMinutes / 1440)} day ago`;
+
+  return `${date.toLocaleString()} (${relative})`;
+}
+
+export function mailboxStateMessage(mailbox: Mailbox): string {
+  if (requiresGmailReconnect(mailbox)) {
+    return "Gmail authorization has expired. Reconnect Gmail before syncing.";
+  }
+
+  if (mailbox.status === "connected") {
+    return "Gmail is connected and ready for manual sync.";
+  }
+
+  if (mailbox.status === "disconnected") {
+    return "This mailbox is disconnected.";
+  }
+
+  if (mailbox.status === "error") {
+    return "Gmail connection needs attention.";
+  }
+
+  return `Mailbox status: ${statusLabel(mailbox.status)}.`;
+}
+
 export function syncStatusTone(status: MailboxSyncState | undefined): BadgeTone {
   switch (status) {
     case "completed":
@@ -77,6 +123,32 @@ export function syncStatusSummary(
   }
 
   return `Sync status: ${statusLabel(syncStatus.status)}`;
+}
+
+export function syncStatusDetail(
+  syncStatus: MailboxSyncStatusData | undefined,
+): string {
+  if (!syncStatus) {
+    return "Sync status will appear after the backend responds.";
+  }
+
+  if (syncStatus.status === "completed") {
+    return "The last sync completed successfully.";
+  }
+
+  if (syncStatus.status === "running") {
+    return "A sync job is currently running.";
+  }
+
+  if (syncStatus.status === "failed") {
+    return syncStatus.last_job?.error_message ?? "The last sync job failed.";
+  }
+
+  if (syncStatus.status === "not_started") {
+    return "No sync job has been started for this mailbox.";
+  }
+
+  return `Current sync state is ${statusLabel(syncStatus.status)}.`;
 }
 
 export function syncResultMessage(result: MailboxSyncData): string {

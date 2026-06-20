@@ -201,6 +201,102 @@ def test_list_actions_returns_current_user_actions_with_filters() -> None:
     assert actions[0]["action_status"] == "executed"
 
 
+def test_list_actions_paginates_and_filters_by_provider_effect_and_date() -> None:
+    client, user_id = _register_client("action-api-page")
+    mailbox_id = _create_mailbox(user_id, prefix="action-api-page")
+
+    with SessionLocal() as db:
+        newest = record_completed_action(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            action_type="mark_read",
+            source="email_detail",
+            provider_effect="gmail_synced",
+            now=datetime(2026, 6, 19, 12, 0, tzinfo=UTC),
+        )
+        record_completed_action(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            action_type="mark_unread",
+            source="email_detail",
+            provider_effect="gmail_synced",
+            now=datetime(2026, 6, 19, 11, 0, tzinfo=UTC),
+        )
+        record_completed_action(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            action_type="mark_done",
+            source="dashboard",
+            provider_effect="local_only",
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+        newest_id = newest.id
+
+    response = client.get(
+        "/api/actions",
+        params={
+            "provider_effect": "gmail_synced",
+            "created_from": "2026-06-19T00:00:00+00:00",
+            "created_to": "2026-06-19T23:59:59+00:00",
+            "limit": 1,
+            "offset": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert [action["id"] for action in data["actions"]] == [str(newest_id)]
+    assert data["pagination"] == {
+        "limit": 1,
+        "offset": 0,
+        "count": 1,
+        "has_more": True,
+    }
+
+
+def test_list_actions_filters_by_related_email_resource() -> None:
+    client, user_id = _register_client("action-api-related")
+    mailbox_id = _create_mailbox(user_id, prefix="action-api-related")
+    email_id = _create_email(user_id, mailbox_id, prefix="action-api-related")
+
+    with SessionLocal() as db:
+        expected = record_completed_action(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            email_id=email_id,
+            action_type="open_email_detail",
+            source="email_detail",
+            provider_effect="none",
+        )
+        record_completed_action(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            action_type="mark_done",
+            source="dashboard",
+            provider_effect="local_only",
+        )
+        db.commit()
+        expected_id = expected.id
+
+    response = client.get(
+        "/api/actions",
+        params={
+            "related_resource_type": "email",
+            "related_resource_id": str(email_id),
+        },
+    )
+
+    assert response.status_code == 200
+    actions = response.json()["data"]["actions"]
+    assert [action["id"] for action in actions] == [str(expected_id)]
+
+
 def test_get_action_detail_blocks_other_users_action() -> None:
     owner_client, owner_id = _register_client("action-detail-owner")
     other_client, _ = _register_client("action-detail-other")

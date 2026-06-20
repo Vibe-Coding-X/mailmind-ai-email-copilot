@@ -2,9 +2,9 @@
 
 MailMind is a local-first AI email copilot that connects to Gmail, syncs today's email, and turns it into an actionable Daily Digest.
 
-Current release: `v0.1.0-local-mvp`
+Current release: `v0.2.0-digest-ai`
 
-MailMind is not a production SaaS product. The current codebase is a local MVP for validating authentication, Gmail connectivity, email sync, a mock Daily Digest pipeline, and the first frontend workflows.
+MailMind is not a production SaaS product. The current codebase is a local release for validating authentication, Gmail connectivity, email sync, Daily Digest generation, configured AI provider calls, and the first connected frontend workflows.
 
 ## What It Does
 
@@ -16,10 +16,11 @@ MailMind adds a decision layer on top of email:
 - Syncs Gmail messages received today.
 - Shows today's synced emails and individual email detail pages.
 - Writes read/unread changes back to Gmail when the mailbox has `gmail.modify`.
-- Generates a Daily Digest through a deterministic mock AI provider.
-- Records AI runs, digest items, sync jobs, and user actions for auditability.
+- Generates a Daily Digest through the mock provider or configured OpenAI-compatible AI providers.
+- Records AI runs, provider/model metadata, digest items, sync jobs, and user actions for auditability.
+- Provides dashboard digest controls, digest item actions, and action history.
 
-## Current v0.1 Features
+## Current v0.2 Features
 
 - User registration, login, logout, and `GET /api/auth/me`.
 - HttpOnly cookie-backed sessions persisted in `sessions`.
@@ -32,9 +33,15 @@ MailMind adds a decision layer on top of email:
 - Gmail-backed `mark-read` and `mark-unread`.
 - `user_actions` audit records for user and digest-item actions.
 - Daily Digest generation and refresh in the backend.
-- Mock AI pipeline with structured digest output.
-- `ai_runs` records for model metadata and output traceability.
+- Mock AI fallback and environment-configured OpenAI-compatible provider chain.
+- Robust digest prompt/parser handling for real provider output.
+- `ai_runs` records for provider/model metadata and output traceability.
 - `digest_items` records for actionable digest rows.
+- Digest dashboard connected to `/api/digest/today`.
+- Digest generation and refresh controls in the frontend.
+- Digest item `mark-done`, `dismiss`, and `snooze` actions.
+- `/actions` action history page with filters and pagination.
+- Email list search, read-state filters, date filters, and pagination.
 - Frontend theme system with light/dark modes and multiple presets.
 - `/settings/mailboxes` for Gmail connection, disconnect, state, and sync.
 - `/emails` for today's email list and read filter.
@@ -47,14 +54,14 @@ MailMind adds a decision layer on top of email:
 - Backend: FastAPI, SQLAlchemy, Alembic, Pydantic Settings, PostgreSQL, `uv`.
 - Frontend: Next.js, React, TypeScript, plain CSS theme tokens.
 - Provider: Gmail API through a provider adapter.
-- AI: in-process mock LLM provider for v0.1.
+- AI: in-process mock provider plus OpenAI-compatible provider profiles from environment variables.
 - Local infrastructure: PostgreSQL and Redis through Docker Compose.
 
 ## Architecture Overview
 
 ```text
 Next.js frontend
-  login/register, mailbox settings, email list/detail, static digest preview
+  login/register, mailbox settings, email list/detail, digest dashboard, actions
         |
 FastAPI backend
   auth, Gmail OAuth, mailboxes, emails, digest, actions
@@ -69,7 +76,7 @@ PostgreSQL
   users, sessions, mailboxes, credentials, emails, digests, ai_runs, actions
 ```
 
-The v0.1 digest path is synchronous and local. Celery, scheduled sync, and a real LLM provider are not implemented yet.
+The v0.2 digest path is synchronous. Celery, scheduled sync, and in-app AI provider management are not implemented yet.
 
 ## Local Development
 
@@ -122,7 +129,13 @@ Important variables:
 - `GOOGLE_CLIENT_ID`: Google OAuth client ID.
 - `GOOGLE_CLIENT_SECRET`: Google OAuth client secret.
 - `GOOGLE_REDIRECT_URI`: callback URL, usually `http://localhost:8000/api/auth/gmail/callback`.
-- `LLM_PROVIDER`: leave empty or set to `mock` for v0.1.
+- `AI_PROVIDER_MODE`: set to `env` to use configured AI provider profiles; leave empty to use the mock fallback.
+- `AI_DEFAULT_PROVIDER`: default provider profile id.
+- `AI_PROVIDER_ORDER`: comma-separated provider profile fallback order.
+- `AI_PROVIDER_<ID>_TYPE`: currently `openai_compatible`.
+- `AI_PROVIDER_<ID>_BASE_URL`: OpenAI-compatible API base URL.
+- `AI_PROVIDER_<ID>_API_KEY`: local AI provider API key.
+- `AI_PROVIDER_<ID>_MODEL`: provider model id.
 
 Security requirements:
 
@@ -142,7 +155,7 @@ Authorized redirect URI:
 http://localhost:8000/api/auth/gmail/callback
 ```
 
-The v0.1 Gmail integration uses:
+The current Gmail integration uses:
 
 ```text
 https://www.googleapis.com/auth/gmail.readonly
@@ -207,8 +220,9 @@ Current tables:
 
 ## Current Limitations
 
-- Real LLM providers are not integrated; v0.1 uses the mock provider only.
-- Digest frontend dashboard is a static preview and is not fully wired to `/api/digest`.
+- Real AI provider calls are configured through local environment variables only.
+- No in-app AI provider settings UI is implemented.
+- Real AI provider behavior depends on external model/network availability.
 - Celery and background workers are not implemented.
 - Scheduled sync is not implemented.
 - Multi-mailbox aggregate Digest is not complete.
@@ -219,11 +233,10 @@ Current tables:
 ## Roadmap
 
 - v0.1 Local MVP: completed.
-- v0.2 Digest Dashboard / Frontend Digest UI.
-- v0.3 Real AI Provider.
-- v0.4 Background Jobs / Scheduled Sync.
-- v0.5 Multi Mailbox.
-- v0.6 Open Source Ready / CI / Docker polish.
+- v0.2 Digest AI: completed.
+- v0.3 Background Jobs / Scheduled Sync.
+- v0.4 Multi Mailbox.
+- v0.5 Open Source Ready / CI / Docker polish.
 - v1.0 Personal Productivity Ready.
 
 See `docs/ROADMAP.md` for more detail.
