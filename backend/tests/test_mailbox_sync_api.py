@@ -253,6 +253,50 @@ def test_trigger_mailbox_sync_calls_email_sync_service(monkeypatch) -> None:
     assert "not implemented" not in response.text.lower()
 
 
+def test_trigger_async_mailbox_sync_creates_queued_job(monkeypatch) -> None:
+    client, user_id = _register_client("mailbox-async-sync")
+    mailbox_id = _create_connected_mailbox(user_id)
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return "celery-job-async-1"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    response = client.post(f"/api/mailboxes/{mailbox_id}/sync-jobs")
+
+    assert response.status_code == 200
+    job = response.json()["data"]["job"]
+    assert job["job_type"] == "email_sync"
+    assert job["status"] == "queued"
+    assert job["progress"] == 0
+    assert job["related_resource_type"] == "mailbox"
+    assert job["related_resource_id"] == str(mailbox_id)
+    assert dispatched == [UUID(job["job_id"])]
+
+    with SessionLocal() as db:
+        stored = db.get(SyncJob, job["job_id"])
+        assert stored is not None
+        assert stored.user_id == user_id
+        assert stored.status == "queued"
+        assert stored.celery_task_id == "celery-job-async-1"
+
+
+def test_trigger_async_mailbox_sync_blocks_other_users_mailbox() -> None:
+    client, _ = _register_client("mailbox-async-current-user")
+    _, other_user_id = _register_client("mailbox-async-other-user")
+    other_mailbox_id = _create_connected_mailbox(other_user_id)
+
+    response = client.post(f"/api/mailboxes/{other_mailbox_id}/sync-jobs")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
 def test_sync_status_returns_latest_sync_job(monkeypatch) -> None:
     client, user_id = _register_client("mailbox-sync-status-api")
     mailbox_id = _create_connected_mailbox(user_id)

@@ -16,6 +16,7 @@ import {
   snoozeDigestItem,
 } from "@/lib/api-client";
 import type { Digest, DigestItem } from "@/lib/api-types";
+import { useI18n, type TranslationKey } from "@/i18n/provider";
 
 type DigestPageState =
   | "loading"
@@ -43,13 +44,15 @@ interface SnoozeOption {
   value: string;
 }
 
-function digestErrorView(error: unknown): DigestErrorView {
+type TFunction = (key: TranslationKey) => string;
+
+export function digestErrorView(error: unknown, t: TFunction): DigestErrorView {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401 || error.code === "UNAUTHORIZED") {
+    if (error.code === "UNAUTHORIZED") {
       return {
         state: "unauthorized",
-        title: "Not signed in",
-        message: "Sign in with your MailMind account to load the digest.",
+        title: t("account.notSignedIn"),
+        message: t("digest.notSignedInMessage"),
       };
     }
 
@@ -60,8 +63,8 @@ function digestErrorView(error: unknown): DigestErrorView {
     ) {
       return {
         state: "empty",
-        title: "No digest yet",
-        message: "Generate today's digest after syncing email.",
+        title: t("digest.noDigestTitle"),
+        message: t("digest.noDigestMessage"),
       };
     }
 
@@ -72,22 +75,22 @@ function digestErrorView(error: unknown): DigestErrorView {
     ) {
       return {
         state: "backend_unavailable",
-        title: "Backend unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        title: t("account.backendUnavailable"),
+        message: t("digest.backendUnavailableMessage"),
       };
     }
 
     return {
       state: "error",
-      title: "Digest error",
+      title: t("digest.errorTitle"),
       message: error.message,
     };
   }
 
   return {
     state: "error",
-    title: "Digest error",
-    message: "Something went wrong. Please try again.",
+    title: t("digest.errorTitle"),
+    message: t("digest.genericError"),
   };
 }
 
@@ -130,15 +133,15 @@ function formatDateTime(value: string): string {
   return date.toLocaleString();
 }
 
-function formatConfidence(value: number): string {
+function formatConfidence(value: number, t: TFunction): string {
   if (!Number.isFinite(value)) {
-    return "Unknown confidence";
+    return t("common.unknownConfidence");
   }
 
-  return `${Math.round(value * 100)}% confidence`;
+  return t("digest.confidence").replace("{{value}}", String(Math.round(value * 100)));
 }
 
-function digestSummary(digest: Digest): string {
+function digestSummary(digest: Digest, t: TFunction): string {
   if (digest.summary && digest.summary.trim().length > 0) {
     return digest.summary;
   }
@@ -148,7 +151,7 @@ function digestSummary(digest: Digest): string {
     return overviewSummary;
   }
 
-  return "Digest generated without a summary.";
+  return t("digest.noSummary");
 }
 
 function groupDigestItems(items: DigestItem[]): Array<{
@@ -158,7 +161,8 @@ function groupDigestItems(items: DigestItem[]): Array<{
   const grouped = new Map<string, DigestItem[]>();
 
   for (const item of items) {
-    const section = item.section.trim().length > 0 ? item.section : "review";
+    const trimmedSection = item.section?.trim() ?? "";
+    const section = trimmedSection.length > 0 ? trimmedSection : "review";
     grouped.set(section, [...(grouped.get(section) ?? []), item]);
   }
 
@@ -168,11 +172,11 @@ function groupDigestItems(items: DigestItem[]): Array<{
   }));
 }
 
-function buildSnoozeOptions(): SnoozeOption[] {
+function buildSnoozeOptions(t: TFunction): SnoozeOption[] {
   return [
-    { label: "Tomorrow", value: futureIsoDate(1) },
-    { label: "In 3 days", value: futureIsoDate(3) },
-    { label: "Next week", value: futureIsoDate(7) },
+    { label: t("digest.snoozeTomorrow"), value: futureIsoDate(1) },
+    { label: t("digest.snooze3Days"), value: futureIsoDate(3) },
+    { label: t("digest.snoozeNextWeek"), value: futureIsoDate(7) },
   ];
 }
 
@@ -183,6 +187,7 @@ function futureIsoDate(days: number): string {
 }
 
 export function DigestDashboard() {
+  const { t } = useI18n();
   const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [pageState, setPageState] = useState<DigestPageState>("loading");
   const [digest, setDigest] = useState<Digest | null>(null);
@@ -202,7 +207,7 @@ export function DigestDashboard() {
     () => groupDigestItems(digest?.items ?? []),
     [digest],
   );
-  const snoozeOptions = useMemo(() => buildSnoozeOptions(), []);
+  const snoozeOptions = useMemo(() => buildSnoozeOptions(t), [t]);
 
   const loadDigest = useCallback(async (): Promise<boolean> => {
     setPageState("loading");
@@ -215,13 +220,13 @@ export function DigestDashboard() {
       setPageState("loaded");
       return true;
     } catch (error) {
-      const view = digestErrorView(error);
+      const view = digestErrorView(error, t);
       setDigest(null);
       setPageError(view);
       setPageState(view.state);
       return false;
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -233,8 +238,8 @@ export function DigestDashboard() {
       setDigest(null);
       setPageError({
         state: "unauthorized",
-        title: "Not signed in",
-        message: "Sign in with your MailMind account to load the digest.",
+        title: t("account.notSignedIn"),
+        message: t("digest.notSignedInMessage"),
       });
       setPageState("unauthorized");
       return;
@@ -244,15 +249,15 @@ export function DigestDashboard() {
       setDigest(null);
       setPageError({
         state: "backend_unavailable",
-        title: "Backend unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        title: t("account.backendUnavailable"),
+        message: t("digest.backendUnavailableMessage"),
       });
       setPageState("backend_unavailable");
       return;
     }
 
     void loadDigest();
-  }, [authStatus, loadDigest]);
+  }, [authStatus, loadDigest, t]);
 
   async function onGenerate() {
     setActionError(null);
@@ -264,9 +269,9 @@ export function DigestDashboard() {
       setDigest(response.data.digest);
       setPageState("loaded");
       setPageError(null);
-      setActionMessage("Digest generated.");
+      setActionMessage(t("digest.generatedMessage"));
     } catch (error) {
-      const view = digestErrorView(error);
+      const view = digestErrorView(error, t);
       setActionError(view.message);
       if (view.state === "unauthorized" || view.state === "backend_unavailable") {
         setPageError(view);
@@ -287,9 +292,9 @@ export function DigestDashboard() {
       setDigest(response.data.digest);
       setPageState("loaded");
       setPageError(null);
-      setActionMessage("Digest refreshed.");
+      setActionMessage(t("digest.refreshedMessage"));
     } catch (error) {
-      const view = digestErrorView(error);
+      const view = digestErrorView(error, t);
       setActionError(view.message);
       if (view.state === "unauthorized" || view.state === "backend_unavailable") {
         setPageError(view);
@@ -321,7 +326,7 @@ export function DigestDashboard() {
       ...current,
       [itemId]: {
         tone: "neutral",
-        message: "Recording action...",
+        message: t("digest.recordingAction"),
       },
     }));
 
@@ -342,7 +347,10 @@ export function DigestDashboard() {
         ...current,
         [itemId]: {
           tone: "ok",
-          message: `Action ${statusLabel(response.data.action.action_status)}.`,
+          message: t("digest.actionStatus").replace(
+            "{{status}}",
+            statusLabel(response.data.action.action_status),
+          ),
         },
       }));
       await loadDigest();
@@ -351,7 +359,7 @@ export function DigestDashboard() {
         ...current,
         [itemId]: {
           tone: "danger",
-          message: digestErrorView(error).message,
+          message: digestErrorView(error, t).message,
         },
       }));
     } finally {
@@ -382,16 +390,18 @@ export function DigestDashboard() {
                 tone={digest ? digestStatusTone(digest.status) : "neutral"}
                 dot
               >
-                {digest ? statusLabel(digest.status) : "No digest loaded"}
+                {digest ? statusLabel(digest.status) : t("digest.noDigestLoaded")}
               </Badge>
               {digest ? (
-                <Badge tone="neutral">Version {digest.version}</Badge>
+                <Badge tone="neutral">
+                  {t("digest.version")} {digest.version}
+                </Badge>
               ) : null}
             </div>
             <p className="mm-muted" style={{ fontSize: 13 }}>
               {digest
-                ? `Generated ${formatDateTime(digest.generated_at)}`
-                : "Today's digest is loaded from the backend when available."}
+                ? `${t("digest.generated")} ${formatDateTime(digest.generated_at)}`
+                : t("digest.loadedFromBackend")}
             </p>
           </div>
 
@@ -403,7 +413,7 @@ export function DigestDashboard() {
               disabled={!canGenerate || busy}
               aria-disabled={!canGenerate || busy}
             >
-              {busyAction === "generate" ? "Generating..." : "Generate Digest"}
+              {busyAction === "generate" ? t("digest.generating") : t("digest.generate")}
             </button>
             <button
               type="button"
@@ -412,7 +422,7 @@ export function DigestDashboard() {
               disabled={!canRefresh || busy}
               aria-disabled={!canRefresh || busy}
             >
-              {busyAction === "refresh" ? "Refreshing..." : "Refresh Digest"}
+              {busyAction === "refresh" ? t("digest.refreshing") : t("digest.refresh")}
             </button>
           </div>
         </div>
@@ -447,6 +457,7 @@ export function DigestDashboard() {
         onDigestItemAction,
         onSnoozeValueChange,
         busy,
+        t,
       })}
     </div>
   );
@@ -465,6 +476,7 @@ function renderDigestContent({
   onDigestItemAction,
   onSnoozeValueChange,
   busy,
+  t,
 }: {
   pageState: DigestPageState;
   digest: Digest | null;
@@ -481,6 +493,7 @@ function renderDigestContent({
   ) => Promise<void>;
   onSnoozeValueChange: (itemId: string, value: string) => void;
   busy: boolean;
+  t: TFunction;
 }) {
   if (pageState === "loading") {
     return <DigestLoadingState />;
@@ -489,8 +502,8 @@ function renderDigestContent({
   if (pageState === "empty") {
     return (
       <EmptyState
-        title={pageError?.title ?? "No digest yet"}
-        hint={pageError?.message ?? "Generate today's digest after syncing email."}
+        title={pageError?.title ?? t("digest.noDigestTitle")}
+        hint={pageError?.message ?? t("digest.noDigestMessage")}
         action={
           <button
             type="button"
@@ -499,7 +512,7 @@ function renderDigestContent({
             disabled={busy}
             aria-disabled={busy}
           >
-            {busy ? "Generating..." : "Generate Digest"}
+            {busy ? t("digest.generating") : t("digest.generate")}
           </button>
         }
       />
@@ -511,8 +524,8 @@ function renderDigestContent({
       pageError ??
       ({
         state: "error",
-        title: "Digest error",
-        message: "Something went wrong. Please try again.",
+        title: t("digest.errorTitle"),
+        message: t("digest.genericError"),
       } satisfies DigestErrorView);
 
     return (
@@ -521,14 +534,14 @@ function renderDigestContent({
         hint={error.message}
         action={
           error.state === "unauthorized" ? (
-            <a href="/login">Sign in</a>
+            <a href="/login">{t("account.signIn")}</a>
           ) : (
             <button
               type="button"
               className="mm-btn"
               onClick={() => void onRetry()}
             >
-              Retry
+              {t("common.retry")}
             </button>
           )
         }
@@ -545,6 +558,7 @@ function renderDigestContent({
       snoozeOptions={snoozeOptions}
       onDigestItemAction={onDigestItemAction}
       onSnoozeValueChange={onSnoozeValueChange}
+      t={t}
     />
   );
 }
@@ -580,6 +594,7 @@ function DigestLoadedView({
   snoozeOptions,
   onDigestItemAction,
   onSnoozeValueChange,
+  t,
 }: {
   digest: Digest;
   groupedItems: Array<{ section: string; items: DigestItem[] }>;
@@ -591,17 +606,18 @@ function DigestLoadedView({
     action: DigestItemActionKind,
   ) => Promise<void>;
   onSnoozeValueChange: (itemId: string, value: string) => void;
+  t: TFunction;
 }) {
   return (
     <div className="mm-stack">
       <div className="mm-grid mm-grid-3">
-        <MetricCard label="Emails analyzed" value={String(digest.mail_count)} />
+        <MetricCard label={t("digest.emailsAnalyzed")} value={String(digest.mail_count)} />
         <MetricCard
-          label="New since digest"
+          label={t("digest.newSinceDigest")}
           value={String(digest.new_mail_count_after_digest)}
         />
         <MetricCard
-          label="Digest window"
+          label={t("digest.digestWindow")}
           value={digest.digest_date}
           detail={`${formatDateTime(digest.coverage_start)} to ${formatDateTime(
             digest.coverage_end,
@@ -609,10 +625,10 @@ function DigestLoadedView({
         />
       </div>
 
-      <section className="mm-card">
+      <section className="mm-card mm-card--summary">
         <div className="mm-spread" style={{ alignItems: "flex-start" }}>
           <div>
-            <div className="mm-card-title">Summary</div>
+            <div className="mm-card-title">{t("digest.summary")}</div>
             <p
               style={{
                 maxWidth: 900,
@@ -620,19 +636,19 @@ function DigestLoadedView({
                 whiteSpace: "pre-wrap",
               }}
             >
-              {digestSummary(digest)}
+              {digestSummary(digest, t)}
             </p>
           </div>
           <Badge tone={digest.is_current ? "ok" : "warn"} dot>
-            {digest.is_current ? "Current" : "Previous version"}
+            {digest.is_current ? t("common.current") : t("common.previousVersion")}
           </Badge>
         </div>
       </section>
 
       {digest.items.length === 0 ? (
         <EmptyState
-          title="No digest items"
-          hint="The backend returned a digest without item-level recommendations."
+          title={t("digest.noItemsTitle")}
+          hint={t("digest.noItemsMessage")}
         />
       ) : (
         groupedItems.map((group) => (
@@ -641,7 +657,7 @@ function DigestLoadedView({
               <div>
                 <div className="mm-card-title">{statusLabel(group.section)}</div>
                 <p className="mm-muted" style={{ fontSize: 13 }}>
-                  {group.items.length} item{group.items.length === 1 ? "" : "s"}
+                  {group.items.length} {group.items.length === 1 ? t("digest.item") : t("digest.items")}
                 </p>
               </div>
             </div>
@@ -657,6 +673,7 @@ function DigestLoadedView({
                   snoozeOptions={snoozeOptions}
                   onAction={onDigestItemAction}
                   onSnoozeValueChange={onSnoozeValueChange}
+                  t={t}
                 />
               ))}
             </div>
@@ -677,7 +694,7 @@ function MetricCard({
   detail?: string;
 }) {
   return (
-    <section className="mm-card">
+    <section className="mm-card mm-card--metric">
       <div className="mm-muted" style={{ fontSize: 12 }}>
         {label}
       </div>
@@ -708,6 +725,7 @@ function DigestItemRow({
   snoozeOptions,
   onAction,
   onSnoozeValueChange,
+  t,
 }: {
   item: DigestItem;
   showTopBorder: boolean;
@@ -716,6 +734,7 @@ function DigestItemRow({
   snoozeOptions: SnoozeOption[];
   onAction: (itemId: string, action: DigestItemActionKind) => Promise<void>;
   onSnoozeValueChange: (itemId: string, value: string) => void;
+  t: TFunction;
 }) {
   const defaultSnoozeValue = snoozeOptions[0]?.value ?? futureIsoDate(1);
 
@@ -735,7 +754,9 @@ function DigestItemRow({
               overflowWrap: "anywhere",
             }}
           >
-            {item.title.trim().length > 0 ? item.title : "Untitled item"}
+            {(item.title?.trim() ?? "").length > 0
+              ? item.title
+              : t("digest.untitledItem")}
           </h3>
           <p
             className="mm-muted"
@@ -746,7 +767,7 @@ function DigestItemRow({
               whiteSpace: "pre-wrap",
             }}
           >
-            {item.summary}
+            {item.summary ?? ""}
           </p>
         </div>
         <Badge tone={priorityTone(item.priority)} dot>
@@ -757,7 +778,7 @@ function DigestItemRow({
       <div className="mm-row" style={{ marginTop: 12 }}>
         <Badge tone="neutral">{statusLabel(item.category)}</Badge>
         <Badge tone="info">{statusLabel(item.suggested_action)}</Badge>
-        <Badge tone="neutral">{formatConfidence(item.confidence)}</Badge>
+        <Badge tone="neutral">{formatConfidence(item.confidence, t)}</Badge>
       </div>
 
       {item.reason ? (
@@ -787,7 +808,7 @@ function DigestItemRow({
           disabled={busy}
           aria-disabled={busy}
         >
-          {busy ? "Working..." : "Mark done"}
+          {busy ? t("common.working") : t("digest.markDone")}
         </button>
         <button
           type="button"
@@ -796,11 +817,11 @@ function DigestItemRow({
           disabled={busy}
           aria-disabled={busy}
         >
-          Dismiss
+          {t("digest.dismiss")}
         </button>
         <select
           className="mm-input"
-          aria-label={`Snooze ${item.title}`}
+          aria-label={`Snooze ${item.title ?? t("digest.untitledItem")}`}
           defaultValue={defaultSnoozeValue}
           disabled={busy}
           onChange={(event) => onSnoozeValueChange(item.id, event.target.value)}
@@ -822,7 +843,7 @@ function DigestItemRow({
           disabled={busy}
           aria-disabled={busy}
         >
-          Snooze
+          {t("digest.snooze")}
         </button>
       </div>
 

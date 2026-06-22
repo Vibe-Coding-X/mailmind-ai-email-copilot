@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { ApiRequestError } from "@/lib/api-client";
 import { InlineFeedback } from "@/components/inline-feedback";
+import { useI18n } from "@/i18n/provider";
 
 type Mode = "login" | "register";
 
@@ -23,6 +24,7 @@ const DEFAULT_TIMEZONE = "Asia/Shanghai";
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
   const { login, register } = useAuth();
+  const { t } = useI18n();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,9 +53,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
       setError(
         err instanceof ApiRequestError
           ? err.status === 0
-            ? "Backend unavailable"
+            ? t("account.backendUnavailable")
             : err.message
-          : "Something went wrong. Please try again.",
+          : t("digest.genericError"),
       );
       setSubmitting(false);
     }
@@ -63,7 +65,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     <form onSubmit={onSubmit} noValidate>
       <div className="mm-field">
         <label className="mm-label" htmlFor="email">
-          Email
+          {t("auth.email")}
         </label>
         <input
           id="email"
@@ -80,7 +82,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <div className="mm-field">
         <label className="mm-label" htmlFor="password">
-          Password
+          {t("auth.password")}
         </label>
         <input
           id="password"
@@ -99,7 +101,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       {isRegister ? (
         <div className="mm-field">
           <label className="mm-label" htmlFor="timezone">
-            Timezone
+            {t("auth.timezone")}
           </label>
           <input
             id="timezone"
@@ -115,7 +117,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       {error ? (
         <div style={{ marginBottom: 12 }}>
-          <InlineFeedback tone="danger" title="Sign-in error">
+          <InlineFeedback tone="danger" title={t("auth.signInError")}>
             {error}
           </InlineFeedback>
         </div>
@@ -130,11 +132,11 @@ export function AuthForm({ mode }: { mode: Mode }) {
       >
         {submitting
           ? isRegister
-            ? "Creating account…"
-            : "Signing in…"
+            ? t("auth.creatingAccount")
+            : t("auth.signingIn")
           : isRegister
-            ? "Create account"
-            : "Sign in"}
+            ? t("account.createAccount")
+            : t("account.signIn")}
       </button>
     </form>
   );

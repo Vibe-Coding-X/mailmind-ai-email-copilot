@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     frontend_base_url: str = "http://localhost:3000"
 
+    background_jobs_enabled: bool = True
+    background_jobs_eager: bool = False
+    celery_broker_url_raw: str = Field(default="", alias="celery_broker_url")
+    celery_result_backend_raw: str = Field(default="", alias="celery_result_backend")
+
     google_client_id: str = ""
     google_client_secret: SecretStr = Field(default=SecretStr(""), repr=False)
     google_redirect_uri: str = "http://localhost:8000/api/auth/gmail/callback"
@@ -55,6 +60,14 @@ class Settings(BaseSettings):
             for origin in self.cors_allowed_origins_raw.split(",")
             if origin.strip()
         ]
+
+    @property
+    def celery_broker_url(self) -> str:
+        return self.celery_broker_url_raw or self.redis_url
+
+    @property
+    def celery_result_backend(self) -> str:
+        return self.celery_result_backend_raw or self.redis_url
 
     model_config = SettingsConfigDict(
         env_file=None,

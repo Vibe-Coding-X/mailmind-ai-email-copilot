@@ -112,7 +112,7 @@ export function filterEmailsByQuery(
       email.snippet,
       ...email.recipients,
       ...email.labels,
-    ].some((value) => value.toLowerCase().includes(normalized)),
+    ].some((value) => (value ?? "").toLowerCase().includes(normalized)),
   );
 }
 
@@ -167,23 +167,26 @@ export function formatRecipients(recipients: string[]): string {
   return recipients.join(", ");
 }
 
-export function displaySubject(subject: string): string {
-  const trimmed = subject.trim();
+export function displaySubject(subject: string | null | undefined): string {
+  const trimmed = subject?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : "(No subject)";
 }
 
-export function displaySnippet(snippet: string): string {
-  const trimmed = snippet.trim();
+export function displaySnippet(snippet: string | null | undefined): string {
+  const trimmed = snippet?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : "No preview text.";
 }
 
-export function displayBodyText(bodyText: string | null, snippet: string): string {
+export function displayBodyText(
+  bodyText: string | null | undefined,
+  snippet: string | null | undefined,
+): string {
   const trimmedBody = bodyText?.trim() ?? "";
   if (trimmedBody.length > 0) {
     return trimmedBody;
   }
 
-  const trimmedSnippet = snippet.trim();
+  const trimmedSnippet = snippet?.trim() ?? "";
   if (trimmedSnippet.length > 0) {
     return `No readable body text was stored for this email.\n\nPreview:\n${trimmedSnippet}`;
   }

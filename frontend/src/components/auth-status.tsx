@@ -13,10 +13,12 @@ import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/i18n/provider";
 
 export function AuthStatus({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { status, user, logout } = useAuth();
+  const { t } = useI18n();
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function onLogout() {
@@ -32,7 +34,7 @@ export function AuthStatus({ compact = false }: { compact?: boolean }) {
   if (status === "loading") {
     return (
       <Badge tone="neutral" dot>
-        Checking session…
+        {t("account.checkingSession")}
       </Badge>
     );
   }
@@ -40,7 +42,7 @@ export function AuthStatus({ compact = false }: { compact?: boolean }) {
   if (status === "unavailable") {
     return (
       <Badge tone="danger" dot>
-        Backend unavailable
+        {t("account.backendUnavailable")}
       </Badge>
     );
   }
@@ -49,13 +51,13 @@ export function AuthStatus({ compact = false }: { compact?: boolean }) {
     return (
       <div className="mm-stack" style={{ gap: 8, alignItems: "flex-start" }}>
         <Badge tone="neutral" dot>
-          Not signed in
+          {t("account.notSignedIn")}
         </Badge>
         {!compact ? (
           <span className="mm-row" style={{ fontSize: 13 }}>
-            <a href="/login">Sign in</a>
+            <a href="/login">{t("account.signIn")}</a>
             <span className="mm-muted">·</span>
-            <a href="/register">Create account</a>
+            <a href="/register">{t("account.createAccount")}</a>
           </span>
         ) : null}
       </div>
@@ -65,7 +67,7 @@ export function AuthStatus({ compact = false }: { compact?: boolean }) {
   return (
     <div className="mm-stack" style={{ gap: 8, alignItems: "flex-start" }}>
       <Badge tone="ok" dot>
-        Signed in
+        {t("account.signedIn")}
       </Badge>
       <div style={{ fontSize: 13 }}>
         <div>{user.email}</div>
@@ -87,7 +89,7 @@ export function AuthStatus({ compact = false }: { compact?: boolean }) {
           padding: "6px 12px",
         }}
       >
-        {loggingOut ? "Signing out…" : "Sign out"}
+        {loggingOut ? t("account.signingOut") : t("account.signOut")}
       </button>
     </div>
   );

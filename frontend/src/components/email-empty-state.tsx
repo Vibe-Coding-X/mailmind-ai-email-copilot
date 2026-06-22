@@ -1,9 +1,12 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { useI18n } from "@/i18n/provider";
 
 export function EmailEmptyState({
-  title = "No emails",
+  title,
   hint,
   action,
 }: {
@@ -11,5 +14,7 @@ export function EmailEmptyState({
   hint: string;
   action?: ReactNode;
 }) {
-  return <EmptyState title={title} hint={hint} action={action} />;
+  const { t } = useI18n();
+
+  return <EmptyState title={title ?? t("emails.emptyDefault")} hint={hint} action={action} />;
 }

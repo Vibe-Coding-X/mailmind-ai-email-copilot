@@ -24,6 +24,7 @@ import {
   mergeEmailMutation,
   type EmailErrorView,
 } from "@/lib/emails";
+import { useI18n } from "@/i18n/provider";
 
 type EmailDetailState =
   | "loading"
@@ -34,6 +35,7 @@ type EmailDetailState =
   | "error";
 
 export default function EmailDetailPage() {
+  const { t } = useI18n();
   const params = useParams<{ id: string }>();
   const emailId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { status: authStatus, refresh: refreshAuth } = useAuth();
@@ -60,8 +62,8 @@ export default function EmailDetailPage() {
       setEmail(null);
       setPageError({
         kind: "not_found",
-        title: "Email not found",
-        message: "The route did not include an email id.",
+        title: t("emails.notFoundTitle"),
+        message: t("emails.missingId"),
       });
       setPageState("not_found");
       return false;
@@ -91,7 +93,7 @@ export default function EmailDetailPage() {
       );
       return false;
     }
-  }, [emailId]);
+  }, [emailId, t]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -103,8 +105,8 @@ export default function EmailDetailPage() {
       setEmail(null);
       setPageError({
         kind: "unauthorized",
-        title: "Not signed in",
-        message: "Sign in with your MailMind account to load this email.",
+        title: t("account.notSignedIn"),
+        message: t("emails.detailNotSignedIn"),
       });
       setPageState("unauthorized");
       return;
@@ -114,15 +116,15 @@ export default function EmailDetailPage() {
       setEmail(null);
       setPageError({
         kind: "backend_unavailable",
-        title: "Backend unavailable",
-        message: "Unable to reach the server. Check that the backend is running.",
+        title: t("account.backendUnavailable"),
+        message: t("digest.backendUnavailableMessage"),
       });
       setPageState("backend_unavailable");
       return;
     }
 
     void loadEmail();
-  }, [authStatus, loadEmail]);
+  }, [authStatus, loadEmail, t]);
 
   async function onRetry() {
     if (authStatus === "authenticated") {
@@ -163,7 +165,7 @@ export default function EmailDetailPage() {
 
   function renderContent() {
     if (pageState === "loading") {
-      return <EmailLoadingState title="Loading email" />;
+      return <EmailLoadingState title={t("emails.loadingDetail")} />;
     }
 
     if (pageState !== "loaded" || email === null) {
@@ -171,8 +173,8 @@ export default function EmailDetailPage() {
         pageError ??
         ({
           kind: "error",
-          title: "Email error",
-          message: "Something went wrong. Please try again.",
+          title: t("emails.errorTitle"),
+          message: t("digest.genericError"),
         } satisfies EmailErrorView);
 
       return (
@@ -180,14 +182,14 @@ export default function EmailDetailPage() {
           error={error}
           action={
             error.kind === "unauthorized" ? (
-              <a href="/login">Sign in</a>
+              <a href="/login">{t("account.signIn")}</a>
             ) : (
               <div className="mm-row">
                 <Link className="mm-btn" href={backHref}>
-                  Back to emails
+                  {t("emails.backToEmails")}
                 </Link>
                 <button type="button" className="mm-btn" onClick={onRetry}>
-                  Retry
+                  {t("common.retry")}
                 </button>
               </div>
             )
@@ -213,8 +215,8 @@ export default function EmailDetailPage() {
       <StatusBanner />
       <div style={{ height: 20 }} />
       <PageFrame
-        title={email ? displaySubject(email.subject) : "Email detail"}
-        description="Message content and read state from the connected mailbox."
+        title={email ? displaySubject(email.subject) : t("emails.detailTitle")}
+        description={t("emails.detailDescription")}
         badge={false}
       >
         {renderContent()}

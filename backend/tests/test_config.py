@@ -47,3 +47,24 @@ def test_cors_allowed_origins_reads_comma_separated_environment(monkeypatch) -> 
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+
+def test_background_job_settings_default_to_redis_url() -> None:
+    settings = Settings(redis_url="redis://localhost:6379/2")
+
+    assert settings.background_jobs_enabled is True
+    assert settings.background_jobs_eager is False
+    assert settings.celery_broker_url == "redis://localhost:6379/2"
+    assert settings.celery_result_backend == "redis://localhost:6379/2"
+
+
+def test_background_job_settings_can_enable_eager_mode(monkeypatch) -> None:
+    monkeypatch.setenv("BACKGROUND_JOBS_EAGER", "true")
+    monkeypatch.setenv("CELERY_BROKER_URL", "redis://localhost:6379/3")
+    monkeypatch.setenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/4")
+
+    settings = Settings()
+
+    assert settings.background_jobs_eager is True
+    assert settings.celery_broker_url == "redis://localhost:6379/3"
+    assert settings.celery_result_backend == "redis://localhost:6379/4"

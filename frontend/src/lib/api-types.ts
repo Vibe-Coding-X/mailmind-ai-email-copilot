@@ -160,10 +160,10 @@ export interface EmailBase {
   provider: string;
   external_id: string;
   thread_id: string;
-  subject: string;
+  subject: string | null;
   sender: string;
   recipients: string[];
-  snippet: string;
+  snippet: string | null;
   received_at: string;
   is_read: boolean;
   labels: string[];
@@ -204,9 +204,9 @@ export interface DigestItem {
   digest_id: string;
   email_id: string;
   item_type: string;
-  section: string;
-  title: string;
-  summary: string;
+  section: string | null;
+  title: string | null;
+  summary: string | null;
   category: string;
   suggested_action: string;
   priority: DigestItemPriority;
