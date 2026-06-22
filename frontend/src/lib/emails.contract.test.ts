@@ -2,6 +2,8 @@ import type { EmailSummary } from "./api-types";
 import {
   buildEmailListHref,
   displayBodyText,
+  displaySnippet,
+  displaySubject,
   filterEmailsByQuery,
   parseEmailReadFilter,
 } from "./emails";
@@ -35,11 +37,29 @@ type BuildEmailListHrefSignature = Assert<
 type DisplayBodyTextParameters = Assert<
   Equal<
     Parameters<typeof displayBodyText>,
-    [bodyText: string | null, snippet: string]
+    [bodyText: string | null | undefined, snippet: string | null | undefined]
   >
 >;
 type DisplayBodyTextSignature = Assert<
   Equal<ReturnType<typeof displayBodyText>, string>
+>;
+type DisplaySubjectParameters = Assert<
+  Equal<Parameters<typeof displaySubject>, [subject: string | null | undefined]>
+>;
+type DisplaySubjectSignature = Assert<
+  Equal<ReturnType<typeof displaySubject>, string>
+>;
+type DisplaySnippetParameters = Assert<
+  Equal<Parameters<typeof displaySnippet>, [snippet: string | null | undefined]>
+>;
+type DisplaySnippetSignature = Assert<
+  Equal<ReturnType<typeof displaySnippet>, string>
+>;
+type EmailSubjectAllowsNull = Assert<
+  Equal<EmailSummary["subject"], string | null>
+>;
+type EmailSnippetAllowsNull = Assert<
+  Equal<EmailSummary["snippet"], string | null>
 >;
 
 type EmailHelperAssertions = [
@@ -50,9 +70,21 @@ type EmailHelperAssertions = [
   BuildEmailListHrefSignature,
   DisplayBodyTextParameters,
   DisplayBodyTextSignature,
+  DisplaySubjectParameters,
+  DisplaySubjectSignature,
+  DisplaySnippetParameters,
+  DisplaySnippetSignature,
+  EmailSubjectAllowsNull,
+  EmailSnippetAllowsNull,
 ];
 
 const emailHelperAssertions: EmailHelperAssertions = [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
   true,
   true,
   true,
