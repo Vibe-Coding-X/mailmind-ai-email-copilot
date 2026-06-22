@@ -1,259 +1,324 @@
+<div align="center">
+
 # MailMind
 
-MailMind is a local-first AI email copilot that connects to Gmail, syncs today's email, and turns it into an actionable Daily Digest.
+**Your inbox, distilled into decisions.**
 
-Current release: `v0.3.0-async-redesign`
+MailMind is a local-first AI email copilot that turns Gmail overload into an actionable Daily Digest.
 
-MailMind is not a production SaaS product. The current codebase is a local release for validating authentication, Gmail connectivity, email sync, Daily Digest generation, configured AI provider calls, and the first connected frontend workflows.
+It is not another inbox client. It is an **AI decision layer** for your email.
 
-## What It Does
+<br />
 
-MailMind adds a decision layer on top of email:
+![Next.js 15](https://img.shields.io/badge/Next.js-15-black)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-local--first-336791)
+![Redis](https://img.shields.io/badge/Redis-celery%20broker-DC382D)
+![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
+![Release](https://img.shields.io/badge/release-v0.3.0--async--redesign-orange)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-- Authenticates a local MailMind user with an HttpOnly cookie session.
-- Connects one Gmail mailbox through OAuth.
-- Encrypts and stores the Gmail refresh token locally.
-- Syncs Gmail messages received today.
-- Shows today's synced emails and individual email detail pages.
-- Writes read/unread changes back to Gmail when the mailbox has `gmail.modify`.
-- Generates a Daily Digest through the mock provider or configured OpenAI-compatible AI providers.
-- Records AI runs, provider/model metadata, digest items, sync jobs, and user actions for auditability.
-- Provides dashboard digest controls, digest item actions, and action history.
+<br />
 
-## Current v0.3 Features
+<!-- TODO: Replace with real screenshot -->
+<!-- <img src="docs/assets/mailmind-dashboard-preview.png" alt="MailMind dashboard preview" width="900" /> -->
 
-- Background jobs foundation with Celery worker and Redis broker.
-- Job Status API: list, detail, and retry endpoints for async jobs.
-- Async mail sync, digest generate, and digest refresh jobs.
-- Job retry / failure handling with max retries and error redaction.
-- Scheduled email sync and scheduled digest local MVP foundation.
-- Frontend avatar account menu with sign-out.
-- Theme system redesign: Amber Focus, Noir Pulse, Paper Calm, Dense Minimal.
-- i18n foundation with English and Chinese language resources.
-- UI consistency pass and runtime regression fixes.
+> Dashboard preview screenshot coming soon.
 
-## Current v0.2 Features
+</div>
 
-- User registration, login, logout, and `GET /api/auth/me`.
-- HttpOnly cookie-backed sessions persisted in `sessions`.
-- Gmail OAuth login/callback/disconnect.
-- Mailbox connected state and reauthorization state management.
-- Encrypted Gmail refresh-token storage in `mailbox_credentials`.
-- Manual "Sync Today" Gmail email sync.
-- Today's email list through `GET /api/emails/today`.
-- Email detail through `GET /api/emails/{email_id}`.
-- Gmail-backed `mark-read` and `mark-unread`.
-- `user_actions` audit records for user and digest-item actions.
-- Daily Digest generation and refresh in the backend.
-- Mock AI fallback and environment-configured OpenAI-compatible provider chain.
-- Robust digest prompt/parser handling for real provider output.
-- `ai_runs` records for provider/model metadata and output traceability.
-- `digest_items` records for actionable digest rows.
-- Digest dashboard connected to `/api/digest/today`.
-- Digest generation and refresh controls in the frontend.
-- Digest item `mark-done`, `dismiss`, and `snooze` actions.
-- `/actions` action history page with filters and pagination.
-- Email list search, read-state filters, date filters, and pagination.
-- Frontend theme system with light/dark modes and multiple presets.
-- `/settings/mailboxes` for Gmail connection, disconnect, state, and sync.
-- `/emails` for today's email list and read filter.
-- `/emails/[id]` for email detail and read/unread actions.
-- Frontend mailbox sync entry point.
-- Capsule-style UI theme, plus clean, minimal, and soft presets.
+---
+
+## Why MailMind
+
+Email inboxes are designed for volume, not decisions. You get hundreds of messages a day, but only a handful actually require action.
+
+MailMind sits on top of your Gmail and answers one question:
+
+> **What should I do today?**
+
+It syncs your email, runs it through an AI pipeline, and produces a structured Daily Digest with prioritized items, suggested actions, and deadlines — not just another inbox view.
+
+---
+
+## Current Capabilities
+
+### ✅ Done
+
+**Auth & Identity**
+- User registration, login, logout, and session check (`GET /api/auth/me`)
+- HttpOnly cookie-backed sessions persisted in `sessions` table
+
+**Gmail Integration**
+- Gmail OAuth login / callback / disconnect
+- Encrypted refresh-token storage in `mailbox_credentials`
+- Mailbox connected state and reauthorization management
+- Manual "Sync Today" and async sync jobs
+- Email list with search, read-state filters, date filters, and pagination
+- Email detail with read/unread writeback to Gmail
+
+**Daily Digest & AI**
+- Digest generation and refresh (synchronous + async job endpoints)
+- Mock AI provider for local development (no paid API calls needed)
+- OpenAI-compatible provider chain via environment configuration
+- `ai_runs` audit trail for provider/model metadata and output traceability
+- `digest_items` as parsed, structured business state
+- Digest item actions: `mark-done`, `dismiss`, `snooze`
+
+**Background Jobs (v0.3)**
+- Celery worker with Redis broker and result backend
+- Job Status API: `GET /api/jobs`, `GET /api/jobs/{job_id}`, `POST /api/jobs/{job_id}/retry`
+- Async mail sync, digest generate, and digest refresh job endpoints
+- Job retry / failure handling with `max_retries = 3` and error redaction
+- Scheduled email sync and scheduled digest foundation tasks
+
+**Frontend**
+- Next.js 15 dashboard-first design with TypeScript and ESLint
+- 4 themes: Amber Focus, Noir Pulse, Paper Calm, Dense Minimal
+- i18n foundation with English and Chinese language resources
+- Avatar account menu with sign-out
+- Digest dashboard with generate/refresh controls
+- Action history page with filters and pagination
+- Mailbox settings with Gmail connection, disconnect, and sync
+
+### 🧭 Planned
+
+- Multi-mailbox support with aggregate digest
+- Outlook and IMAP provider implementations
+- In-app AI provider settings UI
+- Celery Beat for automated scheduling
+- Production deployment and Google OAuth verification
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Frontend
+        UI["Next.js 15<br/>Dashboard · Emails · Digest · Actions"]
+    end
+
+    subgraph Backend
+        API["FastAPI<br/>Auth · Mailboxes · Emails · Digest · Jobs"]
+        SVC["Services<br/>Session · OAuth · Encryption<br/>Email Sync · Digest · AI Run · Actions"]
+        WORKER["Celery Worker<br/>Async Sync · Async Digest<br/>Scheduled Tasks"]
+    end
+
+    subgraph Data
+        PG[("PostgreSQL<br/>11 tables")]
+        RD[("Redis<br/>Broker · Backend")]
+    end
+
+    subgraph External
+        GMAIL["Gmail API"]
+        AI["AI Provider Chain<br/>Mock · OpenAI-compatible"]
+    end
+
+    UI -->|"HTTP + Cookie"| API
+    API --> SVC
+    SVC --> PG
+    WORKER --> SVC
+    WORKER <-->|"Broker / Result"| RD
+    SVC --> GMAIL
+    SVC --> AI
+```
+
+---
+
+## AI Pipeline Highlights
+
+MailMind's AI layer is designed for traceability, not just output.
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Provider abstraction | ✅ Done | Unified interface for mock and real providers |
+| Mock provider | ✅ Done | Zero-cost local development without paid API calls |
+| OpenAI-compatible chain | ✅ Done | Environment-configured multi-provider fallback |
+| `ai_runs` traceability | ✅ Done | Records provider, model, prompt version, output hash |
+| Parsed digest items | ✅ Done | Structured `digest_items` instead of ephemeral model text |
+| Prompt versioning | ✅ Done | Schema and prompt version metadata per run |
+| Error redaction | ✅ Done | Tokens, keys, and raw prompts never leak to logs or API |
+| In-app provider UI | 🧭 Planned | AI provider management through the frontend |
+
+---
 
 ## Tech Stack
 
-- Backend: FastAPI, SQLAlchemy, Alembic, Pydantic Settings, PostgreSQL, `uv`.
-- Frontend: Next.js, React, TypeScript, plain CSS theme tokens.
-- Provider: Gmail API through a provider adapter.
-- AI: in-process mock provider plus OpenAI-compatible provider profiles from environment variables.
-- Local infrastructure: PostgreSQL and Redis through Docker Compose.
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 15, React 19, TypeScript, plain CSS theme tokens |
+| Backend | FastAPI, SQLAlchemy 2, Alembic, Pydantic Settings, Celery |
+| Database | PostgreSQL 15 |
+| Cache / Broker | Redis |
+| AI | Mock provider + OpenAI-compatible provider chain |
+| Email | Gmail API via provider adapter |
+| Infra | Docker Compose, `uv` (Python), npm |
 
-## Architecture Overview
+---
 
-```text
-Next.js frontend
-  login/register, mailbox settings, email list/detail, digest dashboard, actions
-        |
-FastAPI backend
-  auth, Gmail OAuth, mailboxes, emails, digest, actions
-        |
-Services
-  session, OAuth, credential encryption, email sync, digest, AI run, actions
-        |
-Provider adapters
-  GmailProvider
-        |
-PostgreSQL
-  users, sessions, mailboxes, credentials, emails, digests, ai_runs, actions
-```
+## Quick Start
 
-The v0.3 release adds Celery background workers for async sync and digest jobs. Scheduled sync/digest tasks are available as local MVP foundation (manual/external trigger). In-app AI provider management is not implemented.
+Run MailMind locally in a few minutes.
 
-## Local Development
+### 1. Start infrastructure
 
-Prerequisites:
-
-- Python 3.11+
-- `uv`
-- Node.js compatible with Next.js 15
-- npm
-- Docker Desktop or a local PostgreSQL 15-compatible database
-
-Start local infrastructure:
-
-```powershell
+```bash
 docker compose -f docker/docker-compose.yml up -d postgres redis
 ```
 
-Install and run the backend:
+### 2. Configure environment
 
-```powershell
+```bash
+cp .env.example .env
+# Edit .env with your local values (APP_ENCRYPTION_KEY, GOOGLE_CLIENT_ID, etc.)
+```
+
+### 3. Start backend
+
+```bash
 cd backend
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Install and run the frontend:
+### 4. Start Celery worker (for async jobs)
 
-```powershell
+```bash
+cd backend
+uv run celery -A app.jobs.worker:app worker --loglevel=info --pool=solo
+```
+
+### 5. Start frontend
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-The frontend defaults to `http://localhost:3000`. The backend defaults to `http://127.0.0.1:8000`.
+### 6. Open MailMind
 
-## Environment Variables
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Use `.env.example` as a template and create a local `.env`. Do not commit `.env`.
+---
 
-Important variables:
+## Local Development
 
-- `APP_SECRET_KEY`: local session/signing secret.
-- `APP_ENCRYPTION_KEY`: key used to encrypt stored Gmail refresh tokens.
-- `APP_ENCRYPTION_KEY_VERSION`: local key version label.
-- `DATABASE_URL`: SQLAlchemy PostgreSQL URL.
-- `REDIS_URL`: Redis URL reserved for local infrastructure and future async work.
-- `FRONTEND_BASE_URL`: frontend URL used after Gmail OAuth callback.
-- `CORS_ALLOWED_ORIGINS`: comma-separated frontend origins for credentialed CORS.
-- `GOOGLE_CLIENT_ID`: Google OAuth client ID.
-- `GOOGLE_CLIENT_SECRET`: Google OAuth client secret.
-- `GOOGLE_REDIRECT_URI`: callback URL, usually `http://localhost:8000/api/auth/gmail/callback`.
-- `AI_PROVIDER_MODE`: set to `env` to use configured AI provider profiles; leave empty to use the mock fallback.
-- `AI_DEFAULT_PROVIDER`: default provider profile id.
-- `AI_PROVIDER_ORDER`: comma-separated provider profile fallback order.
-- `AI_PROVIDER_<ID>_TYPE`: currently `openai_compatible`.
-- `AI_PROVIDER_<ID>_BASE_URL`: OpenAI-compatible API base URL.
-- `AI_PROVIDER_<ID>_API_KEY`: local AI provider API key.
-- `AI_PROVIDER_<ID>_MODEL`: provider model id.
+### Prerequisites
 
-Security requirements:
+- Python 3.11+
+- `uv`
+- Node.js compatible with Next.js 15
+- npm
+- Docker Desktop or equivalent
 
-- Do not commit `.env`.
-- Do not commit a Google Client Secret.
-- Do not commit `APP_ENCRYPTION_KEY`.
-- Do not commit an LLM API key.
-- If `APP_ENCRYPTION_KEY` is lost, existing encrypted Gmail refresh tokens cannot be decrypted.
-- Gmail restricted scopes such as `gmail.modify` require Google review before production/public distribution.
+### Environment
 
-## Google OAuth Setup
+Copy `.env.example` to `.env` and fill in local values. **Never commit `.env`.**
 
-Create a Google OAuth app for local testing and configure:
+Key variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `APP_SECRET_KEY` | Session signing secret |
+| `APP_ENCRYPTION_KEY` | Encrypts stored Gmail refresh tokens |
+| `DATABASE_URL` | PostgreSQL connection URL |
+| `REDIS_URL` | Redis URL for Celery broker |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | Usually `http://localhost:8000/api/auth/gmail/callback` |
+| `AI_PROVIDER_MODE` | Set `env` for real providers; empty for mock fallback |
+| `AI_PROVIDER_<ID>_API_KEY` | Per-provider API key |
+
+### Google OAuth Setup
+
+Configure a Google OAuth app with redirect URI:
 
 ```text
-Authorized redirect URI:
 http://localhost:8000/api/auth/gmail/callback
 ```
 
-The current Gmail integration uses:
+Required scopes: `gmail.readonly` (sync), `gmail.modify` (read/unread writeback).
 
-```text
-https://www.googleapis.com/auth/gmail.readonly
-https://www.googleapis.com/auth/gmail.modify
-```
+### Verification
 
-`gmail.readonly` is used for message sync. `gmail.modify` is used for read/unread writeback. Public SaaS usage requires a permission and Google verification review.
-
-## Running Backend Tests
-
-```powershell
+```bash
+# Backend
 cd backend
-uv sync
-uv run alembic upgrade head
-uv run alembic current
 uv run pytest
 uv run python -m compileall app tests
-```
 
-## Running Frontend Checks
-
-```powershell
+# Frontend
 cd frontend
-npm install
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-## Current API Summary
-
-The current backend API is documented in `docs/api/CURRENT_API_SUMMARY.md`.
-
-Key route groups:
-
-- Auth: `/api/auth/*`
-- Gmail OAuth: `/api/auth/gmail/*`
-- Mailboxes: `/api/mailboxes/*`
-- Emails: `/api/emails/*`
-- Digest: `/api/digest/*`
-- Jobs: `/api/jobs/*`
-- User actions: `/api/actions/*`
-
-Note that the digest routes are singular: `/api/digest`, not `/api/digests`.
-
-## Current Database Summary
-
-The current schema is documented in `docs/database/CURRENT_SCHEMA_SUMMARY.md`.
-
-Current tables:
-
-- `users`
-- `auth_accounts`
-- `sessions`
-- `mailboxes`
-- `mailbox_credentials`
-- `emails`
-- `sync_jobs` (extended in v0.3 with retry, error, and payload fields)
-- `daily_digests`
-- `digest_items`
-- `ai_runs`
-- `user_actions`
-
-## Current Limitations
-
-- Real AI provider calls are configured through local environment variables only.
-- No in-app AI provider settings UI is implemented.
-- Real AI provider behavior depends on external model/network availability.
-- Scheduled jobs require manual or external trigger; Celery Beat is not implemented.
-- Production-grade distributed scheduling is not included.
-- Multi-mailbox aggregate Digest is not complete.
-- Outlook and IMAP are not implemented.
-- Production deployment, Google OAuth verification, and security review are not complete.
-- The current target is a local MVP, not a production SaaS product.
+---
 
 ## Roadmap
 
-- v0.1 Local MVP: completed.
-- v0.2 Digest AI: completed.
-- v0.3 Background Jobs / Scheduled Sync: completed.
-- v0.4 Multi Mailbox.
-- v0.5 Open Source Ready / CI / Docker polish.
-- v1.0 Personal Productivity Ready.
+### ✅ Completed
 
-See `docs/ROADMAP.md` for more detail.
+| Version | Scope |
+|---------|-------|
+| v0.1 Local MVP | Auth, Gmail OAuth, email sync, mock digest, frontend preview |
+| v0.2 Digest AI | Real AI provider chain, digest dashboard, action history, email UX |
+| v0.3 Async Redesign | Celery workers, job API, scheduled tasks, theme redesign, i18n |
+
+### 🧭 Next
+
+| Version | Scope |
+|---------|-------|
+| v0.4 Multi Mailbox | Multiple connected mailboxes, aggregate digest |
+| v0.5 Open Source Ready | CI, Docker polish, public docs review |
+| v1.0 Personal Productivity | Stable daily driver for personal email management |
+
+---
+
+## Security Notes
+
+- **Local-first**: All data stays on your machine. No cloud sync, no telemetry.
+- **Encrypted credentials**: Gmail refresh tokens are encrypted at rest with `APP_ENCRYPTION_KEY`.
+- **HttpOnly sessions**: Session cookies are HttpOnly; no client-side token access.
+- **Error redaction**: Job errors are sanitized before storage and API response. Tokens, keys, and raw prompts never leak.
+- **Gmail restricted scopes**: `gmail.modify` requires Google review before public distribution. This is a local MVP, not a production SaaS.
+
+> **Warning**: If `APP_ENCRYPTION_KEY` is lost, existing encrypted Gmail refresh tokens cannot be decrypted. Reconnect Gmail to recover.
+
+---
+
+## Documentation
+
+| Document | Path |
+|----------|------|
+| Product Requirements | `docs/product/PRD.md` |
+| System Design | `docs/architecture/SYSTEM_DESIGN.md` |
+| Database Design | `docs/database/DATABASE_DESIGN.md` |
+| API Design | `docs/api/API_DESIGN.md` |
+| AI Pipeline | `docs/ai/AI_PIPELINE.md` |
+| Security Model | `docs/security/SECURITY.md` |
+| Frontend Design | `docs/frontend/FRONTEND_DESIGN.md` |
+| Task Breakdown | `docs/engineering/TASK_BREAKDOWN.md` |
+| Local Development | `docs/engineering/LOCAL_DEVELOPMENT.md` |
+| v0.3 Release Notes | `docs/release-notes/v0.3.0-async-redesign.md` |
+
+---
 
 ## License
 
 Apache-2.0
+
+---
+
+<div align="center">
+
+**v0.3.0-async-redesign** · Local MVP · Not a production SaaS
+
+[Release Notes](docs/release-notes/v0.3.0-async-redesign.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
+
+</div>
