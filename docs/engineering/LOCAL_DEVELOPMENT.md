@@ -1,6 +1,6 @@
 # Local Development
 
-This document records the current `v0.3.0-async-redesign` local setup. It reflects the implemented repository, not future full-stack deployment plans.
+This document records the current `v0.3.0-async-redesign` local setup plus the `v0.4.0-job-experience` frontend job workflow. It reflects the implemented repository, not future full-stack deployment plans.
 
 ## Prerequisites
 
@@ -124,3 +124,48 @@ The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public product
 - Scheduled sync and scheduled digest foundation tasks can be invoked manually or by an external local scheduler; Celery Beat is not implemented.
 - Job status is queryable through `GET /api/jobs` and `GET /api/jobs/{job_id}`.
 - Failed jobs can be retried through `POST /api/jobs/{job_id}/retry` (max 3 retries).
+
+## v0.4 Frontend Job Experience
+
+- `/settings/mailboxes` uses async `POST /api/mailboxes/{id}/sync-jobs` for
+  Sync Today and falls back to synchronous `POST /api/mailboxes/{id}/sync` when
+  async job creation is unavailable.
+- `/dashboard` uses async `POST /api/digest/today/generate-jobs` and
+  `POST /api/digest/today/refresh-jobs`, then polls `GET /api/jobs/{job_id}`.
+- `/actions` shows recent background activity from `GET /api/jobs?limit=8`.
+- Failed jobs expose retry through `POST /api/jobs/{job_id}/retry`.
+- If the Celery worker is not running, job creation can still return a queued
+  job, but the UI will continue to show queued/running status until polling
+  reaches a terminal state or times out. The page should not blank or fake
+  success.
+
+Local smoke test for the job experience:
+
+```powershell
+docker compose -f docker/docker-compose.yml up -d postgres redis
+
+cd backend
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# In a second terminal:
+cd backend
+uv run celery -A app.jobs.worker:app worker --loglevel=info --pool=solo
+
+# In a third terminal:
+cd frontend
+npm install
+npm run dev
+```
+
+Suggested manual path:
+
+- Sign in.
+- Open `/settings/mailboxes` and trigger Sync Today.
+- Confirm a job card appears and moves to completed or failed.
+- Open `/dashboard` and trigger Generate Digest / Refresh Digest.
+- Confirm job status, retry on failed jobs when available, and digest refresh
+  after completion.
+- Open `/actions` and confirm Background Activity lists recent jobs.
+- Switch English/Chinese and all four theme presets to check text and contrast.

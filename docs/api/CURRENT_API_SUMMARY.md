@@ -1,6 +1,6 @@
 # Current API Summary
 
-This document summarizes the API implemented in `backend/app/api` for `v0.3.0-async-redesign`. It intentionally excludes planned routes that are only described in older design docs.
+This document summarizes the API implemented in `backend/app/api` for `v0.3.0-async-redesign` and consumed by the `v0.4.0-job-experience` frontend work. It intentionally excludes planned routes that are only described in older design docs.
 
 All application responses use either:
 
@@ -170,6 +170,23 @@ Public job types: `email_sync`, `digest_generate`, `digest_refresh`, `scheduled_
 Public job statuses: `queued`, `running`, `completed`, `failed`, `cancelled`.
 
 Job responses include: `job_id`, `job_type`, `status`, `progress`, `created_at`, `started_at`, `finished_at`, `error_code`, `error_message` (redacted), `retry_count`, `max_retries`, `retry_of_job_id`, `related_resource_type`, `related_resource_id`, `result`.
+
+### v0.4 Frontend Job Experience Usage
+
+The v0.4 frontend job experience uses the existing v0.3 backend endpoints:
+
+- `/settings/mailboxes` calls `POST /api/mailboxes/{mailbox_id}/sync-jobs`,
+  polls `GET /api/jobs/{job_id}`, refreshes mailbox sync status on completion,
+  and exposes `POST /api/jobs/{job_id}/retry` for failed sync jobs.
+- `/dashboard` calls `POST /api/digest/today/generate-jobs` and
+  `POST /api/digest/today/refresh-jobs`, polls `GET /api/jobs/{job_id}`, and
+  reloads the digest after completion. When a completed job response does not
+  include a digest id in `result` or `related_resource_id`, the frontend falls
+  back to `GET /api/digest/today`.
+- `/actions` shows recent background activity from `GET /api/jobs?limit=8` and
+  exposes retry for failed jobs.
+
+No new backend endpoint was added for v0.4 job experience.
 
 ## Digest Item Actions
 
