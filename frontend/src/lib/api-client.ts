@@ -22,7 +22,11 @@ import {
   type EmailMutationResponse,
   type EmailResponse,
   type GmailLoginResponse,
+  type JobListQuery,
+  type JobResponse,
+  type JobsResponse,
   type MailboxResponse,
+  type MailboxSyncJobResponse,
   type MailboxSyncResponse,
   type MailboxSyncStatusResponse,
   type MailboxesResponse,
@@ -59,6 +63,25 @@ export class ApiRequestError extends Error {
 interface RequestOptions {
   method: "GET" | "POST";
   body?: unknown;
+}
+
+function withQuery(
+  path: string,
+  query?: object,
+): string {
+  if (!query) {
+    return path;
+  }
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  }
+
+  const queryString = params.toString();
+  return queryString.length > 0 ? `${path}?${queryString}` : path;
 }
 
 /**
@@ -137,6 +160,17 @@ export function triggerMailboxSync(
   });
 }
 
+export function triggerMailboxSyncJob(
+  mailboxId: string,
+): Promise<MailboxSyncJobResponse> {
+  return request<MailboxSyncJobResponse>(
+    API_ROUTES.mailboxes.syncJobs(mailboxId),
+    {
+      method: "POST",
+    },
+  );
+}
+
 export function startGmailLogin(): Promise<GmailLoginResponse> {
   return request<GmailLoginResponse>(API_ROUTES.gmailAuth.login, {
     method: "GET",
@@ -161,8 +195,20 @@ export function generateTodayDigest(): Promise<DigestResponse> {
   });
 }
 
+export function generateTodayDigestJob(): Promise<JobResponse> {
+  return request<JobResponse>(API_ROUTES.digest.todayGenerateJobs, {
+    method: "POST",
+  });
+}
+
 export function refreshTodayDigest(): Promise<DigestResponse> {
   return request<DigestResponse>(API_ROUTES.digest.todayRefresh, {
+    method: "POST",
+  });
+}
+
+export function refreshTodayDigestJob(): Promise<JobResponse> {
+  return request<JobResponse>(API_ROUTES.digest.todayRefreshJobs, {
     method: "POST",
   });
 }
@@ -246,6 +292,24 @@ export function getAction(actionId: string): Promise<UserActionResponse> {
   });
 }
 
+export function listJobs(query?: JobListQuery): Promise<JobsResponse> {
+  return request<JobsResponse>(withQuery(API_ROUTES.jobs.list, query), {
+    method: "GET",
+  });
+}
+
+export function getJob(jobId: string): Promise<JobResponse> {
+  return request<JobResponse>(API_ROUTES.jobs.byId(jobId), {
+    method: "GET",
+  });
+}
+
+export function retryJob(jobId: string): Promise<JobResponse> {
+  return request<JobResponse>(API_ROUTES.jobs.retry(jobId), {
+    method: "POST",
+  });
+}
+
 export const apiClient = {
   auth: {
     /** POST /api/auth/register — returns the created+authenticated user. */
@@ -279,7 +343,9 @@ export const apiClient = {
   digest: {
     today: getTodayDigest,
     generateToday: generateTodayDigest,
+    generateTodayJob: generateTodayDigestJob,
     refreshToday: refreshTodayDigest,
+    refreshTodayJob: refreshTodayDigestJob,
     byId: getDigest,
     markItemDone: markDigestItemDone,
     dismissItem: dismissDigestItem,
@@ -301,6 +367,7 @@ export const apiClient = {
     byId: getMailbox,
     syncStatus: getMailboxSyncStatus,
     sync: triggerMailboxSync,
+    syncJob: triggerMailboxSyncJob,
   },
 
   gmailAuth: {
@@ -309,9 +376,9 @@ export const apiClient = {
   },
 
   jobs: {
-    byId(jobId: string): Promise<ApiResult> {
-      return notImplemented(`GET ${API_ROUTES.jobs.byId(jobId)}`);
-    },
+    list: listJobs,
+    byId: getJob,
+    retry: retryJob,
   },
 
   actions: {

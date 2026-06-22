@@ -33,7 +33,9 @@ export const API_ROUTES = {
   digest: {
     today: "/api/digest/today",
     todayGenerate: "/api/digest/today/generate",
+    todayGenerateJobs: "/api/digest/today/generate-jobs",
     todayRefresh: "/api/digest/today/refresh",
+    todayRefreshJobs: "/api/digest/today/refresh-jobs",
     byId: <TDigestId extends string>(digestId: TDigestId) =>
       `/api/digest/${digestId}` as const,
     itemMarkDone: <TItemId extends string>(itemId: TItemId) =>
@@ -65,11 +67,17 @@ export const API_ROUTES = {
       `/api/mailboxes/${mailboxId}/sync-status` as const,
     sync: <TMailboxId extends string>(mailboxId: TMailboxId) =>
       `/api/mailboxes/${mailboxId}/sync` as const,
+    syncJobs: <TMailboxId extends string>(mailboxId: TMailboxId) =>
+      `/api/mailboxes/${mailboxId}/sync-jobs` as const,
   },
 
   // Section 6 — Job API (/api/jobs)
   jobs: {
-    byId: (jobId: string) => `/api/jobs/${jobId}`,
+    list: "/api/jobs",
+    byId: <TJobId extends string>(jobId: TJobId) =>
+      `/api/jobs/${jobId}` as const,
+    retry: <TJobId extends string>(jobId: TJobId) =>
+      `/api/jobs/${jobId}/retry` as const,
   },
 
   // Section 7 — User Action API (/api/actions)

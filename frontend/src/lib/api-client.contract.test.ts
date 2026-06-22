@@ -3,12 +3,15 @@ import {
   disconnectGmail,
   dismissDigestItem,
   generateTodayDigest,
+  generateTodayDigestJob,
   getAction,
   getDigest,
   getEmail,
+  getJob,
   getMailbox,
   getMailboxSyncStatus,
   getTodayDigest,
+  listJobs,
   listActions,
   listMailboxes,
   listTodayEmails,
@@ -16,9 +19,12 @@ import {
   markEmailUnread,
   markDigestItemDone,
   refreshTodayDigest,
+  refreshTodayDigestJob,
+  retryJob,
   snoozeDigestItem,
   startGmailLogin,
   triggerMailboxSync,
+  triggerMailboxSyncJob,
 } from "./api-client";
 import type {
   ApiResult,
@@ -28,7 +34,11 @@ import type {
   EmailResponse,
   TodayEmailsResponse,
   GmailLoginResponse,
+  JobResponse,
+  JobListQuery,
+  JobsResponse,
   MailboxResponse,
+  MailboxSyncJobResponse,
   MailboxSyncResponse,
   MailboxSyncStatusResponse,
   MailboxesResponse,
@@ -47,25 +57,31 @@ type Assert<T extends true> = T;
 type GmailAuthRouteKeys = keyof typeof API_ROUTES.gmailAuth;
 type MailboxRouteKeys = keyof typeof API_ROUTES.mailboxes;
 type DigestRouteKeys = keyof typeof API_ROUTES.digest;
+type JobRouteKeys = keyof typeof API_ROUTES.jobs;
 type ActionsRouteKeys = keyof typeof API_ROUTES.actions;
 
 type GmailRoutesMatchResolvedContract = Assert<
   Equal<GmailAuthRouteKeys, "login" | "disconnect">
 >;
 type MailboxRoutesMatchResolvedContract = Assert<
-  Equal<MailboxRouteKeys, "list" | "byId" | "syncStatus" | "sync">
+  Equal<MailboxRouteKeys, "list" | "byId" | "syncStatus" | "sync" | "syncJobs">
 >;
 type DigestRoutesMatchResolvedContract = Assert<
   Equal<
     DigestRouteKeys,
     | "today"
     | "todayGenerate"
+    | "todayGenerateJobs"
     | "todayRefresh"
+    | "todayRefreshJobs"
     | "byId"
     | "itemMarkDone"
     | "itemDismiss"
     | "itemSnooze"
   >
+>;
+type JobRoutesMatchResolvedContract = Assert<
+  Equal<JobRouteKeys, "list" | "byId" | "retry">
 >;
 type ActionsRoutesMatchResolvedContract = Assert<
   Equal<ActionsRouteKeys, "list" | "create" | "byId" | "forDigestItem">
@@ -81,11 +97,17 @@ const mailboxSyncStatusPath: "/api/mailboxes/mailbox-id/sync-status" =
   API_ROUTES.mailboxes.syncStatus("mailbox-id");
 const mailboxSyncPath: "/api/mailboxes/mailbox-id/sync" =
   API_ROUTES.mailboxes.sync("mailbox-id");
+const mailboxSyncJobsPath: "/api/mailboxes/mailbox-id/sync-jobs" =
+  API_ROUTES.mailboxes.syncJobs("mailbox-id");
 const todayDigestPath: "/api/digest/today" = API_ROUTES.digest.today;
 const generateTodayDigestPath: "/api/digest/today/generate" =
   API_ROUTES.digest.todayGenerate;
+const generateTodayDigestJobPath: "/api/digest/today/generate-jobs" =
+  API_ROUTES.digest.todayGenerateJobs;
 const refreshTodayDigestPath: "/api/digest/today/refresh" =
   API_ROUTES.digest.todayRefresh;
+const refreshTodayDigestJobPath: "/api/digest/today/refresh-jobs" =
+  API_ROUTES.digest.todayRefreshJobs;
 const digestDetailPath: "/api/digest/digest-id" =
   API_ROUTES.digest.byId("digest-id");
 const digestItemMarkDonePath: "/api/digest/items/item-id/mark-done" =
@@ -107,6 +129,9 @@ const actionDetailPath: "/api/actions/action-id" =
   API_ROUTES.actions.byId("action-id");
 const actionDigestItemPath: "/api/actions/digest-items/item-id" =
   API_ROUTES.actions.forDigestItem("item-id");
+const jobsPath: "/api/jobs" = API_ROUTES.jobs.list;
+const jobDetailPath: "/api/jobs/job-id" = API_ROUTES.jobs.byId("job-id");
+const jobRetryPath: "/api/jobs/job-id/retry" = API_ROUTES.jobs.retry("job-id");
 
 type ListMailboxesSignature = Assert<
   Equal<ReturnType<typeof listMailboxes>, Promise<MailboxesResponse>>
@@ -132,6 +157,12 @@ type TriggerMailboxSyncParameters = Assert<
 type TriggerMailboxSyncSignature = Assert<
   Equal<ReturnType<typeof triggerMailboxSync>, Promise<MailboxSyncResponse>>
 >;
+type TriggerMailboxSyncJobParameters = Assert<
+  Equal<Parameters<typeof triggerMailboxSyncJob>, [mailboxId: string]>
+>;
+type TriggerMailboxSyncJobSignature = Assert<
+  Equal<ReturnType<typeof triggerMailboxSyncJob>, Promise<MailboxSyncJobResponse>>
+>;
 type StartGmailLoginSignature = Assert<
   Equal<ReturnType<typeof startGmailLogin>, Promise<GmailLoginResponse>>
 >;
@@ -144,8 +175,14 @@ type GetTodayDigestSignature = Assert<
 type GenerateTodayDigestSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigest>, Promise<DigestResponse>>
 >;
+type GenerateTodayDigestJobSignature = Assert<
+  Equal<ReturnType<typeof generateTodayDigestJob>, Promise<JobResponse>>
+>;
 type RefreshTodayDigestSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigest>, Promise<DigestResponse>>
+>;
+type RefreshTodayDigestJobSignature = Assert<
+  Equal<ReturnType<typeof refreshTodayDigestJob>, Promise<JobResponse>>
 >;
 type GetDigestParameters = Assert<
   Equal<Parameters<typeof getDigest>, [digestId: string]>
@@ -202,11 +239,26 @@ type GetActionParameters = Assert<
 type GetActionSignature = Assert<
   Equal<ReturnType<typeof getAction>, Promise<UserActionResponse>>
 >;
+type ListJobsSignature = Assert<
+  Equal<Parameters<typeof listJobs>, [query?: JobListQuery]>
+>;
+type ListJobsReturn = Assert<
+  Equal<ReturnType<typeof listJobs>, Promise<JobsResponse>>
+>;
+type GetJobParameters = Assert<Equal<Parameters<typeof getJob>, [jobId: string]>>;
+type GetJobSignature = Assert<
+  Equal<ReturnType<typeof getJob>, Promise<JobResponse>>
+>;
+type RetryJobParameters = Assert<Equal<Parameters<typeof retryJob>, [jobId: string]>>;
+type RetryJobSignature = Assert<
+  Equal<ReturnType<typeof retryJob>, Promise<JobResponse>>
+>;
 
 type ContractAssertions = [
   GmailRoutesMatchResolvedContract,
   MailboxRoutesMatchResolvedContract,
   DigestRoutesMatchResolvedContract,
+  JobRoutesMatchResolvedContract,
   ActionsRoutesMatchResolvedContract,
   ListMailboxesSignature,
   GetMailboxParameters,
@@ -215,11 +267,15 @@ type ContractAssertions = [
   GetMailboxSyncStatusSignature,
   TriggerMailboxSyncParameters,
   TriggerMailboxSyncSignature,
+  TriggerMailboxSyncJobParameters,
+  TriggerMailboxSyncJobSignature,
   StartGmailLoginSignature,
   DisconnectGmailSignature,
   GetTodayDigestSignature,
   GenerateTodayDigestSignature,
+  GenerateTodayDigestJobSignature,
   RefreshTodayDigestSignature,
+  RefreshTodayDigestJobSignature,
   GetDigestParameters,
   GetDigestSignature,
   MarkDigestItemDoneParameters,
@@ -238,9 +294,26 @@ type ContractAssertions = [
   ListActionsSignature,
   GetActionParameters,
   GetActionSignature,
+  ListJobsSignature,
+  ListJobsReturn,
+  GetJobParameters,
+  GetJobSignature,
+  RetryJobParameters,
+  RetryJobSignature,
 ];
 
 const contractAssertions: ContractAssertions = [
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
   true,
   true,
   true,
@@ -284,9 +357,12 @@ void mailboxesPath;
 void mailboxDetailPath;
 void mailboxSyncStatusPath;
 void mailboxSyncPath;
+void mailboxSyncJobsPath;
 void todayDigestPath;
 void generateTodayDigestPath;
+void generateTodayDigestJobPath;
 void refreshTodayDigestPath;
+void refreshTodayDigestJobPath;
 void digestDetailPath;
 void digestItemMarkDonePath;
 void digestItemDismissPath;
@@ -299,3 +375,6 @@ void actionsPath;
 void actionCreatePath;
 void actionDetailPath;
 void actionDigestItemPath;
+void jobsPath;
+void jobDetailPath;
+void jobRetryPath;

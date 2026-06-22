@@ -147,6 +147,68 @@ export interface MailboxSyncData {
 
 export type MailboxSyncResponse = ApiSuccess<MailboxSyncData>;
 
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type JobType =
+  | "email_sync"
+  | "digest_generate"
+  | "digest_refresh"
+  | "scheduled_email_sync"
+  | "scheduled_digest";
+
+export interface Job {
+  job_id: string;
+  job_type: JobType | string;
+  status: JobStatus | string;
+  progress: number;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  retry_count: number;
+  max_retries: number;
+  retry_of_job_id: string | null;
+  related_resource_type: "mailbox" | "digest" | "email" | string | null;
+  related_resource_id: string | null;
+  result: Record<string, unknown>;
+}
+
+export interface JobData {
+  job: Job;
+}
+
+export type JobResponse = ApiSuccess<JobData>;
+export type MailboxSyncJobResponse = JobResponse;
+
+export interface JobsPagination {
+  limit: number;
+  offset: number;
+  count: number;
+  has_more: boolean;
+}
+
+export interface JobsData {
+  jobs: Job[];
+  pagination: JobsPagination;
+}
+
+export interface JobListQuery {
+  limit?: number;
+  offset?: number;
+  job_type?: JobType | string;
+  status?: JobStatus | string;
+  created_from?: string;
+  created_to?: string;
+}
+
+export type JobsResponse = ApiSuccess<JobsData, { limit?: number; offset?: number }>;
+
 export interface GmailLoginData {
   authorization_url: string;
   provider: "gmail" | string;
