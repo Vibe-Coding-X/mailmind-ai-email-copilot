@@ -1,6 +1,6 @@
 # Current API Summary
 
-This document summarizes the API implemented in `backend/app/api` for `v0.2.0-digest-ai`. It intentionally excludes planned routes that are only described in older design docs.
+This document summarizes the API implemented in `backend/app/api` for `v0.3.0-async-redesign`. It intentionally excludes planned routes that are only described in older design docs.
 
 All application responses use either:
 
@@ -69,6 +69,14 @@ Implemented behavior:
 - Returns latest sync state based on `sync_jobs` and mailbox timestamps.
 - Manually syncs today's Gmail messages for the selected mailbox.
 
+### Async Sync Job
+
+```text
+POST /api/mailboxes/{mailbox_id}/sync-jobs
+```
+
+Creates an `email_sync` job with `queued` status. Does not replace the existing synchronous `POST /api/mailboxes/{mailbox_id}/sync`.
+
 ## Emails
 
 ```text
@@ -134,6 +142,35 @@ Implemented behavior:
   otherwise falls back to the mock provider.
 - Creates `daily_digests`, `digest_items`, `ai_runs`, and related `sync_jobs`.
 
+### Async Digest Jobs
+
+```text
+POST /api/digest/today/generate-jobs
+POST /api/digest/today/refresh-jobs
+```
+
+Create `digest_generate` or `digest_refresh` jobs with `queued` status. Do not replace the existing synchronous `POST /api/digest/today/generate` and `POST /api/digest/today/refresh`.
+
+## Jobs
+
+```text
+GET  /api/jobs
+GET  /api/jobs/{job_id}
+POST /api/jobs/{job_id}/retry
+```
+
+Implemented behavior:
+
+- `GET /api/jobs` lists current user's jobs with optional filters: `limit`, `offset`, `job_type`, `status`, `created_from`, `created_to`. Returns paginated results with `has_more` metadata.
+- `GET /api/jobs/{job_id}` returns a single job detail. Returns `404 INVALID_REQUEST` when the job is absent or belongs to another user.
+- `POST /api/jobs/{job_id}/retry` accepts failed jobs owned by the current user. Creates a new `queued` retry row and dispatches it. Enforces `max_retries = 3`. Returns `409 JOB_RETRY_LIMIT_EXCEEDED` when the limit is reached. Returns `400 INVALID_REQUEST` when the job is not failed or cannot be retried.
+
+Public job types: `email_sync`, `digest_generate`, `digest_refresh`, `scheduled_email_sync`, `scheduled_digest`.
+
+Public job statuses: `queued`, `running`, `completed`, `failed`, `cancelled`.
+
+Job responses include: `job_id`, `job_type`, `status`, `progress`, `created_at`, `started_at`, `finished_at`, `error_code`, `error_message` (redacted), `retry_count`, `max_retries`, `retry_of_job_id`, `related_resource_type`, `related_resource_id`, `result`.
+
 ## Digest Item Actions
 
 These routes are implemented under the singular digest prefix:
@@ -167,12 +204,11 @@ Implemented behavior:
 - Creates a user action record.
 - Lists actions associated with one digest item.
 
-## Planned But Not Implemented in v0.2
+## Planned But Not Implemented in v0.3
 
-The following appear in earlier design docs or frontend placeholders but are not implemented backend routes in v0.2:
+The following appear in earlier design docs or frontend placeholders but are not implemented backend routes in v0.3:
 
 - `GET /api/emails/new`
-- `GET /api/jobs/{job_id}`
 - `/api/users/*`
 - `/api/settings/ai-providers/*`
 - `/api/digests/*` plural routes

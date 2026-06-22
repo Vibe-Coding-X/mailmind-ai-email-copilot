@@ -1,6 +1,6 @@
 # Local Development
 
-This document records the current `v0.1.0-local-mvp` local setup. It reflects the implemented repository, not future full-stack deployment plans.
+This document records the current `v0.3.0-async-redesign` local setup. It reflects the implemented repository, not future full-stack deployment plans.
 
 ## Prerequisites
 
@@ -111,10 +111,9 @@ The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public product
 ## v0.1 Runtime Shape
 
 - Backend API runs in-process through FastAPI/Uvicorn.
-- Email sync is triggered by an HTTP request and runs synchronously.
-- Digest generation is triggered by an HTTP request and runs synchronously.
-- AI uses the mock provider by default.
-- Celery worker, Celery beat, scheduled sync, and scheduled digest generation are not implemented.
+- Email sync can be triggered synchronously (`POST /api/mailboxes/{id}/sync`) or asynchronously via background jobs.
+- Digest generation can be triggered synchronously (`POST /api/digest/today/generate`) or asynchronously via background jobs.
+- AI uses the mock provider by default; real providers are configured through environment variables.
 
 ## v0.3 Background Job Foundation
 
@@ -123,3 +122,5 @@ The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public product
 - `app.jobs.worker:app` is the worker entrypoint.
 - `BACKGROUND_JOBS_EAGER=true` runs tasks eagerly for tests and local diagnostics.
 - Scheduled sync and scheduled digest foundation tasks can be invoked manually or by an external local scheduler; Celery Beat is not implemented.
+- Job status is queryable through `GET /api/jobs` and `GET /api/jobs/{job_id}`.
+- Failed jobs can be retried through `POST /api/jobs/{job_id}/retry` (max 3 retries).

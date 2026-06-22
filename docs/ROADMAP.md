@@ -34,11 +34,19 @@ Status: completed.
 
 ## v0.3 Background Jobs / Scheduled Sync
 
-- Introduce Celery worker and beat processes.
-- Move email sync and digest generation into background jobs.
-- Add scheduled sync and scheduled digest generation.
-- Add job polling or push-based status updates.
-- Revisit Redis usage for token cache and job coordination.
+Status: completed.
+
+- Celery worker and Redis broker/result backend.
+- Background jobs foundation with `app.jobs.worker:app` entrypoint.
+- Job Status API: `GET /api/jobs`, `GET /api/jobs/{job_id}`, `POST /api/jobs/{job_id}/retry`.
+- Async mail sync job: `POST /api/mailboxes/{mailbox_id}/sync-jobs`.
+- Async digest generate and refresh jobs.
+- Job retry / failure handling with `max_retries = 3` and error redaction.
+- Scheduled email sync and scheduled digest local MVP foundation tasks.
+- Public job type and status normalization.
+- Frontend avatar account menu, theme system redesign (4 themes), i18n foundation (EN/ZH).
+- UI consistency pass and runtime regression fixes.
+- Celery Beat is not implemented; scheduled tasks require manual or external trigger.
 
 ## v0.4 Multi Mailbox
 

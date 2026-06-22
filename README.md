@@ -2,7 +2,7 @@
 
 MailMind is a local-first AI email copilot that connects to Gmail, syncs today's email, and turns it into an actionable Daily Digest.
 
-Current release: `v0.2.0-digest-ai`
+Current release: `v0.3.0-async-redesign`
 
 MailMind is not a production SaaS product. The current codebase is a local release for validating authentication, Gmail connectivity, email sync, Daily Digest generation, configured AI provider calls, and the first connected frontend workflows.
 
@@ -19,6 +19,18 @@ MailMind adds a decision layer on top of email:
 - Generates a Daily Digest through the mock provider or configured OpenAI-compatible AI providers.
 - Records AI runs, provider/model metadata, digest items, sync jobs, and user actions for auditability.
 - Provides dashboard digest controls, digest item actions, and action history.
+
+## Current v0.3 Features
+
+- Background jobs foundation with Celery worker and Redis broker.
+- Job Status API: list, detail, and retry endpoints for async jobs.
+- Async mail sync, digest generate, and digest refresh jobs.
+- Job retry / failure handling with max retries and error redaction.
+- Scheduled email sync and scheduled digest local MVP foundation.
+- Frontend avatar account menu with sign-out.
+- Theme system redesign: Amber Focus, Noir Pulse, Paper Calm, Dense Minimal.
+- i18n foundation with English and Chinese language resources.
+- UI consistency pass and runtime regression fixes.
 
 ## Current v0.2 Features
 
@@ -76,7 +88,7 @@ PostgreSQL
   users, sessions, mailboxes, credentials, emails, digests, ai_runs, actions
 ```
 
-The v0.2 digest path is synchronous. Celery, scheduled sync, and in-app AI provider management are not implemented yet.
+The v0.3 release adds Celery background workers for async sync and digest jobs. Scheduled sync/digest tasks are available as local MVP foundation (manual/external trigger). In-app AI provider management is not implemented.
 
 ## Local Development
 
@@ -196,6 +208,7 @@ Key route groups:
 - Mailboxes: `/api/mailboxes/*`
 - Emails: `/api/emails/*`
 - Digest: `/api/digest/*`
+- Jobs: `/api/jobs/*`
 - User actions: `/api/actions/*`
 
 Note that the digest routes are singular: `/api/digest`, not `/api/digests`.
@@ -212,7 +225,7 @@ Current tables:
 - `mailboxes`
 - `mailbox_credentials`
 - `emails`
-- `sync_jobs`
+- `sync_jobs` (extended in v0.3 with retry, error, and payload fields)
 - `daily_digests`
 - `digest_items`
 - `ai_runs`
@@ -223,8 +236,8 @@ Current tables:
 - Real AI provider calls are configured through local environment variables only.
 - No in-app AI provider settings UI is implemented.
 - Real AI provider behavior depends on external model/network availability.
-- Celery and background workers are not implemented.
-- Scheduled sync is not implemented.
+- Scheduled jobs require manual or external trigger; Celery Beat is not implemented.
+- Production-grade distributed scheduling is not included.
 - Multi-mailbox aggregate Digest is not complete.
 - Outlook and IMAP are not implemented.
 - Production deployment, Google OAuth verification, and security review are not complete.
@@ -234,7 +247,7 @@ Current tables:
 
 - v0.1 Local MVP: completed.
 - v0.2 Digest AI: completed.
-- v0.3 Background Jobs / Scheduled Sync.
+- v0.3 Background Jobs / Scheduled Sync: completed.
 - v0.4 Multi Mailbox.
 - v0.5 Open Source Ready / CI / Docker polish.
 - v1.0 Personal Productivity Ready.

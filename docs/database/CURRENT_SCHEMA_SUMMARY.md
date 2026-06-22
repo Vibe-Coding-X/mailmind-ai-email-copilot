@@ -1,6 +1,6 @@
 # Current Schema Summary
 
-This document summarizes the SQLAlchemy models and Alembic migrations present in `v0.2.0-digest-ai`.
+This document summarizes the SQLAlchemy models and Alembic migrations present in `v0.3.0-async-redesign`.
 
 Current Alembic migration line:
 
@@ -13,6 +13,8 @@ Expected Alembic head:
 ```text
 20260620_0007
 ```
+
+No new migrations were added in v0.3. The v0.3 background jobs foundation reuses the existing `sync_jobs` table, which already had the necessary columns (`retry_count`, `error_code`, `error_message`, `payload_json`, `trigger_source`, `started_at`, `finished_at`) from v0.2.
 
 ## Tables
 
@@ -42,7 +44,7 @@ Synced Gmail message facts for the user's local day. Stores provider ids, header
 
 ### `sync_jobs`
 
-Tracks sync and digest job attempts. In the current release these jobs are created by synchronous service calls, not Celery workers. `digest_id` exists in the current head and has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
+Tracks sync and digest job attempts. In v0.3, this table is used by both synchronous service calls and Celery background workers. Supports `retry_count`, `error_code`, `error_message` (redacted), `payload_json` (safe structured result), `trigger_source` (`manual` or `scheduled`), `started_at`, and `finished_at`. `digest_id` has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
 
 ### `daily_digests`
 
@@ -74,10 +76,9 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 
 ## Current Limitations
 
-- The database has digest and AI audit tables with v0.2 provider metadata. Real
-  provider values must come from environment configuration outside Git; the mock
-  provider remains available as fallback.
-- `sync_jobs` records synchronous service work in the current release; Celery task execution is not implemented.
+- The database has digest and AI audit tables with v0.2 provider metadata. Real provider values must come from environment configuration outside Git; the mock provider remains available as fallback.
+- `sync_jobs` records both synchronous service work and Celery background job work in v0.3.
+- No new tables or migrations were added in v0.3; the existing `sync_jobs` schema was extended in v0.2 to support background job fields.
 - The schema is local-MVP oriented and has not been hardened for production multi-tenant SaaS operation.
 
 ## Verification
