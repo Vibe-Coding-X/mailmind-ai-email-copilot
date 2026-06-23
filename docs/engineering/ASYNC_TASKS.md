@@ -29,6 +29,16 @@
 6. 自动重试最多 3 次；
 7. 服务在定时时间未运行，MVP 不做补偿执行。
 
+v0.4.1 补充规则：
+
+1. 同一用户同一 mailbox 只允许一个 queued/running `email_sync` job；
+2. 手动同步与 scheduled sync 共享同一套去重逻辑；
+3. worker 执行 sync 前获取 `sync:mailbox:{mailbox_id}` lock，value 为 job id，TTL 为 20 分钟；
+4. lock 释放前校验 value，避免误删其他 worker 的 lock；
+5. 可重试网络、TLS、timeout、rate limit 类错误，使用 backoff + jitter，最多 3 次；
+6. reauth、permission、duplicate、lock conflict 类错误不重试；
+7. 错误信息必须脱敏后进入 Job API。
+
 ---
 
 ### 3 异步任务交互模式

@@ -80,7 +80,7 @@ def list_today_emails(
             Email.received_at >= window_start,
             Email.received_at <= window_end,
         )
-        .order_by(Email.received_at.desc())
+        .order_by(Email.received_at.desc(), Email.id.desc())
     )
     if is_read is not None:
         statement = statement.where(Email.is_read == is_read)

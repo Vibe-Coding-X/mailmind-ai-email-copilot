@@ -317,6 +317,85 @@ def test_enqueue_sync_today_job_creates_queued_job_and_dispatches(monkeypatch) -
         assert job.celery_task_id == "celery-job-123"
 
 
+def test_enqueue_sync_today_job_reuses_existing_queued_job(monkeypatch) -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        first = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        second = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=datetime(2026, 6, 19, 10, 1, tzinfo=UTC),
+        )
+        db.commit()
+
+    assert second.job_id == first.job_id
+    assert second.status == "queued"
+    assert dispatched == [first.job_id]
+
+    with SessionLocal() as db:
+        jobs = db.scalars(
+            select(SyncJob).where(
+                SyncJob.user_id == user_id,
+                SyncJob.mailbox_id == mailbox_id,
+                SyncJob.job_type == "sync_today_emails",
+            )
+        ).all()
+        assert len(jobs) == 1
+
+
+def test_enqueue_sync_today_job_reuses_existing_running_job(monkeypatch) -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-running-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        first = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        job = db.get(SyncJob, first.job_id)
+        assert job is not None
+        job.status = "running"
+        second = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=datetime(2026, 6, 19, 10, 1, tzinfo=UTC),
+        )
+        db.commit()
+
+    assert second.job_id == first.job_id
+    assert second.status == "running"
+    assert dispatched == [first.job_id]
+
+
 def test_execute_queued_sync_job_updates_same_job_and_mailbox() -> None:
     user_id, mailbox_id = _create_connected_mailbox()
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
@@ -362,3 +441,42 @@ def test_execute_queued_sync_job_updates_same_job_and_mailbox() -> None:
         assert mailbox.last_successful_sync_at == now
         assert email is not None
         assert email.subject == "Queued subject"
+
+
+def test_execute_queued_sync_job_marks_duplicate_when_mailbox_lock_is_held(
+    monkeypatch,
+) -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.acquire_mailbox_sync_lock",
+        lambda *args, **kwargs: None,
+    )
+
+    with SessionLocal() as db:
+        result = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            dispatch=False,
+            now=now,
+        )
+        try:
+            execute_queued_sync_job(
+                db,
+                job_id=result.job_id,
+                provider=FakeProvider([]),
+                now=now,
+            )
+        except EmailSyncError as exc:
+            assert exc.code == "worker_lock_conflict"
+            db.commit()
+        else:
+            raise AssertionError("lock conflict should fail the duplicate worker job")
+
+    with SessionLocal() as db:
+        job = db.get(SyncJob, result.job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.error_code == "worker_lock_conflict"

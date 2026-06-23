@@ -14,6 +14,7 @@ from app.db.session import SessionLocal
 from app.schemas.job import job_payload
 from app.services.auth_service import register_user
 from app.services.digest_service import execute_queued_digest_job
+from app.services.email_sync_service import enqueue_sync_today_job
 from app.services.scheduled_job_service import (
     enqueue_due_scheduled_digest_jobs,
     enqueue_due_scheduled_email_sync_jobs,
@@ -90,7 +91,7 @@ def test_scheduled_email_sync_enqueues_active_mailboxes_once_per_local_day(
         return f"celery-scheduled-sync-{job_id}"
 
     monkeypatch.setattr(
-        "app.services.scheduled_job_service.dispatch_email_sync_job",
+        "app.services.email_sync_service.dispatch_email_sync_job",
         fake_dispatch,
     )
 
@@ -124,6 +125,54 @@ def test_scheduled_email_sync_enqueues_active_mailboxes_once_per_local_day(
                 select(func.count(SyncJob.id)).where(
                     SyncJob.job_key
                     == f"scheduled_email_sync:{reauth_mailbox_id}:2026-06-20",
+                )
+            )
+            == 0
+        )
+
+
+def test_scheduled_email_sync_reuses_manual_active_job(monkeypatch) -> None:
+    user_id, mailbox_id = _create_user_mailbox(prefix="scheduled-sync-manual-active")
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-sync-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    now = datetime(2026, 6, 20, 0, 30, tzinfo=UTC)
+    with SessionLocal() as db:
+        manual = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=now,
+        )
+        scheduled = enqueue_due_scheduled_email_sync_jobs(db, now=now)
+        db.commit()
+
+    assert scheduled.skipped_count >= 1
+    assert manual.job_id in dispatched
+
+    with SessionLocal() as db:
+        jobs = db.scalars(
+            select(SyncJob).where(
+                SyncJob.user_id == user_id,
+                SyncJob.mailbox_id == mailbox_id,
+                SyncJob.job_type == "sync_today_emails",
+            )
+        ).all()
+        assert len(jobs) == 1
+        assert jobs[0].id == manual.job_id
+        assert (
+            db.scalar(
+                select(func.count(SyncJob.id)).where(
+                    SyncJob.job_key
+                    == f"scheduled_email_sync:{mailbox_id}:2026-06-20",
                 )
             )
             == 0

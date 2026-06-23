@@ -38,7 +38,8 @@ the v0.3 jobs contract before wiring the v0.4 frontend job experience.
 ## Async Sync Endpoint
 
 - `POST /api/mailboxes/{mailbox_id}/sync-jobs`
-  - Creates an `email_sync` job for the selected mailbox.
+  - Creates an `email_sync` job for the selected mailbox, or returns the
+    existing queued/running job for that user and mailbox.
   - The existing synchronous fallback remains
     `POST /api/mailboxes/{mailbox_id}/sync`.
   - Returns `{ data: { job }, meta: {} }`.
@@ -46,14 +47,16 @@ the v0.3 jobs contract before wiring the v0.4 frontend job experience.
 ## Async Digest Generate Endpoint
 
 - `POST /api/digest/today/generate-jobs`
-  - Creates a `digest_generate` job for the current user's active mailbox.
+  - Creates a `digest_generate` job for the current user's active mailbox, or
+    returns the active generate job for that mailbox and local date.
   - The existing synchronous fallback remains `POST /api/digest/today/generate`.
   - Returns `{ data: { job }, meta: {} }`.
 
 ## Async Digest Refresh Endpoint
 
 - `POST /api/digest/today/refresh-jobs`
-  - Creates a `digest_refresh` job for the current user's active mailbox.
+  - Creates a `digest_refresh` job for the current user's active mailbox, or
+    returns the active refresh job for that mailbox and local date.
   - The existing synchronous fallback remains `POST /api/digest/today/refresh`.
   - Returns `{ data: { job }, meta: {} }`.
 
@@ -126,6 +129,14 @@ Field naming is `job_id`. The frontend should not assume an `id` alias.
   `GET /api/digest/today` after a digest job completes.
 - `GET /api/emails/new` remains planned but not implemented. The job experience
   work must not depend on it.
+
+## v0.4.1 Containment Notes
+
+- Frontend trigger buttons must remain disabled while the related job is
+  `queued` or `running`.
+- Pages may restore queued/running state from `GET /api/jobs` after refresh.
+- `error_code` and `error_message` are displayable, but messages are redacted
+  and must not expose tokens, keys, authorization headers, or message bodies.
 
 ## Backend Fix Needed
 

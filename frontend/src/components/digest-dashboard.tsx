@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobProgressCard } from "@/components/jobs/job-progress-card";
 import { useJobPolling } from "@/components/jobs/use-job-polling";
+import { useRecentJobs } from "@/components/jobs/use-recent-jobs";
 import { useAuth } from "@/lib/auth";
 import {
   ApiRequestError,
@@ -21,7 +22,7 @@ import {
   snoozeDigestItem,
 } from "@/lib/api-client";
 import type { Digest, DigestItem, Job } from "@/lib/api-types";
-import { digestIdFromJob } from "@/lib/jobs";
+import { digestIdFromJob, isActiveJob } from "@/lib/jobs";
 import { useI18n, type TranslationKey } from "@/i18n/provider";
 
 type DigestPageState =
@@ -209,6 +210,11 @@ export function DigestDashboard() {
     {},
   );
   const [snoozeValues, setSnoozeValues] = useState<Record<string, string>>({});
+  const recentDigestJobsQuery = useMemo(() => ({ limit: 20 }), []);
+  const recentDigestJobs = useRecentJobs({
+    enabled: authStatus === "authenticated",
+    query: recentDigestJobsQuery,
+  });
 
   const groupedItems = useMemo(
     () => groupDigestItems(digest?.items ?? []),
@@ -274,6 +280,22 @@ export function DigestDashboard() {
     onCompleted: onDigestJobCompleted,
     onFailed: onDigestJobFailed,
   });
+
+  useEffect(() => {
+    if (activeDigestJob !== null && isActiveJob(activeDigestJob)) {
+      return;
+    }
+    const restoredJob = recentDigestJobs.jobs.find(
+      (job) =>
+        isActiveJob(job) &&
+        (job.job_type === "digest_generate" ||
+          job.job_type === "digest_refresh" ||
+          job.job_type === "scheduled_digest"),
+    );
+    if (restoredJob) {
+      setActiveDigestJob(restoredJob);
+    }
+  }, [activeDigestJob, recentDigestJobs.jobs]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -435,7 +457,9 @@ export function DigestDashboard() {
     }));
   }
 
-  const busy = busyAction !== null;
+  const activeJobBusy =
+    polledDigestJob.job !== null && isActiveJob(polledDigestJob.job);
+  const busy = busyAction !== null || activeJobBusy;
   const canGenerate =
     authStatus === "authenticated" &&
     (pageState === "empty" || pageState === "error" || pageState === "loaded");

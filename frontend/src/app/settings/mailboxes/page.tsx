@@ -15,6 +15,7 @@ import {
   type MailboxSyncStatusView,
 } from "@/components/mailbox-sync-card";
 import { useJobPolling } from "@/components/jobs/use-job-polling";
+import { useRecentJobs } from "@/components/jobs/use-recent-jobs";
 import { useAuth } from "@/lib/auth";
 import {
   ApiRequestError,
@@ -26,6 +27,7 @@ import {
   triggerMailboxSyncJob,
 } from "@/lib/api-client";
 import type { Job, Mailbox } from "@/lib/api-types";
+import { isActiveJob } from "@/lib/jobs";
 import {
   formatDateTimeWithRelative,
   mailboxStateMessage,
@@ -167,6 +169,14 @@ export default function MailboxSettingsPage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [syncingMailboxId, setSyncingMailboxId] = useState<string | null>(null);
   const [activeSyncJob, setActiveSyncJob] = useState<Job | null>(null);
+  const recentSyncJobsQuery = useMemo(
+    () => ({ limit: 20, job_type: "email_sync" as const }),
+    [],
+  );
+  const recentSyncJobs = useRecentJobs({
+    enabled: authStatus === "authenticated",
+    query: recentSyncJobsQuery,
+  });
 
   const refreshSyncStatuses = useCallback(async (nextMailboxes: Mailbox[]) => {
     if (nextMailboxes.length === 0) {
@@ -241,6 +251,21 @@ export default function MailboxSettingsPage() {
     onCompleted: onSyncJobCompleted,
     onFailed: onSyncJobFailed,
   });
+
+  useEffect(() => {
+    if (activeSyncJob !== null && isActiveJob(activeSyncJob)) {
+      return;
+    }
+    const restoredJob = recentSyncJobs.jobs.find(
+      (job) =>
+        isActiveJob(job) &&
+        job.related_resource_type === "mailbox" &&
+        mailboxes.some((mailbox) => mailbox.id === job.related_resource_id),
+    );
+    if (restoredJob) {
+      setActiveSyncJob(restoredJob);
+    }
+  }, [activeSyncJob, mailboxes, recentSyncJobs.jobs]);
 
   useEffect(() => {
     if (authStatus === "loading") {
