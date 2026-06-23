@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -463,6 +463,58 @@ def test_enqueue_sync_today_job_reuses_existing_running_job(monkeypatch) -> None
     assert second.job_id == first.job_id
     assert second.status == "running"
     assert dispatched == [first.job_id]
+
+
+def test_enqueue_sync_today_job_replaces_stale_queued_job(monkeypatch) -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-requeued-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        stale_job = SyncJob(
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            job_type="sync_today_emails",
+            trigger_source="manual",
+            target_date=now.date(),
+            status="queued",
+            celery_task_id=f"lost-celery-{uuid4()}",
+            created_at=now - timedelta(minutes=10),
+            payload_json={},
+        )
+        db.add(stale_job)
+        db.flush()
+        stale_job_id = stale_job.id
+
+        result = enqueue_sync_today_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=now,
+        )
+        db.commit()
+
+    assert result.job_id != stale_job_id
+    assert result.status == "queued"
+    assert dispatched == [result.job_id]
+
+    with SessionLocal() as db:
+        stale_job = db.get(SyncJob, stale_job_id)
+        new_job = db.get(SyncJob, result.job_id)
+        assert stale_job is not None
+        assert stale_job.status == "failed"
+        assert stale_job.error_code == "stale_sync_job"
+        assert new_job is not None
+        assert new_job.status == "queued"
 
 
 def test_execute_queued_sync_job_updates_same_job_and_mailbox() -> None:

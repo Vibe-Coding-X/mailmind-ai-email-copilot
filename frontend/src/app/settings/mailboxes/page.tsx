@@ -49,6 +49,8 @@ const GMAIL_PROVIDER = "gmail";
 const IMAP_PROVIDER = "imap";
 const SYSTEM_AUTH_ERROR_CODE = "UNAUTHORIZED";
 const GMAIL_REAUTH_ERROR_CODE = "MAILBOX_REAUTH_REQUIRED";
+const STALE_QUEUED_SYNC_JOB_MS = 5 * 60 * 1000;
+const STALE_RUNNING_SYNC_JOB_MS = 20 * 60 * 1000;
 
 interface ImapFormState {
   accountEmail: string;
@@ -126,6 +128,23 @@ function isGmailMailbox(mailbox: Mailbox): boolean {
 
 function isImapMailbox(mailbox: Mailbox): boolean {
   return mailbox.provider.toLowerCase() === IMAP_PROVIDER;
+}
+
+function isStaleSyncJob(job: Job, nowMs = Date.now()): boolean {
+  const reference =
+    job.status === "running" && job.started_at ? job.started_at : job.created_at;
+  const referenceMs = new Date(reference).getTime();
+  if (Number.isNaN(referenceMs)) {
+    return false;
+  }
+  const ageMs = nowMs - referenceMs;
+  if (job.status === "queued") {
+    return ageMs > STALE_QUEUED_SYNC_JOB_MS;
+  }
+  if (job.status === "running") {
+    return ageMs > STALE_RUNNING_SYNC_JOB_MS;
+  }
+  return false;
 }
 
 function statusLabel(status: string): string {
@@ -358,6 +377,7 @@ export default function MailboxSettingsPage() {
           typeof job.related_resource_id === "string" ? job.related_resource_id : "";
         if (
           isActiveJob(job) &&
+          !isStaleSyncJob(job) &&
           job.related_resource_type === "mailbox" &&
           mailboxIds.has(mailboxId) &&
           next[mailboxId] === undefined
