@@ -190,7 +190,7 @@ export function connectImapMailbox(
 ): Promise<ImapConnectResponse> {
   return request<ImapConnectResponse>(API_ROUTES.imapAuth.connect, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: payload,
   });
 }
 
