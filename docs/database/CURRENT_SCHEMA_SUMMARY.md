@@ -42,9 +42,17 @@ Sensitive mailbox credential storage. Gmail refresh tokens are encrypted with `A
 
 Synced Gmail message facts for the user's local day. Stores provider ids, headers, sender/recipient metadata, snippet, cleaned body text, received time, read state, labels, and sync timestamps.
 
+Uniqueness is enforced by `emails_mailbox_external_id_uq` on
+`(mailbox_id, external_id)`. Gmail sync must upsert by this key; subject,
+sender, received time, snippet, and labels are not identity fields.
+
 ### `sync_jobs`
 
 Tracks sync and digest job attempts. In v0.3, this table is used by both synchronous service calls and Celery background workers. Supports `retry_count`, `error_code`, `error_message` (redacted), `payload_json` (safe structured result), `trigger_source` (`manual` or `scheduled`), `started_at`, and `finished_at`. `digest_id` has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
+
+`sync_jobs_active_job_key_uq` prevents duplicate queued/running keyed jobs.
+v0.4.1 also performs service-level active job reuse for manual email sync,
+scheduled email sync, digest generate, and digest refresh jobs.
 
 ### `daily_digests`
 
@@ -80,6 +88,8 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 - `sync_jobs` records both synchronous service work and Celery background job work in v0.3.
 - No new tables or migrations were added in v0.3; the existing `sync_jobs` schema was extended in v0.2 to support background job fields.
 - The schema is local-MVP oriented and has not been hardened for production multi-tenant SaaS operation.
+- v0.4.1 did not add a migration because the email uniqueness and active
+  job-key index already exist at current head.
 
 ## Verification
 
