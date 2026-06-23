@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from redis import Redis
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -43,6 +45,26 @@ class QueuedSyncJobResult:
     job_id: UUID
 
 
+ACTIVE_SYNC_STATUSES = {"queued", "running"}
+MAILBOX_SYNC_LOCK_TTL_SECONDS = 20 * 60
+
+
+@dataclass(slots=True)
+class MailboxSyncLock:
+    client: Redis
+    key: str
+    value: str
+
+    def release(self) -> None:
+        script = """
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        end
+        return 0
+        """
+        self.client.eval(script, 1, self.key, self.value)
+
+
 def sync_today_emails(
     db: Session,
     *,
@@ -59,6 +81,18 @@ def sync_today_emails(
         user_id=resolved_user_id,
         mailbox_id=resolved_mailbox_id,
     )
+    active_job = find_active_email_sync_job(
+        db,
+        user_id=user.id,
+        mailbox_id=mailbox.id,
+    )
+    if active_job is not None:
+        return SyncTodayResult(
+            mailbox_id=mailbox.id,
+            status=_public_job_status(active_job.status),
+            synced_count=0,
+            job_id=active_job.id,
+        )
     job = SyncJob(
         user_id=user.id,
         mailbox_id=mailbox.id,
@@ -90,6 +124,8 @@ def enqueue_sync_today_job(
     mailbox_id: UUID | str,
     dispatch: bool = True,
     now: datetime | None = None,
+    trigger_source: str = "manual",
+    job_key: str | None = None,
 ) -> QueuedSyncJobResult:
     resolved_user_id = _as_uuid(user_id)
     resolved_mailbox_id = _as_uuid(mailbox_id)
@@ -99,12 +135,23 @@ def enqueue_sync_today_job(
         user_id=resolved_user_id,
         mailbox_id=resolved_mailbox_id,
     )
+    active_job = find_active_email_sync_job(
+        db,
+        user_id=user.id,
+        mailbox_id=mailbox.id,
+    )
+    if active_job is not None:
+        return QueuedSyncJobResult(
+            mailbox_id=mailbox.id,
+            status=active_job.status,
+            job_id=active_job.id,
+        )
     job = SyncJob(
         user_id=user.id,
         mailbox_id=mailbox.id,
         job_type="sync_today_emails",
-        trigger_source="manual",
-        job_key=None,
+        trigger_source=trigger_source,
+        job_key=job_key,
         target_date=_target_date(user, resolved_now),
         status="queued",
         payload_json={},
@@ -138,18 +185,41 @@ def execute_queued_sync_job(
         user_id=job.user_id,
         mailbox_id=job.mailbox_id,
     )
+    sync_lock = acquire_mailbox_sync_lock(
+        mailbox_id=mailbox.id,
+        job_id=job.id,
+    )
+    if sync_lock is None:
+        _fail_job(
+            db,
+            job=job,
+            code="worker_lock_conflict",
+            message="Another sync is already running for this mailbox.",
+            now=resolved_now,
+        )
+        raise EmailSyncError(
+            "worker_lock_conflict",
+            "Another sync is already running for this mailbox.",
+            409,
+        )
     job.status = "running"
     job.started_at = resolved_now
     mailbox.last_sync_at = resolved_now
     db.flush()
-    return _execute_sync_today(
-        db,
-        user=user,
-        mailbox=mailbox,
-        job=job,
-        provider=provider,
-        now=resolved_now,
-    )
+    try:
+        return _execute_sync_today(
+            db,
+            user=user,
+            mailbox=mailbox,
+            job=job,
+            provider=provider,
+            now=resolved_now,
+        )
+    finally:
+        try:
+            sync_lock.release()
+        except RedisError:
+            pass
 
 
 def dispatch_email_sync_job(job_id: UUID) -> str:
@@ -157,6 +227,44 @@ def dispatch_email_sync_job(job_id: UUID) -> str:
 
     result = celery_app.send_task("app.jobs.email_sync", args=[str(job_id)])
     return str(result.id)
+
+
+def find_active_email_sync_job(
+    db: Session,
+    *,
+    user_id: UUID,
+    mailbox_id: UUID,
+) -> SyncJob | None:
+    return db.scalar(
+        select(SyncJob)
+        .where(
+            SyncJob.user_id == user_id,
+            SyncJob.mailbox_id == mailbox_id,
+            SyncJob.job_type == "sync_today_emails",
+            SyncJob.status.in_(ACTIVE_SYNC_STATUSES),
+        )
+        .order_by(SyncJob.created_at.asc(), SyncJob.id.asc())
+        .limit(1)
+    )
+
+
+def acquire_mailbox_sync_lock(
+    *,
+    mailbox_id: UUID,
+    job_id: UUID,
+    ttl_seconds: int = MAILBOX_SYNC_LOCK_TTL_SECONDS,
+) -> MailboxSyncLock | None:
+    settings = get_settings()
+    client = Redis.from_url(settings.redis_url, decode_responses=True)
+    key = f"sync:mailbox:{mailbox_id}"
+    value = str(job_id)
+    try:
+        acquired = client.set(key, value, nx=True, ex=ttl_seconds)
+    except RedisError:
+        return None
+    if not acquired:
+        return None
+    return MailboxSyncLock(client=client, key=key, value=value)
 
 
 def _execute_sync_today(
@@ -279,6 +387,12 @@ def upsert_email_messages(
 
     db.flush()
     return synced_count
+
+
+def _public_job_status(status: str) -> str:
+    if status == "succeeded":
+        return "completed"
+    return status
 
 
 def _decrypt_refresh_token(db: Session, *, mailbox_id: UUID) -> str:

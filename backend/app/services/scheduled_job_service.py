@@ -14,7 +14,7 @@ from app.db.models.mailbox import Mailbox
 from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.services.digest_service import dispatch_digest_job
-from app.services.email_sync_service import dispatch_email_sync_job
+from app.services.email_sync_service import enqueue_sync_today_job, find_active_email_sync_job
 
 
 @dataclass(slots=True)
@@ -37,22 +37,23 @@ def enqueue_due_scheduled_email_sync_jobs(
     for user, mailbox in _active_gmail_mailboxes(db):
         target_date = _local_date(user.timezone, resolved_now)
         job_key = f"scheduled_email_sync:{mailbox.id}:{target_date}"
-        if _job_key_exists(db, job_key):
+        if _job_key_exists(db, job_key) or find_active_email_sync_job(
+            db,
+            user_id=user.id,
+            mailbox_id=mailbox.id,
+        ):
             skipped += 1
             continue
-        job = _create_scheduled_job(
+        result = enqueue_sync_today_job(
             db,
-            user=user,
-            mailbox=mailbox,
-            job_type="sync_today_emails",
-            job_key=job_key,
-            target_date=target_date,
+            user_id=user.id,
+            mailbox_id=mailbox.id,
+            dispatch=dispatch,
             now=resolved_now,
+            trigger_source="scheduled",
+            job_key=job_key,
         )
-        if dispatch:
-            job.celery_task_id = dispatch_email_sync_job(job.id)
-            db.flush()
-        created.append(job.id)
+        created.append(result.job_id)
 
     return ScheduledJobEnqueueResult(
         job_ids=created,
