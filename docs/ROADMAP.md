@@ -86,7 +86,13 @@ Status: candidate branch.
 - Outlook preparation skeleton with honest disabled capabilities; no connect UI
   unless real OAuth configuration is available.
 - Mailbox API exposes provider, account email, display name, and capabilities.
-- Frontend shows provider badges and supports `/emails?mailbox=<id>` filtering.
+- Settings uses Provider Catalog plus Mailbox Instances: Add Gmail/Add IMAP
+  remain available for multiple accounts, while Connected Mailboxes renders
+  backend mailbox rows.
+- IMAP settings persist as non-secret provider config; passwords remain
+  encrypted and are never returned.
+- Frontend shows provider badges and defaults `/emails` to a selected mailbox,
+  with All Mailboxes available only as an explicit mixed view.
 - Cross-mailbox Digest, Multi Mailbox Digest, AI Settings, email sending, and
   Celery Beat remain out of scope.
 

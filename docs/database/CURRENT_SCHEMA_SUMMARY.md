@@ -40,12 +40,18 @@ and `outlook`. Records include provider account id, email address, optional
 display name, permission mode, granted scopes, connection status, sync cursor,
 and sync timestamps.
 
+The row is a mailbox instance, not a provider-level singleton. A user may have
+multiple Gmail rows and multiple IMAP rows. Gmail rows use the Google account
+`sub` as `provider_account_id` when available. IMAP rows use
+`lower(host):port:lower(username)` as `provider_account_id`.
+
 ### `mailbox_credentials`
 
 Sensitive mailbox credential storage. Gmail refresh tokens and IMAP passwords
 are encrypted with `APP_ENCRYPTION_KEY`; access tokens are not persisted as
 long-lived database fields. IMAP non-secret connection config is stored in
-`credentials_json`.
+`credentials_json`, including provider preset, host, port, username, folder,
+and SSL preference.
 
 ### `emails`
 
@@ -62,8 +68,9 @@ sender, received time, snippet, and labels are not identity fields.
 Tracks sync and digest job attempts. In v0.3, this table is used by both synchronous service calls and Celery background workers. Supports `retry_count`, `error_code`, `error_message` (redacted), `payload_json` (safe structured result), `trigger_source` (`manual` or `scheduled`), `started_at`, and `finished_at`. `digest_id` has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
 
 `sync_jobs_active_job_key_uq` prevents duplicate queued/running keyed jobs.
-v0.4.1 also performs service-level active job reuse for manual email sync,
-scheduled email sync, digest generate, and digest refresh jobs.
+Manual mailbox sync also performs service-level active job reuse scoped by
+`user_id + mailbox_id + job_type + queued/running`. Different mailbox instances
+can have independent active sync jobs.
 
 ### `daily_digests`
 

@@ -36,6 +36,24 @@ The current mailbox schema already stores provider identity. Provider-aware
 services must use the provider registry rather than directly instantiating a
 provider-specific class.
 
+## Provider Catalog vs Mailbox Instances
+
+Provider keys describe mailbox types. Mailbox rows describe user-connected
+instances.
+
+- Provider catalog entries: Gmail, IMAP, Outlook.
+- Mailbox instances: `main@gmail.com`, `work@gmail.com`,
+  `123@qq.com via imap.qq.com`, and each additional account the user adds.
+- Credentials bind to one mailbox instance.
+- Emails bind to one mailbox instance.
+- Sync jobs bind to one mailbox instance.
+
+The frontend must treat `GET /api/mailboxes` as the source of truth for
+connected mailbox instances. Add Gmail and Add IMAP remain available even when
+mailboxes of the same provider already exist, because those actions create or
+re-authorize mailbox instances rather than toggling one provider-level config.
+Outlook remains unavailable in v0.5 UI until a real OAuth flow is implemented.
+
 ## External ID Semantics
 
 `external_id = provider_message_id`.
@@ -110,9 +128,14 @@ Read/unread actions must check provider capabilities before calling a provider.
 If a provider cannot perform an action, the backend returns a controlled error
 and the frontend displays a disabled reason instead of showing a fake action.
 
+## Emails View
+
+The v0.5 UI is mailbox-based. `/emails` defaults to a concrete mailbox when no
+query parameter is present, using the most recently synced/updated mailbox. All
+Inboxes can exist as an explicit optional view, but mixed lists must show the
+source mailbox for each email.
+
 ## Future Route
 
-v0.5 creates the provider and mailbox foundation needed for later multi-mailbox
-work. A future version can add mailbox selection for sync and browsing, and a
-separate future design can address cross-mailbox digest aggregation. v0.5 does
-not implement that aggregation.
+v0.5 creates the provider and mailbox foundation needed for later provider
+expansion. Cross-mailbox digest aggregation remains a separate future design.
