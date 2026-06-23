@@ -15,6 +15,10 @@ from app.db.models.mailbox_credential import MailboxCredential
 from app.db.models.user import User
 from app.providers.base import ProviderError
 from app.providers.gmail import GmailProvider
+from app.providers.registry import (
+    ProviderRegistryError,
+    get_mailbox_provider as registry_get_mailbox_provider,
+)
 from app.services.credential_encryption_service import CredentialEncryptionService
 from app.services.user_action_service import record_completed_action, record_failed_action
 
@@ -151,6 +155,13 @@ def get_owned_email(db: Session, *, user: User, email_id: UUID) -> Email:
     return email
 
 
+def get_mailbox_provider(provider_key: str) -> object:
+    normalized = provider_key.strip().lower()
+    if normalized == "gmail":
+        return GmailProvider()
+    return registry_get_mailbox_provider(normalized)
+
+
 def _ensure_owned_active_mailbox(db: Session, *, user: User, mailbox_id: UUID) -> None:
     mailbox = db.scalar(
         select(Mailbox).where(
@@ -176,8 +187,10 @@ def mark_email_read_state(
     mailbox = db.get(Mailbox, email.mailbox_id)
     if mailbox is None or mailbox.user_id != user.id:
         raise _not_found()
-    if mailbox.provider != "gmail":
-        raise EmailServiceError("INVALID_REQUEST", "Unsupported email provider.")
+    try:
+        mailbox_provider = provider or get_mailbox_provider(mailbox.provider)
+    except ProviderRegistryError as exc:
+        raise EmailServiceError(exc.code, exc.message, exc.status_code) from exc
     if mailbox.permission_mode != "write_enabled":
         raise EmailServiceError("FORBIDDEN", "Mailbox is read-only.", 403)
     if "https://www.googleapis.com/auth/gmail.modify" not in (mailbox.granted_scopes or []):
@@ -187,12 +200,11 @@ def mark_email_read_state(
     before_state = _email_read_state_snapshot(email)
     try:
         refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
-        gmail_provider = provider or GmailProvider()
-        access_token = gmail_provider.refresh_access_token(refresh_token)
+        access_token = mailbox_provider.refresh_access_token(refresh_token)
         labels = (
-            gmail_provider.mark_as_read(access_token, email.external_id)
+            mailbox_provider.mark_as_read(access_token, email.external_id)
             if read
-            else gmail_provider.mark_as_unread(access_token, email.external_id)
+            else mailbox_provider.mark_as_unread(access_token, email.external_id)
         )
     except EmailServiceError as exc:
         record_failed_action(

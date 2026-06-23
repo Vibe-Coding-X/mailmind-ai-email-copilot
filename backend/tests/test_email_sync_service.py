@@ -480,3 +480,44 @@ def test_execute_queued_sync_job_marks_duplicate_when_mailbox_lock_is_held(
         assert job is not None
         assert job.status == "failed"
         assert job.error_code == "worker_lock_conflict"
+
+
+def test_sync_today_emails_resolves_provider_from_registry(monkeypatch) -> None:
+    user_id, mailbox_id = _create_connected_mailbox()
+    provider = FakeProvider(
+        [
+            _message(
+                "registry-gmail-message",
+                subject="Registry subject",
+                unread=True,
+                received_at=datetime(2026, 6, 19, 2, 0, tzinfo=UTC),
+            )
+        ]
+    )
+    calls: list[str] = []
+
+    def fake_get_mailbox_provider(provider_key: str):
+        calls.append(provider_key)
+        return provider
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.get_mailbox_provider",
+        fake_get_mailbox_provider,
+    )
+
+    with SessionLocal() as db:
+        result = sync_today_emails(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+
+    assert result.synced_count == 1
+    assert calls == ["gmail", "gmail"]
+
+    with SessionLocal() as db:
+        email = db.scalar(select(Email).where(Email.external_id == "registry-gmail-message"))
+        assert email is not None
+        assert email.subject == "Registry subject"

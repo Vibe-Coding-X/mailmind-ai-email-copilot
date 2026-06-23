@@ -18,6 +18,10 @@ from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.providers.base import ProviderEmailMessage, ProviderError
 from app.providers.gmail import GmailProvider
+from app.providers.registry import (
+    ProviderRegistryError,
+    get_mailbox_provider as registry_get_mailbox_provider,
+)
 from app.services.credential_encryption_service import CredentialEncryptionService
 from app.utils.redaction import safe_error_message
 
@@ -229,6 +233,13 @@ def dispatch_email_sync_job(job_id: UUID) -> str:
     return str(result.id)
 
 
+def get_mailbox_provider(provider_key: str) -> object:
+    normalized = provider_key.strip().lower()
+    if normalized == "gmail":
+        return GmailProvider()
+    return registry_get_mailbox_provider(normalized)
+
+
 def find_active_email_sync_job(
     db: Session,
     *,
@@ -280,9 +291,9 @@ def _execute_sync_today(
 
     try:
         refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
-        gmail_provider = provider or GmailProvider()
-        access_token = gmail_provider.refresh_access_token(refresh_token)
-        messages = gmail_provider.list_messages_for_window(
+        mailbox_provider = provider or get_mailbox_provider(mailbox.provider)
+        access_token = mailbox_provider.refresh_access_token(refresh_token)
+        messages = mailbox_provider.list_messages_for_window(
             access_token,
             window_start=window_start,
             window_end=window_end,
@@ -303,6 +314,9 @@ def _execute_sync_today(
     except EmailSyncError as exc:
         _fail_job(db, job=job, code=exc.code, message=exc.message, now=now)
         raise
+    except ProviderRegistryError as exc:
+        _fail_job(db, job=job, code=exc.code, message=exc.message, now=now)
+        raise EmailSyncError(exc.code, exc.message, exc.status_code) from exc
     except Exception as exc:
         _fail_job(
             db,
@@ -429,8 +443,10 @@ def _get_sync_context(
     )
     if user is None or mailbox is None:
         raise EmailSyncError("INVALID_REQUEST", "Mailbox not found.", 404)
-    if mailbox.provider != "gmail":
-        raise EmailSyncError("INVALID_REQUEST", "Unsupported mailbox provider.")
+    try:
+        get_mailbox_provider(mailbox.provider)
+    except ProviderRegistryError as exc:
+        raise EmailSyncError(exc.code, exc.message, exc.status_code) from exc
     if mailbox.status != "active":
         raise EmailSyncError(
             "MAILBOX_REAUTH_REQUIRED",
