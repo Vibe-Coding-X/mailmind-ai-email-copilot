@@ -58,6 +58,14 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 - Email list with search, read-state filters, date filters, and pagination
 - Email detail with read/unread writeback to Gmail
 
+**Provider Mailbox Foundation (v0.5 candidate)**
+- Provider-aware mailbox contract with `gmail`, `imap`, and `outlook` keys
+- Mailbox capabilities returned by mailbox list/detail APIs
+- Gmail migrated behind the `MailboxProvider` abstraction
+- IMAP Provider MVP with encrypted password storage, mocked provider tests, and real connect API
+- Outlook provider skeleton and contract; no fake Outlook connect UI
+- Mailbox provider badges and mailbox filter on `/emails`
+
 **Daily Digest & AI**
 - Digest generation and refresh (synchronous + async job endpoints)
 - Mock AI provider for local development (no paid API calls needed)
@@ -102,8 +110,8 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 
 ### 🧭 Planned
 
-- Multi-mailbox support with aggregate digest
-- Outlook and IMAP provider implementations
+- Cross-mailbox digest and aggregate digest workflows
+- Full Outlook OAuth provider implementation
 - In-app AI provider settings UI
 - Celery Beat for automated scheduling
 - Production deployment and Google OAuth verification

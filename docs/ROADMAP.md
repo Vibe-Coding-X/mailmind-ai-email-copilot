@@ -74,7 +74,23 @@ Status: completed.
 - Development scripts for backend, worker, frontend, and all-in-one startup.
 - No database migrations; no breaking changes.
 
-## v0.5 Open Source Ready / CI / Docker Polish
+## v0.5 Provider Mailbox Foundation
+
+Status: candidate branch.
+
+- Provider-aware mailbox architecture and contract.
+- `MailboxProvider` interface with Gmail, IMAP, and Outlook registry entries.
+- Gmail behavior preserved behind `GmailProvider`.
+- IMAP Provider MVP with encrypted password storage, real connect API, mocked
+  provider tests, mailbox-local manual sync, and minimal settings UI.
+- Outlook preparation skeleton with honest disabled capabilities; no connect UI
+  unless real OAuth configuration is available.
+- Mailbox API exposes provider, account email, display name, and capabilities.
+- Frontend shows provider badges and supports `/emails?mailbox=<id>` filtering.
+- Cross-mailbox Digest, Multi Mailbox Digest, AI Settings, email sending, and
+  Celery Beat remain out of scope.
+
+## v0.6 Open Source Ready / CI / Docker Polish
 
 - Add CI for backend tests, frontend typecheck/lint/build, and migration checks.
 - Improve Docker Compose for full-stack local runs.

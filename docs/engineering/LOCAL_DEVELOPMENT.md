@@ -1,6 +1,8 @@
 # Local Development
 
-This document records the current `v0.4.1-config-sync-containment` local setup including backend config hardening, Celery sync containment, and frontend job trigger hardening. It reflects the implemented repository, not future full-stack deployment plans.
+This document records the current local setup through the v0.5 provider mailbox
+foundation candidate. It reflects the implemented repository, not future
+full-stack deployment plans.
 
 ## Prerequisites
 
@@ -153,6 +155,19 @@ FRONTEND_BASE_URL=http://localhost:3000
 ```
 
 The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public production distribution requires Google OAuth verification and restricted-scope review.
+
+## IMAP Local Testing
+
+IMAP mailboxes can be connected from `/settings/mailboxes` with host, port,
+username, password or app password, folder, and SSL preference. The backend
+validates the IMAP connection and stores only encrypted password plus non-secret
+connection config. Do not place IMAP passwords in tracked files or docs.
+
+## Outlook Local Testing
+
+Outlook is skeleton-only unless all local `OUTLOOK_*` values are configured.
+When checking local configuration, report only `present` or `absent`; never
+print client ids, secrets, redirect URIs, tokens, or authorization headers.
 
 ## v0.1 Runtime Shape
 

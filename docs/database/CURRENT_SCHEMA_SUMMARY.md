@@ -1,6 +1,7 @@
 # Current Schema Summary
 
-This document summarizes the SQLAlchemy models and Alembic migrations present in `v0.3.0-async-redesign`.
+This document summarizes the SQLAlchemy models and Alembic migrations present in
+the v0.5 provider mailbox foundation candidate.
 
 Current Alembic migration line:
 
@@ -14,7 +15,9 @@ Expected Alembic head:
 20260620_0007
 ```
 
-No new migrations were added in v0.3. The v0.3 background jobs foundation reuses the existing `sync_jobs` table, which already had the necessary columns (`retry_count`, `error_code`, `error_message`, `payload_json`, `trigger_source`, `started_at`, `finished_at`) from v0.2.
+No new migrations were added in v0.5. Existing mailbox tables already support
+`gmail`, `imap`, and `outlook` provider keys plus encrypted IMAP password
+storage.
 
 ## Tables
 
@@ -32,15 +35,23 @@ HttpOnly cookie session backing store. Stores hashed session tokens, expiration,
 
 ### `mailboxes`
 
-Connected mailbox records. The current release implements Gmail only, with provider account id, email address, permission mode, granted scopes, connection status, and sync timestamps.
+Connected mailbox records. Provider keys are constrained to `gmail`, `imap`,
+and `outlook`. Records include provider account id, email address, optional
+display name, permission mode, granted scopes, connection status, sync cursor,
+and sync timestamps.
 
 ### `mailbox_credentials`
 
-Sensitive mailbox credential storage. Gmail refresh tokens are encrypted with `APP_ENCRYPTION_KEY`; access tokens are not persisted as long-lived database fields.
+Sensitive mailbox credential storage. Gmail refresh tokens and IMAP passwords
+are encrypted with `APP_ENCRYPTION_KEY`; access tokens are not persisted as
+long-lived database fields. IMAP non-secret connection config is stored in
+`credentials_json`.
 
 ### `emails`
 
-Synced Gmail message facts for the user's local day. Stores provider ids, headers, sender/recipient metadata, snippet, cleaned body text, received time, read state, labels, and sync timestamps.
+Synced provider message facts for the user's local day. Stores provider ids,
+headers, sender/recipient metadata, snippet, cleaned body text, received time,
+read state, labels, and sync timestamps.
 
 Uniqueness is enforced by `emails_mailbox_external_id_uq` on
 `(mailbox_id, external_id)`. Gmail sync must upsert by this key; subject,
@@ -86,7 +97,8 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 
 - The database has digest and AI audit tables with v0.2 provider metadata. Real provider values must come from environment configuration outside Git; the mock provider remains available as fallback.
 - `sync_jobs` records both synchronous service work and Celery background job work in v0.3.
-- No new tables or migrations were added in v0.3; the existing `sync_jobs` schema was extended in v0.2 to support background job fields.
+- No new tables or migrations were added in v0.5; provider foundation reuses the
+  existing mailbox, credential, email, and sync job schema.
 - The schema is local-MVP oriented and has not been hardened for production multi-tenant SaaS operation.
 - v0.4.1 did not add a migration because the email uniqueness and active
   job-key index already exist at current head.

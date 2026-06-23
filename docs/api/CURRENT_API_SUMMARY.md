@@ -113,6 +113,13 @@ POST /api/emails/{email_id}/mark-read
 POST /api/emails/{email_id}/mark-unread
 ```
 
+Frontend behavior:
+
+- `/emails` can filter the loaded email list by mailbox id with
+  `mailbox=<mailbox_id>` in the query string.
+- Read/unread controls use the selected email's mailbox capabilities and stay
+  disabled for unsupported providers.
+
 `GET /api/emails` accepts:
 
 ```text
