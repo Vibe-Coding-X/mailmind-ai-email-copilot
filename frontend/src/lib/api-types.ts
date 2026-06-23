@@ -98,6 +98,14 @@ export interface ImapMailboxConfig {
   use_ssl: boolean;
 }
 
+export interface MailboxProviderConfig {
+  host?: string;
+  port?: number;
+  username?: string;
+  default_folder?: string;
+  use_ssl?: boolean;
+}
+
 export type MailboxStatus =
   | "connected"
   | "disconnected"
@@ -109,12 +117,17 @@ export type MailboxStatus =
 export interface Mailbox {
   id: string;
   provider: MailboxProvider;
+  provider_preset?: string;
   email_address: string;
   account_email?: string;
   display_name?: string | null;
   provider_account_id: string;
   status: MailboxStatus;
   last_successful_sync_at: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  credential_status?: "present" | "missing" | string;
+  provider_config?: MailboxProviderConfig;
   capabilities?: MailboxCapabilities;
   imap_config?: ImapMailboxConfig;
   sync_cursor: string | null;
