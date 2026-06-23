@@ -18,6 +18,7 @@ from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.providers.base import ProviderEmailMessage, ProviderError
 from app.providers.gmail import GmailProvider
+from app.providers.imap import ImapMailboxConfig
 from app.providers.registry import (
     ProviderRegistryError,
     get_mailbox_provider as registry_get_mailbox_provider,
@@ -290,9 +291,14 @@ def _execute_sync_today(
     window_start, window_end = calculate_today_window(user.timezone, now=now)
 
     try:
-        refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
         mailbox_provider = provider or get_mailbox_provider(mailbox.provider)
-        access_token = mailbox_provider.refresh_access_token(refresh_token)
+        mailbox_provider = _configure_mailbox_provider(
+            db,
+            mailbox=mailbox,
+            provider=mailbox_provider,
+        )
+        provider_secret = _decrypt_provider_secret(db, mailbox=mailbox)
+        access_token = mailbox_provider.refresh_access_token(provider_secret)
         messages = mailbox_provider.list_messages_for_window(
             access_token,
             window_start=window_start,
@@ -426,6 +432,73 @@ def _decrypt_refresh_token(db: Session, *, mailbox_id: UUID) -> str:
             "Gmail authorization is required.",
             401,
         ) from exc
+
+
+def _decrypt_provider_secret(db: Session, *, mailbox: Mailbox) -> str:
+    provider = mailbox.provider.strip().lower()
+    if provider == "imap":
+        return _decrypt_imap_password(db, mailbox_id=mailbox.id)
+    return _decrypt_refresh_token(db, mailbox_id=mailbox.id)
+
+
+def _decrypt_imap_password(db: Session, *, mailbox_id: UUID) -> str:
+    credential = db.get(MailboxCredential, mailbox_id)
+    if credential is None or not credential.imap_password_encrypted:
+        raise EmailSyncError(
+            "MAILBOX_REAUTH_REQUIRED",
+            "IMAP authorization is required.",
+            401,
+        )
+
+    try:
+        return CredentialEncryptionService().decrypt(credential.imap_password_encrypted)
+    except Exception as exc:
+        raise EmailSyncError(
+            "MAILBOX_REAUTH_REQUIRED",
+            "IMAP authorization is required.",
+            401,
+        ) from exc
+
+
+def _configure_mailbox_provider(
+    db: Session,
+    *,
+    mailbox: Mailbox,
+    provider: object,
+) -> object:
+    if mailbox.provider.strip().lower() != "imap":
+        return provider
+    configure = getattr(provider, "with_mailbox_config", None)
+    if not callable(configure):
+        return provider
+    credential = db.get(MailboxCredential, mailbox.id)
+    config_json = credential.credentials_json if credential is not None else {}
+    try:
+        config = ImapMailboxConfig(
+            host=str(config_json.get("host") or ""),
+            port=int(config_json.get("port") or 993),
+            username=str(config_json.get("username") or mailbox.email_address),
+            folder=str(config_json.get("folder") or "INBOX"),
+            use_ssl=bool(config_json.get("use_ssl", True)),
+            uidvalidity=(
+                str(config_json["uidvalidity"])
+                if config_json.get("uidvalidity") is not None
+                else None
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise EmailSyncError(
+            "INVALID_REQUEST",
+            "IMAP mailbox configuration is invalid.",
+            400,
+        ) from exc
+    if not config.host or not config.username:
+        raise EmailSyncError(
+            "INVALID_REQUEST",
+            "IMAP mailbox configuration is incomplete.",
+            400,
+        )
+    return configure(config)
 
 
 def _get_sync_context(

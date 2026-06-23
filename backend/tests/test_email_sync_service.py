@@ -11,6 +11,7 @@ from app.db.models.mailbox_credential import MailboxCredential
 from app.db.models.sync_job import SyncJob
 from app.db.session import SessionLocal
 from app.providers.base import ProviderEmailMessage, ProviderError
+from app.providers.imap import ImapMailboxConfig
 from app.services.auth_service import register_user
 from app.services.credential_encryption_service import CredentialEncryptionService
 from app.services.email_sync_service import (
@@ -53,6 +54,46 @@ def _create_connected_mailbox() -> tuple[UUID, UUID]:
                 ),
                 scopes_snapshot=mailbox.granted_scopes,
                 credentials_json={},
+            )
+        )
+        db.commit()
+        return user.id, mailbox.id
+
+
+def _create_connected_imap_mailbox() -> tuple[UUID, UUID]:
+    with SessionLocal() as db:
+        user = register_user(
+            db,
+            email=_email("sync-imap-user"),
+            password="strong-password",
+            timezone="Asia/Shanghai",
+        )
+        mailbox = Mailbox(
+            user_id=user.id,
+            provider="imap",
+            provider_account_id=f"imap-{uuid4().hex}",
+            email_address=_email("imap-mailbox"),
+            permission_mode="write_enabled",
+            granted_scopes=[],
+            status="active",
+        )
+        db.add(mailbox)
+        db.flush()
+        db.add(
+            MailboxCredential(
+                mailbox_id=mailbox.id,
+                credential_type="imap_password",
+                imap_password_encrypted=CredentialEncryptionService().encrypt(
+                    "fake-imap-password"
+                ),
+                scopes_snapshot=[],
+                credentials_json={
+                    "host": "imap.example.com",
+                    "port": 993,
+                    "username": "imap-user@example.com",
+                    "folder": "INBOX",
+                    "use_ssl": True,
+                },
             )
         )
         db.commit()
@@ -105,6 +146,34 @@ class FakeProvider:
         window_end: datetime,
     ) -> list[ProviderEmailMessage]:
         assert access_token == "fake-access-token"
+        self.window_start = window_start
+        self.window_end = window_end
+        return self.messages
+
+
+class FakeImapProvider:
+    def __init__(self, messages: list[ProviderEmailMessage]) -> None:
+        self.messages = messages
+        self.config: ImapMailboxConfig | None = None
+        self.window_start: datetime | None = None
+        self.window_end: datetime | None = None
+
+    def with_mailbox_config(self, config: ImapMailboxConfig) -> "FakeImapProvider":
+        self.config = config
+        return self
+
+    def refresh_access_token(self, refresh_token: str) -> str:
+        assert refresh_token == "fake-imap-password"
+        return refresh_token
+
+    def list_messages_for_window(
+        self,
+        access_token: str,
+        *,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> list[ProviderEmailMessage]:
+        assert access_token == "fake-imap-password"
         self.window_start = window_start
         self.window_end = window_end
         return self.messages
@@ -289,7 +358,7 @@ def test_enqueue_sync_today_job_creates_queued_job_and_dispatches(monkeypatch) -
 
     def fake_dispatch(job_id: UUID) -> str:
         dispatched.append(job_id)
-        return "celery-job-123"
+        return f"celery-job-{job_id}"
 
     monkeypatch.setattr(
         "app.services.email_sync_service.dispatch_email_sync_job",
@@ -314,7 +383,7 @@ def test_enqueue_sync_today_job_creates_queued_job_and_dispatches(monkeypatch) -
         assert job.user_id == user_id
         assert job.mailbox_id == mailbox_id
         assert job.status == "queued"
-        assert job.celery_task_id == "celery-job-123"
+        assert job.celery_task_id == f"celery-job-{job_id}"
 
 
 def test_enqueue_sync_today_job_reuses_existing_queued_job(monkeypatch) -> None:
@@ -521,3 +590,67 @@ def test_sync_today_emails_resolves_provider_from_registry(monkeypatch) -> None:
         email = db.scalar(select(Email).where(Email.external_id == "registry-gmail-message"))
         assert email is not None
         assert email.subject == "Registry subject"
+
+
+def test_sync_today_emails_uses_imap_password_and_config() -> None:
+    user_id, mailbox_id = _create_connected_imap_mailbox()
+    external_id = f"INBOX:999:{uuid4().hex}"
+    provider = FakeImapProvider(
+        [
+            _message(
+                external_id,
+                subject="IMAP sync subject",
+                unread=False,
+                received_at=datetime(2026, 6, 19, 2, 0, tzinfo=UTC),
+            )
+        ]
+    )
+
+    with SessionLocal() as db:
+        result = sync_today_emails(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            provider=provider,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+
+    assert result.synced_count == 1
+    assert provider.config is not None
+    assert provider.config.host == "imap.example.com"
+    assert provider.config.username == "imap-user@example.com"
+    assert provider.config.folder == "INBOX"
+
+    with SessionLocal() as db:
+        email = db.scalar(select(Email).where(Email.external_id == external_id))
+        assert email is not None
+        assert email.mailbox_id == mailbox_id
+        assert email.provider == "imap"
+        assert email.subject == "IMAP sync subject"
+        assert email.gmail_history_id == "history-1"
+
+
+def test_sync_today_emails_requires_imap_password() -> None:
+    user_id, mailbox_id = _create_connected_imap_mailbox()
+    provider = FakeImapProvider([])
+    with SessionLocal() as db:
+        credential = db.get(MailboxCredential, mailbox_id)
+        assert credential is not None
+        credential.imap_password_encrypted = None
+        db.commit()
+
+    with SessionLocal() as db:
+        try:
+            sync_today_emails(
+                db,
+                user_id=user_id,
+                mailbox_id=mailbox_id,
+                provider=provider,
+                now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+            )
+        except EmailSyncError as exc:
+            assert exc.code == "MAILBOX_REAUTH_REQUIRED"
+            db.commit()
+        else:
+            raise AssertionError("IMAP sync should require stored password")

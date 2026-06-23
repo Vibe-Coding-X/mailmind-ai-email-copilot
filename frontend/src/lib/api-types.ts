@@ -76,7 +76,19 @@ export interface AuthUserData {
 
 export type AuthUserResponse = ApiSuccess<AuthUserData>;
 
-export type MailboxProvider = "gmail" | string;
+export type MailboxProvider = "gmail" | "imap" | "outlook" | string;
+
+export interface MailboxCapabilities {
+  can_mark_read: boolean;
+  can_mark_unread: boolean;
+  can_fetch_body: boolean;
+  can_fetch_thread: boolean;
+  can_archive: boolean;
+  can_label: boolean;
+  supports_oauth: boolean;
+  supports_password_auth: boolean;
+  supports_folders: boolean;
+}
 
 export type MailboxStatus =
   | "connected"
@@ -90,9 +102,12 @@ export interface Mailbox {
   id: string;
   provider: MailboxProvider;
   email_address: string;
+  account_email?: string;
+  display_name?: string | null;
   provider_account_id: string;
   status: MailboxStatus;
   last_successful_sync_at: string | null;
+  capabilities?: MailboxCapabilities;
   sync_cursor: string | null;
   created_at: string;
   updated_at: string;
@@ -109,6 +124,22 @@ export interface MailboxData {
 }
 
 export type MailboxResponse = ApiSuccess<MailboxData>;
+
+export interface ImapConnectRequest {
+  account_email: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  folder: string;
+  use_ssl: boolean;
+  display_name?: string;
+}
+
+export type ImapConnectResponse = ApiSuccess<{
+  provider: "imap" | string;
+  mailbox: Mailbox;
+}>;
 
 export type MailboxSyncState =
   | "not_started"

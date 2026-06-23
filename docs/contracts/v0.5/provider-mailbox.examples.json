@@ -67,6 +67,16 @@
     },
     "meta": {}
   },
+  "imap_connect_request": {
+    "account_email": "inbox@example.com",
+    "display_name": "Inbox",
+    "host": "imap.example.com",
+    "port": 993,
+    "username": "inbox@example.com",
+    "password": "<app-password>",
+    "folder": "INBOX",
+    "use_ssl": true
+  },
   "outlook_skeleton": {
     "provider": "outlook",
     "external_id_source": "microsoft_graph_message_id",

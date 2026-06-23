@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { StatusBanner } from "@/components/status-banner";
@@ -19,6 +19,7 @@ import { useRecentJobs } from "@/components/jobs/use-recent-jobs";
 import { useAuth } from "@/lib/auth";
 import {
   ApiRequestError,
+  connectImapMailbox,
   disconnectGmail,
   getMailboxSyncStatus,
   listMailboxes,
@@ -44,8 +45,31 @@ type MailboxLoadState =
   | "error";
 
 const GMAIL_PROVIDER = "gmail";
+const IMAP_PROVIDER = "imap";
 const SYSTEM_AUTH_ERROR_CODE = "UNAUTHORIZED";
 const GMAIL_REAUTH_ERROR_CODE = "MAILBOX_REAUTH_REQUIRED";
+
+interface ImapFormState {
+  accountEmail: string;
+  displayName: string;
+  host: string;
+  port: string;
+  username: string;
+  password: string;
+  folder: string;
+  useSsl: boolean;
+}
+
+const initialImapForm: ImapFormState = {
+  accountEmail: "",
+  displayName: "",
+  host: "",
+  port: "993",
+  username: "",
+  password: "",
+  folder: "INBOX",
+  useSsl: true,
+};
 
 function isSystemAuthError(error: ApiRequestError): boolean {
   return error.status === 401 && error.code === SYSTEM_AUTH_ERROR_CODE;
@@ -97,6 +121,10 @@ function toMailboxLoadState(error: unknown, t: TFunction): {
 
 function isGmailMailbox(mailbox: Mailbox): boolean {
   return mailbox.provider.toLowerCase() === GMAIL_PROVIDER;
+}
+
+function isImapMailbox(mailbox: Mailbox): boolean {
+  return mailbox.provider.toLowerCase() === IMAP_PROVIDER;
 }
 
 function statusLabel(status: string): string {
@@ -166,7 +194,9 @@ export default function MailboxSettingsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [connectingImap, setConnectingImap] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [imapForm, setImapForm] = useState<ImapFormState>(initialImapForm);
   const [syncingMailboxId, setSyncingMailboxId] = useState<string | null>(null);
   const [activeSyncJob, setActiveSyncJob] = useState<Job | null>(null);
   const recentSyncJobsQuery = useMemo(
@@ -296,6 +326,10 @@ export default function MailboxSettingsPage() {
     () => mailboxes.find(isGmailMailbox) ?? null,
     [mailboxes],
   );
+  const imapMailboxes = useMemo(
+    () => mailboxes.filter(isImapMailbox),
+    [mailboxes],
+  );
 
   const gmailStatus = gmailMailbox?.status ?? "not_connected";
   const gmailSummary = gmailOverview(loadState, gmailMailbox, t);
@@ -364,6 +398,50 @@ export default function MailboxSettingsPage() {
       setActionError(toErrorMessage(error, t));
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  function updateImapForm<K extends keyof ImapFormState>(
+    key: K,
+    value: ImapFormState[K],
+  ) {
+    setImapForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function onConnectImap(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setActionError(null);
+    setActionMessage(null);
+    setConnectingImap(true);
+
+    try {
+      await connectImapMailbox({
+        account_email: imapForm.accountEmail,
+        display_name: imapForm.displayName || undefined,
+        host: imapForm.host,
+        port: Number(imapForm.port),
+        username: imapForm.username,
+        password: imapForm.password,
+        folder: imapForm.folder,
+        use_ssl: imapForm.useSsl,
+      });
+      setImapForm((current) => ({ ...current, password: "" }));
+      const refreshed = await loadMailboxList();
+      if (refreshed) {
+        setActionMessage(t("mailboxes.imapConnected"));
+      }
+    } catch (error) {
+      const resolved = toMailboxLoadState(error, t);
+      if (
+        resolved.state === "not_signed_in" ||
+        resolved.state === "backend_unavailable"
+      ) {
+        setLoadState(resolved.state);
+        setLoadError(resolved.message);
+      }
+      setActionError(toErrorMessage(error, t));
+    } finally {
+      setConnectingImap(false);
     }
   }
 
@@ -540,10 +618,18 @@ export default function MailboxSettingsPage() {
   const connectDisabled =
     !canAct ||
     connecting ||
+    connectingImap ||
     disconnecting ||
     loadState === "loading" ||
     loadState === "backend_unavailable";
-  const disconnectDisabled = !canAct || connecting || disconnecting;
+  const disconnectDisabled = !canAct || connecting || connectingImap || disconnecting;
+  const imapConnectDisabled =
+    !canAct ||
+    connecting ||
+    connectingImap ||
+    disconnecting ||
+    loadState === "loading" ||
+    loadState === "backend_unavailable";
 
   return (
     <AppShell>
@@ -633,6 +719,133 @@ export default function MailboxSettingsPage() {
               </InlineFeedback>
             </div>
           ) : null}
+        </SettingsSection>
+
+        <SettingsSection
+          title={t("mailboxes.imapTitle")}
+          description={t("mailboxes.imapDescription")}
+        >
+          <form className="mm-stack" style={{ gap: 14 }} onSubmit={onConnectImap}>
+            <div className="mm-spread" style={{ alignItems: "center" }}>
+              <div>
+                <Badge tone={imapMailboxes.length > 0 ? "ok" : "neutral"} dot>
+                  {imapMailboxes.length > 0
+                    ? t("mailboxes.imapConnectedStatus")
+                    : t("mailboxes.imapNotConnectedStatus")}
+                </Badge>
+              </div>
+              <button
+                type="submit"
+                className="mm-btn mm-btn--primary"
+                disabled={imapConnectDisabled}
+                aria-disabled={imapConnectDisabled}
+                style={actionButtonStyle(imapConnectDisabled)}
+              >
+                {connectingImap
+                  ? t("mailboxes.connectingImap")
+                  : t("mailboxes.connectImap")}
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapAccountEmail")}</span>
+                <input
+                  className="mm-input"
+                  type="email"
+                  value={imapForm.accountEmail}
+                  onChange={(event) => updateImapForm("accountEmail", event.target.value)}
+                  disabled={imapConnectDisabled}
+                  required
+                />
+              </label>
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapDisplayName")}</span>
+                <input
+                  className="mm-input"
+                  type="text"
+                  value={imapForm.displayName}
+                  onChange={(event) => updateImapForm("displayName", event.target.value)}
+                  disabled={imapConnectDisabled}
+                />
+              </label>
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapHost")}</span>
+                <input
+                  className="mm-input"
+                  type="text"
+                  value={imapForm.host}
+                  onChange={(event) => updateImapForm("host", event.target.value)}
+                  disabled={imapConnectDisabled}
+                  required
+                />
+              </label>
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapPort")}</span>
+                <input
+                  className="mm-input"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={imapForm.port}
+                  onChange={(event) => updateImapForm("port", event.target.value)}
+                  disabled={imapConnectDisabled}
+                  required
+                />
+              </label>
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapUsername")}</span>
+                <input
+                  className="mm-input"
+                  type="text"
+                  value={imapForm.username}
+                  onChange={(event) => updateImapForm("username", event.target.value)}
+                  disabled={imapConnectDisabled}
+                  required
+                />
+              </label>
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapPassword")}</span>
+                <input
+                  className="mm-input"
+                  type="password"
+                  value={imapForm.password}
+                  onChange={(event) => updateImapForm("password", event.target.value)}
+                  disabled={imapConnectDisabled}
+                  required
+                />
+              </label>
+              <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                <span>{t("mailboxes.imapFolder")}</span>
+                <input
+                  className="mm-input"
+                  type="text"
+                  value={imapForm.folder}
+                  onChange={(event) => updateImapForm("folder", event.target.value)}
+                  disabled={imapConnectDisabled}
+                  required
+                />
+              </label>
+              <label
+                className="mm-row"
+                style={{ alignItems: "center", gap: 8, fontSize: 13, paddingTop: 24 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={imapForm.useSsl}
+                  onChange={(event) => updateImapForm("useSsl", event.target.checked)}
+                  disabled={imapConnectDisabled}
+                />
+                <span>{t("mailboxes.imapUseSsl")}</span>
+              </label>
+            </div>
+          </form>
         </SettingsSection>
 
         <SettingsSection

@@ -22,6 +22,8 @@ import {
   type EmailMutationResponse,
   type EmailResponse,
   type GmailLoginResponse,
+  type ImapConnectRequest,
+  type ImapConnectResponse,
   type JobListQuery,
   type JobResponse,
   type JobsResponse,
@@ -180,6 +182,15 @@ export function startGmailLogin(): Promise<GmailLoginResponse> {
 export function disconnectGmail(): Promise<ApiResult> {
   return request<ApiResult>(API_ROUTES.gmailAuth.disconnect, {
     method: "POST",
+  });
+}
+
+export function connectImapMailbox(
+  payload: ImapConnectRequest,
+): Promise<ImapConnectResponse> {
+  return request<ImapConnectResponse>(API_ROUTES.imapAuth.connect, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -373,6 +384,10 @@ export const apiClient = {
   gmailAuth: {
     startLogin: startGmailLogin,
     disconnect: disconnectGmail,
+  },
+
+  imapAuth: {
+    connect: connectImapMailbox,
   },
 
   jobs: {

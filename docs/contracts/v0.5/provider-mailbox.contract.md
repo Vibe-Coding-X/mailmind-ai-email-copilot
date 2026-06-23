@@ -82,15 +82,21 @@ IMAP MVP may support:
 - Encrypted credential storage through existing credential encryption.
 - Message listing over a window.
 - Body fetch.
-- Read/unread through IMAP flags when supported.
+- `POST /api/auth/imap/connect` to create or update an IMAP mailbox.
+- Manual mailbox-local sync via existing mailbox sync endpoints.
 
 IMAP errors:
 
-- `imap_auth_failed`
+- `MAILBOX_REAUTH_REQUIRED`
 - `imap_connection_failed`
-- `imap_tls_failed`
-- `imap_timeout`
-- `imap_unsupported`
+- `network_tls`
+- `network_timeout`
+- `imap_folder_unavailable`
+- `imap_search_failed`
+- `imap_fetch_failed`
+
+IMAP MVP must not store plaintext passwords, require Gmail scopes, share sync
+cursors across mailboxes, send email, or enable production scheduling.
 
 ## Outlook Preparation
 

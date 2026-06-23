@@ -57,6 +57,21 @@ Implemented behavior:
 - `callback` exchanges the OAuth code, creates or updates the Gmail mailbox, stores encrypted credentials, and redirects to `/settings/mailboxes`.
 - `disconnect` disconnects the current user's Gmail mailbox and clears stored credentials.
 
+## IMAP Auth
+
+```text
+POST /api/auth/imap/connect
+```
+
+Implemented behavior:
+
+- Validates IMAP host, port, username, password, folder, and SSL preference for
+  the signed-in MailMind user.
+- Checks the IMAP connection before storing mailbox state.
+- Creates or updates an `imap` mailbox and stores only encrypted IMAP password
+  plus non-secret connection config.
+- Returns the standard provider-aware mailbox payload.
+
 ## Mailboxes
 
 ```text
@@ -75,7 +90,7 @@ Implemented behavior:
 - `GET /api/mailboxes/{mailbox_id}/capabilities` returns a compact provider
   capability payload for the selected mailbox.
 - Returns latest sync state based on `sync_jobs` and mailbox timestamps.
-- Manually syncs today's Gmail messages for the selected mailbox.
+- Manually syncs today's Gmail or IMAP messages for the selected mailbox.
 
 ### Async Sync Job
 
