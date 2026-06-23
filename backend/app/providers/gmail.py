@@ -21,16 +21,19 @@ class GmailProvider:
         self.client = client or httpx
 
     def refresh_access_token(self, refresh_token: str) -> str:
-        response = self.client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "client_id": self.settings.google_client_id,
-                "client_secret": self.settings.google_client_secret.get_secret_value(),
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-            },
-            timeout=10,
-        )
+        try:
+            response = self.client.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "client_id": self.settings.google_client_id,
+                    "client_secret": self.settings.google_client_secret.get_secret_value(),
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                },
+                timeout=10,
+            )
+        except httpx.HTTPError as exc:
+            raise _provider_error_from_httpx(exc) from exc
         self._raise_for_response(response, auth_operation=True)
         payload = response.json()
         access_token = str(payload.get("access_token") or "")
@@ -82,12 +85,15 @@ class GmailProvider:
         ]
 
     def get_message_detail(self, access_token: str, message_id: str) -> ProviderEmailMessage:
-        response = self.client.get(
-            f"{GMAIL_API_BASE_URL}/messages/{message_id}",
-            headers=self._headers(access_token),
-            params={"format": "full"},
-            timeout=10,
-        )
+        try:
+            response = self.client.get(
+                f"{GMAIL_API_BASE_URL}/messages/{message_id}",
+                headers=self._headers(access_token),
+                params={"format": "full"},
+                timeout=10,
+            )
+        except httpx.HTTPError as exc:
+            raise _provider_error_from_httpx(exc) from exc
         self._raise_for_response(response)
         return parse_gmail_message(response.json())
 
@@ -128,12 +134,15 @@ class GmailProvider:
             if page_token:
                 params["pageToken"] = page_token
 
-            response = self.client.get(
-                f"{GMAIL_API_BASE_URL}/messages",
-                headers=self._headers(access_token),
-                params=params,
-                timeout=10,
-            )
+            try:
+                response = self.client.get(
+                    f"{GMAIL_API_BASE_URL}/messages",
+                    headers=self._headers(access_token),
+                    params=params,
+                    timeout=10,
+                )
+            except httpx.HTTPError as exc:
+                raise _provider_error_from_httpx(exc) from exc
             self._raise_for_response(response)
             payload = response.json()
             for message in payload.get("messages", []):
@@ -153,12 +162,15 @@ class GmailProvider:
         *,
         payload: dict[str, list[str]],
     ) -> list[str]:
-        response = self.client.post(
-            f"{GMAIL_API_BASE_URL}/messages/{message_id}/modify",
-            headers=self._headers(access_token),
-            json=payload,
-            timeout=10,
-        )
+        try:
+            response = self.client.post(
+                f"{GMAIL_API_BASE_URL}/messages/{message_id}/modify",
+                headers=self._headers(access_token),
+                json=payload,
+                timeout=10,
+            )
+        except httpx.HTTPError as exc:
+            raise _provider_error_from_httpx(exc) from exc
         self._raise_for_response(response)
         return [str(label) for label in response.json().get("labelIds", [])]
 
@@ -263,3 +275,16 @@ def _google_error_details(response: Any) -> _GoogleErrorDetails:
         message=" ".join(message for message in messages if message),
         reasons=reasons,
     )
+
+
+def _provider_error_from_httpx(error: httpx.HTTPError) -> ProviderError:
+    if isinstance(error, httpx.TimeoutException):
+        return ProviderError("network_timeout", "Gmail request timed out.", 504)
+    message = str(error).lower()
+    if "tls" in message or "ssl" in message or "certificate" in message:
+        return ProviderError(
+            "network_tls",
+            "Gmail network/TLS connection failed.",
+            502,
+        )
+    return ProviderError("gmail_api_error", "Gmail request failed.", 502)

@@ -58,6 +58,9 @@ class QueuedDigestJobResult:
     status: str
 
 
+ACTIVE_DIGEST_JOB_STATUSES = {"queued", "running"}
+
+
 def get_today_digest(
     db: Session,
     *,
@@ -271,6 +274,15 @@ def _enqueue_digest_job(
     user = _get_user(db, user_id)
     mailbox = _get_active_mailbox(db, user_id=user.id)
     window = calculate_digest_window(user.timezone, now=resolved_now)
+    active_job = _find_active_digest_job(
+        db,
+        user_id=user.id,
+        mailbox_id=mailbox.id,
+        job_type=job_type,
+        target_date=window.digest_date,
+    )
+    if active_job is not None:
+        return QueuedDigestJobResult(job_id=active_job.id, status=active_job.status)
     job = SyncJob(
         user_id=user.id,
         mailbox_id=mailbox.id,
@@ -288,6 +300,28 @@ def _enqueue_digest_job(
         job.celery_task_id = dispatch_digest_job(job.id)
         db.flush()
     return QueuedDigestJobResult(job_id=job.id, status="queued")
+
+
+def _find_active_digest_job(
+    db: Session,
+    *,
+    user_id: UUID,
+    mailbox_id: UUID,
+    job_type: str,
+    target_date: object,
+) -> SyncJob | None:
+    return db.scalar(
+        select(SyncJob)
+        .where(
+            SyncJob.user_id == user_id,
+            SyncJob.mailbox_id == mailbox_id,
+            SyncJob.job_type == job_type,
+            SyncJob.target_date == target_date,
+            SyncJob.status.in_(ACTIVE_DIGEST_JOB_STATUSES),
+        )
+        .order_by(SyncJob.created_at.asc(), SyncJob.id.asc())
+        .limit(1)
+    )
 
 
 def _generate_digest(
