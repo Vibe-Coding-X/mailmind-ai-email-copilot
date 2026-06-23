@@ -182,6 +182,7 @@
   "mailboxes.imapConnectedStatus": "IMAP 已连接",
   "mailboxes.imapNotConnectedStatus": "IMAP 未连接",
   "mailboxes.connectImap": "连接 IMAP",
+  "mailboxes.updateImap": "更新 IMAP",
   "mailboxes.connectingImap": "正在连接 IMAP...",
   "mailboxes.imapConnected": "IMAP 邮箱已连接，邮箱列表已刷新。",
   "mailboxes.imapAccountEmail": "账户邮箱",

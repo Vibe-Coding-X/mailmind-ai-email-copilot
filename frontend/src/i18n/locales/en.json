@@ -182,6 +182,7 @@
   "mailboxes.imapConnectedStatus": "IMAP connected",
   "mailboxes.imapNotConnectedStatus": "IMAP not connected",
   "mailboxes.connectImap": "Connect IMAP",
+  "mailboxes.updateImap": "Update IMAP",
   "mailboxes.connectingImap": "Connecting IMAP...",
   "mailboxes.imapConnected": "IMAP mailbox connected. Mailbox list refreshed.",
   "mailboxes.imapAccountEmail": "Account email",

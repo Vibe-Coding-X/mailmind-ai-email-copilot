@@ -15,7 +15,7 @@ def mailbox_status_for_api(status: str) -> str:
 def mailbox_payload(mailbox: Mailbox) -> dict[str, Any]:
     sync_cursor = mailbox.sync_cursor or None
     provider = mailbox.provider.strip().lower()
-    return {
+    payload = {
         "id": mailbox.id,
         "provider": provider,
         "email_address": mailbox.email_address,
@@ -29,8 +29,25 @@ def mailbox_payload(mailbox: Mailbox) -> dict[str, Any]:
         "created_at": mailbox.created_at,
         "updated_at": mailbox.updated_at,
     }
+    imap_config = mailbox_imap_config_payload(mailbox)
+    if imap_config is not None:
+        payload["imap_config"] = imap_config
+    return payload
 
 
 def mailbox_capabilities_payload(provider_key: str) -> dict[str, bool]:
     provider = get_mailbox_provider(provider_key)
     return provider.get_capabilities().as_dict()
+
+
+def mailbox_imap_config_payload(mailbox: Mailbox) -> dict[str, object] | None:
+    if mailbox.provider.strip().lower() != "imap" or mailbox.credential is None:
+        return None
+    config = mailbox.credential.credentials_json or {}
+    return {
+        "host": str(config.get("host") or ""),
+        "port": int(config.get("port") or 993),
+        "username": str(config.get("username") or mailbox.email_address),
+        "folder": str(config.get("folder") or "INBOX"),
+        "use_ssl": bool(config.get("use_ssl", True)),
+    }

@@ -102,7 +102,7 @@ def build_authorization_url(user: User, settings: Settings | None = None) -> str
         "response_type": "code",
         "scope": " ".join(GMAIL_SCOPES),
         "access_type": "offline",
-        "prompt": "consent",
+        "prompt": "consent select_account",
         "state": create_oauth_state(user.id, resolved_settings),
     }
     return f"{GMAIL_AUTH_URL}?{urlencode(params)}"

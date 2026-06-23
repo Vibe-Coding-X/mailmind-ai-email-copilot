@@ -52,6 +52,13 @@
         "email_address": "inbox@example.com",
         "status": "connected",
         "last_successful_sync_at": null,
+        "imap_config": {
+          "host": "imap.example.com",
+          "port": 993,
+          "username": "inbox@example.com",
+          "folder": "INBOX",
+          "use_ssl": true
+        },
         "capabilities": {
           "can_mark_read": true,
           "can_mark_unread": true,

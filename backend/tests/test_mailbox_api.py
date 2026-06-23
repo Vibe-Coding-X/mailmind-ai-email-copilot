@@ -2,6 +2,7 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 from app.db.models.mailbox import Mailbox
+from app.db.models.mailbox_credential import MailboxCredential
 from app.db.session import SessionLocal
 from app.main import app
 
@@ -127,6 +128,55 @@ def test_get_mailbox_detail_returns_outlook_preparation_capabilities() -> None:
     assert mailbox["capabilities"]["supports_oauth"] is True
     assert mailbox["capabilities"]["can_mark_read"] is False
     assert mailbox["capabilities"]["supports_password_auth"] is False
+
+
+def test_get_mailbox_detail_returns_non_secret_imap_config() -> None:
+    client, user_id = _register_client("mailbox-detail-imap-config")
+    with SessionLocal() as db:
+        mailbox = Mailbox(
+            user_id=user_id,
+            provider="imap",
+            provider_account_id="imap.example.com:993:imap-user@example.com",
+            email_address="imap@example.com",
+            display_name="IMAP User",
+            permission_mode="write_enabled",
+            granted_scopes=[],
+            status="active",
+        )
+        db.add(mailbox)
+        db.flush()
+        db.add(
+            MailboxCredential(
+                mailbox_id=mailbox.id,
+                credential_type="imap_password",
+                imap_password_encrypted="encrypted-password-placeholder",
+                scopes_snapshot=[],
+                credentials_json={
+                    "host": "imap.example.com",
+                    "port": 993,
+                    "username": "imap-user@example.com",
+                    "folder": "INBOX",
+                    "use_ssl": True,
+                },
+            )
+        )
+        db.commit()
+        mailbox_id = mailbox.id
+
+    response = client.get(f"/api/mailboxes/{mailbox_id}")
+
+    assert response.status_code == 200
+    payload = response.json()["data"]["mailbox"]
+    assert payload["provider"] == "imap"
+    assert payload["imap_config"] == {
+        "host": "imap.example.com",
+        "port": 993,
+        "username": "imap-user@example.com",
+        "folder": "INBOX",
+        "use_ssl": True,
+    }
+    assert "encrypted-password-placeholder" not in response.text
+    assert "imap_password_encrypted" not in response.text
 
 
 def test_get_mailbox_detail_blocks_access_to_other_users_mailbox() -> None:

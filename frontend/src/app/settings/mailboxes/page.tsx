@@ -183,6 +183,60 @@ function gmailOverview(
   };
 }
 
+function imapFormFromMailbox(mailbox: Mailbox): ImapFormState {
+  return {
+    accountEmail: mailbox.account_email ?? mailbox.email_address,
+    displayName: mailbox.display_name ?? "",
+    host: mailbox.imap_config?.host ?? "",
+    port: String(mailbox.imap_config?.port ?? 993),
+    username: mailbox.imap_config?.username ?? mailbox.email_address,
+    password: "",
+    folder: mailbox.imap_config?.folder ?? "INBOX",
+    useSsl: mailbox.imap_config?.use_ssl ?? true,
+  };
+}
+
+function PolledMailboxSyncCard({
+  mailbox,
+  syncStatus,
+  syncing,
+  activeJob,
+  onSync,
+  onJobCompleted,
+  onJobFailed,
+  onJobRetried,
+  onJobRetryError,
+}: {
+  mailbox: Mailbox;
+  syncStatus?: MailboxSyncStatusView;
+  syncing: boolean;
+  activeJob: Job | null;
+  onSync: (mailboxId: string) => void;
+  onJobCompleted: (job: Job) => void;
+  onJobFailed: (job: Job) => void;
+  onJobRetried: (job: Job) => void;
+  onJobRetryError: (message: string) => void;
+}) {
+  const polledSyncJob = useJobPolling({
+    job: activeJob,
+    enabled: activeJob !== null,
+    onCompleted: onJobCompleted,
+    onFailed: onJobFailed,
+  });
+
+  return (
+    <MailboxSyncCard
+      mailbox={mailbox}
+      syncStatus={syncStatus}
+      syncing={syncing}
+      activeJob={polledSyncJob.job}
+      onSync={onSync}
+      onJobRetried={onJobRetried}
+      onJobRetryError={onJobRetryError}
+    />
+  );
+}
+
 export default function MailboxSettingsPage() {
   const { t } = useI18n();
   const { status: authStatus, refresh: refreshAuth } = useAuth();
@@ -199,7 +253,9 @@ export default function MailboxSettingsPage() {
   const [disconnecting, setDisconnecting] = useState(false);
   const [imapForm, setImapForm] = useState<ImapFormState>(initialImapForm);
   const [syncingMailboxId, setSyncingMailboxId] = useState<string | null>(null);
-  const [activeSyncJob, setActiveSyncJob] = useState<Job | null>(null);
+  const [activeSyncJobsByMailboxId, setActiveSyncJobsByMailboxId] = useState<
+    Record<string, Job>
+  >({});
   const recentSyncJobsQuery = useMemo(
     () => ({ limit: 20, job_type: "email_sync" as const }),
     [],
@@ -264,39 +320,54 @@ export default function MailboxSettingsPage() {
     }
   }, [refreshSyncStatuses, t]);
 
-  const onSyncJobCompleted = useCallback(async () => {
-    setActionMessage(t("mailboxes.syncJobCompleted"));
-    await loadMailboxList();
-  }, [loadMailboxList, t]);
+  const onSyncJobCompleted = useCallback(
+    async (job: Job) => {
+      if (job.related_resource_id) {
+        setActiveSyncJobsByMailboxId((current) => {
+          const next = { ...current };
+          delete next[job.related_resource_id as string];
+          return next;
+        });
+      }
+      setActionMessage(t("mailboxes.syncJobCompleted"));
+      await loadMailboxList();
+    },
+    [loadMailboxList, t],
+  );
 
   const onSyncJobFailed = useCallback(
     (job: Job) => {
+      if (job.related_resource_id) {
+        setActiveSyncJobsByMailboxId((current) => {
+          const next = { ...current };
+          delete next[job.related_resource_id as string];
+          return next;
+        });
+      }
       setActionError(job.error_message ?? t("mailboxes.syncJobFailed"));
     },
     [t],
   );
 
-  const polledSyncJob = useJobPolling({
-    job: activeSyncJob,
-    enabled: activeSyncJob !== null,
-    onCompleted: onSyncJobCompleted,
-    onFailed: onSyncJobFailed,
-  });
-
   useEffect(() => {
-    if (activeSyncJob !== null && isActiveJob(activeSyncJob)) {
-      return;
-    }
-    const restoredJob = recentSyncJobs.jobs.find(
-      (job) =>
-        isActiveJob(job) &&
-        job.related_resource_type === "mailbox" &&
-        mailboxes.some((mailbox) => mailbox.id === job.related_resource_id),
-    );
-    if (restoredJob) {
-      setActiveSyncJob(restoredJob);
-    }
-  }, [activeSyncJob, mailboxes, recentSyncJobs.jobs]);
+    const mailboxIds = new Set(mailboxes.map((mailbox) => mailbox.id));
+    setActiveSyncJobsByMailboxId((current) => {
+      const next = { ...current };
+      for (const job of recentSyncJobs.jobs) {
+        const mailboxId =
+          typeof job.related_resource_id === "string" ? job.related_resource_id : "";
+        if (
+          isActiveJob(job) &&
+          job.related_resource_type === "mailbox" &&
+          mailboxIds.has(mailboxId) &&
+          next[mailboxId] === undefined
+        ) {
+          next[mailboxId] = job;
+        }
+      }
+      return next;
+    });
+  }, [mailboxes, recentSyncJobs.jobs]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -331,6 +402,17 @@ export default function MailboxSettingsPage() {
     () => mailboxes.filter(isImapMailbox),
     [mailboxes],
   );
+  const primaryImapMailbox = imapMailboxes[0] ?? null;
+
+  useEffect(() => {
+    if (primaryImapMailbox === null) {
+      return;
+    }
+    setImapForm((current) => ({
+      ...imapFormFromMailbox(primaryImapMailbox),
+      password: current.password,
+    }));
+  }, [primaryImapMailbox]);
 
   const gmailStatus = gmailMailbox?.status ?? "not_connected";
   const gmailSummary = gmailOverview(loadState, gmailMailbox, t);
@@ -450,7 +532,11 @@ export default function MailboxSettingsPage() {
     setActionError(null);
     setActionMessage(null);
     setSyncingMailboxId(mailboxId);
-    setActiveSyncJob(null);
+    setActiveSyncJobsByMailboxId((current) => {
+      const next = { ...current };
+      delete next[mailboxId];
+      return next;
+    });
     setSyncStatuses((current) => ({
       ...current,
       [mailboxId]: { state: "loading" },
@@ -458,7 +544,10 @@ export default function MailboxSettingsPage() {
 
     try {
       const response = await triggerMailboxSyncJob(mailboxId);
-      setActiveSyncJob(response.data.job);
+      setActiveSyncJobsByMailboxId((current) => ({
+        ...current,
+        [mailboxId]: response.data.job,
+      }));
       setActionMessage(t("mailboxes.syncJobQueued"));
       await refreshSyncStatuses(mailboxes);
     } catch (error) {
@@ -592,20 +681,23 @@ export default function MailboxSettingsPage() {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <MailboxSyncCard
+              <PolledMailboxSyncCard
                 mailbox={mailbox}
                 syncStatus={syncStatuses[mailbox.id]}
                 syncing={syncingMailboxId === mailbox.id}
-                activeJob={
-                  activeSyncJob?.related_resource_id === mailbox.id
-                    ? polledSyncJob.job
-                    : null
-                }
+                activeJob={activeSyncJobsByMailboxId[mailbox.id] ?? null}
                 onSync={(mailboxId) => void onSyncMailbox(mailboxId)}
+                onJobCompleted={(job) => void onSyncJobCompleted(job)}
+                onJobFailed={onSyncJobFailed}
                 onJobRetried={(job) => {
                   setActionError(null);
                   setActionMessage(t("mailboxes.syncJobQueued"));
-                  setActiveSyncJob(job);
+                  if (job.related_resource_id) {
+                    setActiveSyncJobsByMailboxId((current) => ({
+                      ...current,
+                      [job.related_resource_id as string]: job,
+                    }));
+                  }
                 }}
                 onJobRetryError={(message) => setActionError(message)}
               />
@@ -744,7 +836,9 @@ export default function MailboxSettingsPage() {
               >
                 {connectingImap
                   ? t("mailboxes.connectingImap")
-                  : t("mailboxes.connectImap")}
+                  : primaryImapMailbox
+                    ? t("mailboxes.updateImap")
+                    : t("mailboxes.connectImap")}
               </button>
             </div>
 

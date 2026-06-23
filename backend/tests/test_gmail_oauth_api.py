@@ -52,6 +52,8 @@ def test_gmail_login_returns_authorization_url_with_state() -> None:
     authorization_url = body["data"]["authorization_url"]
     assert authorization_url.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
     assert _extract_state(authorization_url)
+    params = parse_qs(urlparse(authorization_url).query)
+    assert params["prompt"] == ["consent select_account"]
 
 
 def test_gmail_callback_rejects_invalid_state() -> None:

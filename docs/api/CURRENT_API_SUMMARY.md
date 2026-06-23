@@ -87,6 +87,9 @@ Implemented behavior:
 - Lists and reads mailboxes owned by the current user.
 - Mailbox list and detail payloads preserve v0.4 fields and add v0.5 provider
   fields: `account_email`, `display_name`, and `capabilities`.
+- IMAP mailbox payloads include non-secret `imap_config` fields for host, port,
+  username, folder, and SSL so the settings form can be restored after refresh.
+  Passwords and encrypted password fields are never returned.
 - `GET /api/mailboxes/{mailbox_id}/capabilities` returns a compact provider
   capability payload for the selected mailbox.
 - Returns latest sync state based on `sync_jobs` and mailbox timestamps.

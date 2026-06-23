@@ -90,6 +90,14 @@ export interface MailboxCapabilities {
   supports_folders: boolean;
 }
 
+export interface ImapMailboxConfig {
+  host: string;
+  port: number;
+  username: string;
+  folder: string;
+  use_ssl: boolean;
+}
+
 export type MailboxStatus =
   | "connected"
   | "disconnected"
@@ -108,6 +116,7 @@ export interface Mailbox {
   status: MailboxStatus;
   last_successful_sync_at: string | null;
   capabilities?: MailboxCapabilities;
+  imap_config?: ImapMailboxConfig;
   sync_cursor: string | null;
   created_at: string;
   updated_at: string;
