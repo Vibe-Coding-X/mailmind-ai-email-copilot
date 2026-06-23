@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { MailboxProviderBadge } from "@/components/mailbox-provider-badge";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "@/i18n/provider";
 import type { EmailSummary } from "@/lib/api-types";
@@ -15,12 +16,18 @@ export function EmailListItem({
   email,
   busy = false,
   listHref = "/emails",
+  canMarkRead = true,
+  canMarkUnread = true,
+  disabledReason,
   onMarkRead,
   onMarkUnread,
 }: {
   email: EmailSummary;
   busy?: boolean;
   listHref?: string;
+  canMarkRead?: boolean;
+  canMarkUnread?: boolean;
+  disabledReason?: string;
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
@@ -68,6 +75,7 @@ export function EmailListItem({
           <Badge tone={email.is_read ? "neutral" : "info"} dot>
             {statusLabel}
           </Badge>
+          <MailboxProviderBadge provider={email.provider} />
           <span className="mm-muted" style={{ fontSize: 12 }}>
             {formatEmailDateTime(email.received_at)}
           </span>
@@ -90,8 +98,9 @@ export function EmailListItem({
         <button
           type="button"
           className="mm-btn"
-          disabled={busy || email.is_read}
-          aria-disabled={busy || email.is_read}
+          disabled={busy || email.is_read || !canMarkRead}
+          aria-disabled={busy || email.is_read || !canMarkRead}
+          title={!canMarkRead ? disabledReason : undefined}
           onClick={() => onMarkRead(email.id)}
           style={{ fontSize: 12, padding: "6px 12px" }}
         >
@@ -100,8 +109,9 @@ export function EmailListItem({
         <button
           type="button"
           className="mm-btn"
-          disabled={busy || !email.is_read}
-          aria-disabled={busy || !email.is_read}
+          disabled={busy || !email.is_read || !canMarkUnread}
+          aria-disabled={busy || !email.is_read || !canMarkUnread}
+          title={!canMarkUnread ? disabledReason : undefined}
           onClick={() => onMarkUnread(email.id)}
           style={{ fontSize: 12, padding: "6px 12px" }}
         >

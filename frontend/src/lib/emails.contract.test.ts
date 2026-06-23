@@ -4,6 +4,7 @@ import {
   displayBodyText,
   displaySnippet,
   displaySubject,
+  filterEmailsByMailbox,
   filterEmailsByQuery,
   parseEmailReadFilter,
 } from "./emails";
@@ -22,13 +23,19 @@ type FilterEmailsByQueryParameters = Assert<
 type FilterEmailsByQuerySignature = Assert<
   Equal<ReturnType<typeof filterEmailsByQuery>, EmailSummary[]>
 >;
+type FilterEmailsByMailboxParameters = Assert<
+  Equal<Parameters<typeof filterEmailsByMailbox>, [EmailSummary[], string]>
+>;
+type FilterEmailsByMailboxSignature = Assert<
+  Equal<ReturnType<typeof filterEmailsByMailbox>, EmailSummary[]>
+>;
 type ParseEmailReadFilterParameters = Assert<
   Equal<Parameters<typeof parseEmailReadFilter>, [string | null]>
 >;
 type BuildEmailListHrefParameters = Assert<
   Equal<
     Parameters<typeof buildEmailListHref>,
-    [{ filter?: string | null; query?: string | null }]
+    [{ filter?: string | null; mailboxId?: string | null; query?: string | null }]
   >
 >;
 type BuildEmailListHrefSignature = Assert<
@@ -65,6 +72,8 @@ type EmailSnippetAllowsNull = Assert<
 type EmailHelperAssertions = [
   FilterEmailsByQueryParameters,
   FilterEmailsByQuerySignature,
+  FilterEmailsByMailboxParameters,
+  FilterEmailsByMailboxSignature,
   ParseEmailReadFilterParameters,
   BuildEmailListHrefParameters,
   BuildEmailListHrefSignature,
@@ -79,6 +88,8 @@ type EmailHelperAssertions = [
 ];
 
 const emailHelperAssertions: EmailHelperAssertions = [
+  true,
+  true,
   true,
   true,
   true,

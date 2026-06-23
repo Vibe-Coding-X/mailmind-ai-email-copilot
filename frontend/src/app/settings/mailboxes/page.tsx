@@ -7,6 +7,7 @@ import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { InlineFeedback } from "@/components/inline-feedback";
+import { MailboxProviderBadge } from "@/components/mailbox-provider-badge";
 import { SettingsSection } from "@/components/settings-section";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -579,7 +580,7 @@ export default function MailboxSettingsPage() {
               <div>
                 <h3 style={{ fontSize: 14 }}>{mailbox.email_address}</h3>
                 <p className="mm-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                  {mailbox.provider} account
+                  <MailboxProviderBadge provider={mailbox.provider} />
                 </p>
                 <p className="mm-muted" style={{ fontSize: 12, marginTop: 6 }}>
                   {mailboxStateMessage(mailbox)}

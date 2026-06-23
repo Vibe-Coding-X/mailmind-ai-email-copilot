@@ -14,16 +14,18 @@ import { EmailErrorState } from "@/components/email-error-state";
 import { EmailEmptyState } from "@/components/email-empty-state";
 import { useAuth } from "@/lib/auth";
 import {
+  listMailboxes,
   listTodayEmails,
   markEmailRead,
   markEmailUnread,
 } from "@/lib/api-client";
-import type { EmailSummary } from "@/lib/api-types";
+import type { EmailSummary, Mailbox } from "@/lib/api-types";
 import {
   EMAIL_READ_FILTERS,
   buildEmailListHref,
   emailErrorView,
   filterEmails,
+  filterEmailsByMailbox,
   filterEmailsByQuery,
   mergeEmailMutation,
   parseEmailReadFilter,
@@ -44,7 +46,9 @@ export default function EmailsTodayPage() {
   const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [pageState, setPageState] = useState<EmailsPageState>("loading");
   const [emails, setEmails] = useState<EmailSummary[]>([]);
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [filter, setFilter] = useState<EmailReadFilter>("all");
+  const [mailboxFilter, setMailboxFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [urlStateLoaded, setUrlStateLoaded] = useState(false);
   const [pageError, setPageError] = useState<EmailErrorView | null>(null);
@@ -52,17 +56,48 @@ export default function EmailsTodayPage() {
   const [busyEmailId, setBusyEmailId] = useState<string | null>(null);
 
   const filteredEmails = useMemo(
-    () => filterEmailsByQuery(filterEmails(emails, filter), searchQuery),
-    [emails, filter, searchQuery],
+    () =>
+      filterEmailsByQuery(
+        filterEmailsByMailbox(filterEmails(emails, filter), mailboxFilter),
+        searchQuery,
+      ),
+    [emails, filter, mailboxFilter, searchQuery],
+  );
+  const mailboxesById = useMemo(
+    () => Object.fromEntries(mailboxes.map((mailbox) => [mailbox.id, mailbox])),
+    [mailboxes],
+  );
+  const actionSupportByEmailId = useMemo(
+    () =>
+      Object.fromEntries(
+        filteredEmails.map((email) => {
+          const capabilities = mailboxesById[email.mailbox_id]?.capabilities;
+          const canMarkRead = capabilities?.can_mark_read ?? true;
+          const canMarkUnread = capabilities?.can_mark_unread ?? true;
+          return [
+            email.id,
+            {
+              canMarkRead,
+              canMarkUnread,
+              disabledReason:
+                !canMarkRead || !canMarkUnread
+                  ? t("emails.unsupportedProviderAction")
+                  : undefined,
+            },
+          ];
+        }),
+      ),
+    [filteredEmails, mailboxesById, t],
   );
   const listHref = useMemo(
-    () => buildEmailListHref({ filter, query: searchQuery }),
-    [filter, searchQuery],
+    () => buildEmailListHref({ filter, mailboxId: mailboxFilter, query: searchQuery }),
+    [filter, mailboxFilter, searchQuery],
   );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setFilter(parseEmailReadFilter(params.get("filter")));
+    setMailboxFilter(params.get("mailbox") ?? "");
     setSearchQuery(params.get("q") ?? "");
     setUrlStateLoaded(true);
   }, []);
@@ -81,13 +116,18 @@ export default function EmailsTodayPage() {
     setActionError(null);
 
     try {
-      const response = await listTodayEmails();
-      setEmails(response.data.emails);
+      const [emailResponse, mailboxResponse] = await Promise.all([
+        listTodayEmails(),
+        listMailboxes(),
+      ]);
+      setEmails(emailResponse.data.emails);
+      setMailboxes(mailboxResponse.data.mailboxes);
       setPageState("loaded");
       return true;
     } catch (error) {
       const view = emailErrorView(error);
       setEmails([]);
+      setMailboxes([]);
       setPageError(view);
       setPageState(
         view.kind === "unauthorized"
@@ -108,6 +148,7 @@ export default function EmailsTodayPage() {
 
     if (authStatus === "unauthenticated") {
       setEmails([]);
+      setMailboxes([]);
       setPageError({
         kind: "unauthorized",
         title: t("account.notSignedIn"),
@@ -119,6 +160,7 @@ export default function EmailsTodayPage() {
 
     if (authStatus === "unavailable") {
       setEmails([]);
+      setMailboxes([]);
       setPageError({
         kind: "backend_unavailable",
         title: t("account.backendUnavailable"),
@@ -226,6 +268,7 @@ export default function EmailsTodayPage() {
         emails={filteredEmails}
         busyEmailId={busyEmailId}
         listHref={listHref}
+        actionSupportByEmailId={actionSupportByEmailId}
         onMarkRead={(emailId) => void updateReadState(emailId, true)}
         onMarkUnread={(emailId) => void updateReadState(emailId, false)}
       />
@@ -260,6 +303,23 @@ export default function EmailsTodayPage() {
                   placeholder={t("emails.searchPlaceholder")}
                   style={{ minWidth: 220 }}
                 />
+              </label>
+              <label className="mm-field" style={{ marginBottom: 0 }}>
+                <span className="mm-label">{t("emails.mailboxFilter")}</span>
+                <select
+                  className="mm-input"
+                  value={mailboxFilter}
+                  onChange={(event) => setMailboxFilter(event.target.value)}
+                  style={{ minWidth: 220 }}
+                >
+                  <option value="">{t("emails.allMailboxes")}</option>
+                  {mailboxes.map((mailbox) => (
+                    <option key={mailbox.id} value={mailbox.id}>
+                      {mailbox.display_name || mailbox.email_address} ·{" "}
+                      {mailbox.provider.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
               </label>
               <Badge tone="neutral" dot>
                 {t("emails.shown").replace("{{count}}", String(filteredEmails.length))}

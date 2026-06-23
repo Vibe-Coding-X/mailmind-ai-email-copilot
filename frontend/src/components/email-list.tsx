@@ -1,16 +1,24 @@
 import { EmailListItem } from "@/components/email-list-item";
 import type { EmailSummary } from "@/lib/api-types";
 
+export interface EmailActionSupport {
+  canMarkRead: boolean;
+  canMarkUnread: boolean;
+  disabledReason?: string;
+}
+
 export function EmailList({
   emails,
   busyEmailId,
   listHref,
+  actionSupportByEmailId = {},
   onMarkRead,
   onMarkUnread,
 }: {
   emails: EmailSummary[];
   busyEmailId?: string | null;
   listHref?: string;
+  actionSupportByEmailId?: Record<string, EmailActionSupport>;
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
@@ -23,6 +31,9 @@ export function EmailList({
           email={email}
           busy={busyEmailId === email.id}
           listHref={listHref}
+          canMarkRead={actionSupportByEmailId[email.id]?.canMarkRead ?? true}
+          canMarkUnread={actionSupportByEmailId[email.id]?.canMarkUnread ?? true}
+          disabledReason={actionSupportByEmailId[email.id]?.disabledReason}
           onMarkRead={onMarkRead}
           onMarkUnread={onMarkUnread}
         />
