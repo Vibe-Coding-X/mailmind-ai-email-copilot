@@ -4,11 +4,13 @@
       "mailbox": {
         "id": "00000000-0000-0000-0000-000000000001",
         "provider": "gmail",
+        "provider_preset": "gmail",
         "account_email": "user@example.com",
         "display_name": "user@example.com",
         "email_address": "user@example.com",
         "status": "connected",
         "last_successful_sync_at": "2026-06-23T08:00:00Z",
+        "credential_status": "present",
         "capabilities": {
           "can_mark_read": true,
           "can_mark_unread": true,
@@ -47,11 +49,20 @@
       "mailbox": {
         "id": "00000000-0000-0000-0000-000000000002",
         "provider": "imap",
+        "provider_preset": "custom",
         "account_email": "inbox@example.com",
         "display_name": "inbox@example.com",
         "email_address": "inbox@example.com",
         "status": "connected",
         "last_successful_sync_at": null,
+        "credential_status": "present",
+        "provider_config": {
+          "host": "imap.example.com",
+          "port": 993,
+          "username": "inbox@example.com",
+          "default_folder": "INBOX",
+          "use_ssl": true
+        },
         "imap_config": {
           "host": "imap.example.com",
           "port": 993,
@@ -83,6 +94,46 @@
     "password": "<app-password>",
     "folder": "INBOX",
     "use_ssl": true
+  },
+  "multiple_mailboxes": {
+    "data": {
+      "mailboxes": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "provider": "gmail",
+          "provider_preset": "gmail",
+          "account_email": "main@example.com",
+          "email_address": "main@example.com",
+          "status": "connected",
+          "credential_status": "present"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000003",
+          "provider": "gmail",
+          "provider_preset": "gmail",
+          "account_email": "work@example.com",
+          "email_address": "work@example.com",
+          "status": "connected",
+          "credential_status": "present"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000004",
+          "provider": "imap",
+          "provider_preset": "qq",
+          "account_email": "123@qq.com",
+          "email_address": "123@qq.com",
+          "status": "connected",
+          "credential_status": "present",
+          "provider_config": {
+            "host": "imap.qq.com",
+            "port": 993,
+            "use_ssl": true,
+            "default_folder": "INBOX"
+          }
+        }
+      ]
+    },
+    "meta": {}
   },
   "outlook_skeleton": {
     "provider": "outlook",

@@ -54,15 +54,41 @@ Mailbox list and detail payloads include at least:
 
 - `id`
 - `provider`
+- `provider_preset`
 - `account_email`
 - `display_name`
 - `email_address`
 - `status`
 - `last_successful_sync_at`
+- `credential_status`
 - `capabilities`
 
 `email_address` remains for v0.4 compatibility. `account_email` is the provider
 account email shown by v0.5 UI.
+
+For IMAP mailboxes, payloads also include non-secret connection fields:
+
+- `provider_config.host`
+- `provider_config.port`
+- `provider_config.use_ssl`
+- `provider_config.default_folder`
+- `provider_config.username`
+- `imap_config` for backward-compatible frontend consumers
+
+Passwords, app passwords, authorization codes, encrypted token fields, and
+authorization headers are never returned.
+
+## Instance Rules
+
+- One user may own multiple Gmail mailboxes.
+- One user may own multiple IMAP mailboxes, including multiple accounts on the
+  same host.
+- Gmail de-duplicates by `user_id + provider=gmail + provider_account_id`, where
+  `provider_account_id` is the Google account `sub` when available.
+- IMAP de-duplicates by `user_id + provider=imap + lower(host) + port +
+  lower(username)`.
+- Reconnecting an existing provider account updates credentials/status; adding a
+  different provider account creates a new mailbox instance.
 
 ## Actions
 
