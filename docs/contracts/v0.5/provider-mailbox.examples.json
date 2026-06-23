@@ -7,7 +7,7 @@
         "account_email": "user@example.com",
         "display_name": "user@example.com",
         "email_address": "user@example.com",
-        "status": "active",
+        "status": "connected",
         "last_successful_sync_at": "2026-06-23T08:00:00Z",
         "capabilities": {
           "can_mark_read": true,
@@ -24,6 +24,24 @@
     },
     "meta": {}
   },
+  "gmail_capabilities": {
+    "data": {
+      "mailbox_id": "00000000-0000-0000-0000-000000000001",
+      "provider": "gmail",
+      "capabilities": {
+        "can_mark_read": true,
+        "can_mark_unread": true,
+        "can_fetch_body": true,
+        "can_fetch_thread": true,
+        "can_archive": false,
+        "can_label": false,
+        "supports_oauth": true,
+        "supports_password_auth": false,
+        "supports_folders": false
+      }
+    },
+    "meta": {}
+  },
   "imap_mailbox": {
     "data": {
       "mailbox": {
@@ -32,7 +50,7 @@
         "account_email": "inbox@example.com",
         "display_name": "inbox@example.com",
         "email_address": "inbox@example.com",
-        "status": "active",
+        "status": "connected",
         "last_successful_sync_at": null,
         "capabilities": {
           "can_mark_read": true,
