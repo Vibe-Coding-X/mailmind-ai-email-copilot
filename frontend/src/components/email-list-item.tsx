@@ -19,6 +19,7 @@ export function EmailListItem({
   canMarkRead = true,
   canMarkUnread = true,
   disabledReason,
+  sourceLabel,
   onMarkRead,
   onMarkUnread,
 }: {
@@ -28,6 +29,7 @@ export function EmailListItem({
   canMarkRead?: boolean;
   canMarkUnread?: boolean;
   disabledReason?: string;
+  sourceLabel?: string;
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
@@ -67,6 +69,14 @@ export function EmailListItem({
           >
             {email.sender}
           </div>
+          {sourceLabel ? (
+            <div
+              className="mm-muted"
+              style={{ fontSize: 12, marginTop: 3, overflowWrap: "anywhere" }}
+            >
+              {sourceLabel}
+            </div>
+          ) : null}
         </div>
         <div
           className="mm-stack"

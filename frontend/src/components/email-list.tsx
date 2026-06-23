@@ -12,6 +12,7 @@ export function EmailList({
   busyEmailId,
   listHref,
   actionSupportByEmailId = {},
+  sourceLabelByEmailId = {},
   onMarkRead,
   onMarkUnread,
 }: {
@@ -19,6 +20,7 @@ export function EmailList({
   busyEmailId?: string | null;
   listHref?: string;
   actionSupportByEmailId?: Record<string, EmailActionSupport>;
+  sourceLabelByEmailId?: Record<string, string>;
   onMarkRead: (emailId: string) => void;
   onMarkUnread: (emailId: string) => void;
 }) {
@@ -34,6 +36,7 @@ export function EmailList({
           canMarkRead={actionSupportByEmailId[email.id]?.canMarkRead ?? true}
           canMarkUnread={actionSupportByEmailId[email.id]?.canMarkUnread ?? true}
           disabledReason={actionSupportByEmailId[email.id]?.disabledReason}
+          sourceLabel={sourceLabelByEmailId[email.id]}
           onMarkRead={onMarkRead}
           onMarkUnread={onMarkUnread}
         />
