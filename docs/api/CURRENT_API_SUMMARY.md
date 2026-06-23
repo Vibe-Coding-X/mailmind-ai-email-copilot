@@ -1,6 +1,9 @@
 # Current API Summary
 
-This document summarizes the API implemented in `backend/app/api` for `v0.3.0-async-redesign` and consumed by the `v0.4.0-job-experience` frontend work. It intentionally excludes planned routes that are only described in older design docs.
+This document summarizes the API implemented in `backend/app/api` for
+`v0.3.0-async-redesign`, consumed by the `v0.4.0-job-experience` frontend work,
+and hardened by `v0.4.1-config-sync-containment`. It intentionally excludes
+planned routes that are only described in older design docs.
 
 All application responses use either:
 
@@ -75,7 +78,10 @@ Implemented behavior:
 POST /api/mailboxes/{mailbox_id}/sync-jobs
 ```
 
-Creates an `email_sync` job with `queued` status. Does not replace the existing synchronous `POST /api/mailboxes/{mailbox_id}/sync`.
+Creates an `email_sync` job with `queued` status. If the same user/mailbox
+already has a queued or running email sync job, the endpoint returns that job
+instead of creating a duplicate. Does not replace the existing synchronous
+`POST /api/mailboxes/{mailbox_id}/sync`.
 
 ## Emails
 
@@ -149,7 +155,11 @@ POST /api/digest/today/generate-jobs
 POST /api/digest/today/refresh-jobs
 ```
 
-Create `digest_generate` or `digest_refresh` jobs with `queued` status. Do not replace the existing synchronous `POST /api/digest/today/generate` and `POST /api/digest/today/refresh`.
+Create `digest_generate` or `digest_refresh` jobs with `queued` status. If an
+active job of the same digest type already exists for the current mailbox and
+local date, the endpoint returns that active job. Do not replace the existing
+synchronous `POST /api/digest/today/generate` and
+`POST /api/digest/today/refresh`.
 
 ## Jobs
 
@@ -170,6 +180,12 @@ Public job types: `email_sync`, `digest_generate`, `digest_refresh`, `scheduled_
 Public job statuses: `queued`, `running`, `completed`, `failed`, `cancelled`.
 
 Job responses include: `job_id`, `job_type`, `status`, `progress`, `created_at`, `started_at`, `finished_at`, `error_code`, `error_message` (redacted), `retry_count`, `max_retries`, `retry_of_job_id`, `related_resource_type`, `related_resource_id`, `result`.
+
+Sync error codes used by v0.4.1 containment include `network_tls`,
+`network_timeout`, `gmail_rate_limited`, `gmail_quota_exceeded`,
+`oauth_invalid_grant`, `gmail_permission_denied`, `gmail_api_error`,
+`worker_lock_conflict`, `duplicate_job`, and legacy provider codes retained for
+backward compatibility. Error messages are redacted before API serialization.
 
 ### v0.4 Frontend Job Experience Usage
 

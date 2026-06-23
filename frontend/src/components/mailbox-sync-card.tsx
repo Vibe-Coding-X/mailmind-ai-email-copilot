@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { JobProgressCard } from "@/components/jobs/job-progress-card";
 import { useI18n } from "@/i18n/provider";
 import type { Job, Mailbox, MailboxSyncStatusData } from "@/lib/api-types";
+import { isActiveJob } from "@/lib/jobs";
 import {
   formatDateTimeWithRelative,
   isConnectedMailbox,
@@ -39,7 +40,8 @@ export function MailboxSyncCard({
 }) {
   const { t } = useI18n();
   const loaded = syncStatus?.state === "loaded" ? syncStatus.data : undefined;
-  const disabled = !isConnectedMailbox(mailbox) || syncing;
+  const hasActiveJob = activeJob !== null && isActiveJob(activeJob);
+  const disabled = !isConnectedMailbox(mailbox) || syncing || hasActiveJob;
   const lastJob = loaded?.last_job ?? null;
   const needsReconnect = requiresGmailReconnect(mailbox);
   const syncError =
@@ -123,7 +125,9 @@ export function MailboxSyncCard({
           onClick={() => onSync(mailbox.id)}
           style={{ cursor: disabled ? "not-allowed" : "pointer" }}
         >
-          {syncing ? t("mailboxes.syncing") : t("mailboxes.syncToday")}
+          {syncing || hasActiveJob
+            ? t("mailboxes.syncing")
+            : t("mailboxes.syncToday")}
         </button>
         {!isConnectedMailbox(mailbox) ? (
           <span className="mm-muted" style={{ fontSize: 12 }}>

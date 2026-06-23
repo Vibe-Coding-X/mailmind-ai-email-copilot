@@ -550,6 +550,39 @@ def test_enqueue_generate_today_digest_job_creates_queued_job_and_dispatches(
         assert job.celery_task_id == f"celery-digest-{job_id}"
 
 
+def test_enqueue_generate_today_digest_job_reuses_existing_active_job(
+    monkeypatch,
+) -> None:
+    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-queue-reuse")
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-digest-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.digest_service.dispatch_digest_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        first = enqueue_generate_today_digest_job(
+            db,
+            user_id=user_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        second = enqueue_generate_today_digest_job(
+            db,
+            user_id=user_id,
+            now=datetime(2026, 6, 19, 10, 1, tzinfo=UTC),
+        )
+        db.commit()
+
+    assert second.job_id == first.job_id
+    assert second.status == "queued"
+    assert dispatched == [first.job_id]
+
+
 def test_execute_queued_digest_job_generates_digest_and_updates_job() -> None:
     user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-worker")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
@@ -610,3 +643,36 @@ def test_enqueue_refresh_today_digest_job_uses_refresh_job_type(monkeypatch) -> 
         assert job.job_type == "refresh_daily_digest"
         assert job.status == "queued"
         assert job.celery_task_id == f"celery-digest-refresh-{job_id}"
+
+
+def test_enqueue_refresh_today_digest_job_reuses_existing_active_job(
+    monkeypatch,
+) -> None:
+    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-refresh-reuse")
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-refresh-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.digest_service.dispatch_digest_job",
+        fake_dispatch,
+    )
+
+    with SessionLocal() as db:
+        first = enqueue_refresh_today_digest_job(
+            db,
+            user_id=user_id,
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        second = enqueue_refresh_today_digest_job(
+            db,
+            user_id=user_id,
+            now=datetime(2026, 6, 19, 10, 1, tzinfo=UTC),
+        )
+        db.commit()
+
+    assert second.job_id == first.job_id
+    assert second.status == "queued"
+    assert dispatched == [first.job_id]

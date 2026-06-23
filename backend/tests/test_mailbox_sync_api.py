@@ -286,6 +286,42 @@ def test_trigger_async_mailbox_sync_creates_queued_job(monkeypatch) -> None:
         assert stored.celery_task_id == "celery-job-async-1"
 
 
+def test_trigger_async_mailbox_sync_reuses_active_job(monkeypatch) -> None:
+    client, user_id = _register_client("mailbox-async-sync-reuse")
+    mailbox_id = _create_connected_mailbox(user_id)
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-job-async-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    first_response = client.post(f"/api/mailboxes/{mailbox_id}/sync-jobs")
+    second_response = client.post(f"/api/mailboxes/{mailbox_id}/sync-jobs")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    first_job = first_response.json()["data"]["job"]
+    second_job = second_response.json()["data"]["job"]
+    assert second_job["job_id"] == first_job["job_id"]
+    assert second_job["status"] == "queued"
+    assert dispatched == [UUID(first_job["job_id"])]
+
+    with SessionLocal() as db:
+        jobs = db.scalars(
+            select(SyncJob).where(
+                SyncJob.user_id == user_id,
+                SyncJob.mailbox_id == mailbox_id,
+                SyncJob.job_type == "sync_today_emails",
+            )
+        ).all()
+        assert len(jobs) == 1
+
+
 def test_trigger_async_mailbox_sync_blocks_other_users_mailbox() -> None:
     client, _ = _register_client("mailbox-async-current-user")
     _, other_user_id = _register_client("mailbox-async-other-user")

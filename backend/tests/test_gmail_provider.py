@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 import pytest
 
 from app.providers.base import ProviderError
@@ -178,6 +179,22 @@ class PaginatedHttpClient:
         )
 
 
+class TimeoutHttpClient:
+    def post(self, *args, **kwargs):
+        raise httpx.TimeoutException("request timed out")
+
+    def get(self, *args, **kwargs):
+        raise httpx.TimeoutException("request timed out")
+
+
+class TlsHttpClient:
+    def post(self, *args, **kwargs):
+        raise httpx.ConnectError("TLS handshake failed")
+
+    def get(self, *args, **kwargs):
+        raise httpx.ConnectError("TLS handshake failed")
+
+
 def test_refresh_access_token_exchanges_refresh_token() -> None:
     client = FakeHttpClient()
     provider = GmailProvider(client=client)
@@ -292,6 +309,32 @@ def test_gmail_api_rate_limit_maps_to_provider_rate_limited() -> None:
 
     assert exc_info.value.code == "PROVIDER_RATE_LIMITED"
     assert exc_info.value.message == "Gmail rate limit exceeded."
+
+
+def test_gmail_timeout_maps_to_network_timeout() -> None:
+    provider = GmailProvider(client=TimeoutHttpClient())
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.refresh_access_token("fake-refresh-token")
+
+    assert exc_info.value.code == "network_timeout"
+    assert exc_info.value.message == "Gmail request timed out."
+    assert exc_info.value.status_code == 504
+
+
+def test_gmail_tls_error_maps_to_network_tls() -> None:
+    provider = GmailProvider(client=TlsHttpClient())
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.list_messages_for_window(
+            "fake-access-token",
+            window_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+            window_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+
+    assert exc_info.value.code == "network_tls"
+    assert exc_info.value.message == "Gmail network/TLS connection failed."
+    assert exc_info.value.status_code == 502
 
 
 def test_list_messages_for_window_uses_gmail_date_query_and_filters_candidates() -> None:
