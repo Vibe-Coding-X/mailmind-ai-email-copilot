@@ -52,6 +52,8 @@ class QueuedSyncJobResult:
 
 ACTIVE_SYNC_STATUSES = {"queued", "running"}
 MAILBOX_SYNC_LOCK_TTL_SECONDS = 20 * 60
+STALE_QUEUED_SYNC_JOB_SECONDS = 5 * 60
+STALE_RUNNING_SYNC_JOB_SECONDS = MAILBOX_SYNC_LOCK_TTL_SECONDS
 
 
 @dataclass(slots=True)
@@ -146,11 +148,20 @@ def enqueue_sync_today_job(
         mailbox_id=mailbox.id,
     )
     if active_job is not None:
-        return QueuedSyncJobResult(
-            mailbox_id=mailbox.id,
-            status=active_job.status,
-            job_id=active_job.id,
-        )
+        if is_stale_email_sync_job(active_job, now=resolved_now):
+            _fail_job(
+                db,
+                job=active_job,
+                code="stale_sync_job",
+                message="Previous sync job did not complete and was replaced.",
+                now=resolved_now,
+            )
+        else:
+            return QueuedSyncJobResult(
+                mailbox_id=mailbox.id,
+                status=active_job.status,
+                job_id=active_job.id,
+            )
     job = SyncJob(
         user_id=user.id,
         mailbox_id=mailbox.id,
@@ -258,6 +269,21 @@ def find_active_email_sync_job(
         .order_by(SyncJob.created_at.asc(), SyncJob.id.asc())
         .limit(1)
     )
+
+
+def is_stale_email_sync_job(job: SyncJob, *, now: datetime) -> bool:
+    resolved_now = _ensure_utc(now)
+    if job.status == "queued":
+        created_at = _ensure_utc(job.created_at)
+        return (
+            resolved_now - created_at
+        ).total_seconds() > STALE_QUEUED_SYNC_JOB_SECONDS
+    if job.status == "running":
+        started_at = job.started_at or job.created_at
+        return (
+            resolved_now - _ensure_utc(started_at)
+        ).total_seconds() > STALE_RUNNING_SYNC_JOB_SECONDS
+    return False
 
 
 def acquire_mailbox_sync_lock(
