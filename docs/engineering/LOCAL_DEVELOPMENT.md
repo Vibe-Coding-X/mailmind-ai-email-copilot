@@ -1,6 +1,6 @@
 # Local Development
 
-This document records the current `v0.3.0-async-redesign` local setup plus the `v0.4.0-job-experience` frontend job workflow. It reflects the implemented repository, not future full-stack deployment plans.
+This document records the current `v0.4.1-config-sync-containment` local setup including backend config hardening, Celery sync containment, and frontend job trigger hardening. It reflects the implemented repository, not future full-stack deployment plans.
 
 ## Prerequisites
 

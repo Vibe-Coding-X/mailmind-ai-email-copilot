@@ -16,7 +16,7 @@ It is not another inbox client. It is an **AI decision layer** for your email.
 ![Redis](https://img.shields.io/badge/Redis-celery%20broker-DC382D)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
-![Release](https://img.shields.io/badge/release-v0.4.0--job--experience-orange)
+![Release](https://img.shields.io/badge/release-v0.4.1--config--sync--containment-orange)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 <br />
@@ -82,6 +82,14 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 - i18n coverage for job-related UI (English and Chinese)
 - Theme-compatible job components using existing design tokens
 - Accessible progress bars and retry buttons
+
+**Config Sync Containment (v0.4.1)**
+- Local config loading from `backend/.env.local` and `frontend/.env.local`
+- Shared Settings object between FastAPI and Celery worker
+- Duplicate sync job prevention with Redis per-mailbox lock
+- Retry with exponential backoff and jitter for network failures
+- Frontend job trigger hardening (disable buttons during active jobs)
+- Development scripts for backend, worker, frontend, and all-in-one startup
 
 **Frontend**
 - Next.js 15 dashboard-first design with TypeScript and ESLint
@@ -280,6 +288,7 @@ npm run build
 | v0.2 Digest AI | Real AI provider chain, digest dashboard, action history, email UX |
 | v0.3 Async Redesign | Celery workers, job API, scheduled tasks, theme redesign, i18n |
 | v0.4 Job Experience | Frontend job UI, async sync/digest experience, retry, recent jobs |
+| v0.4.1 Config Sync Containment | Local config hardening, duplicate job prevention, retry backoff, frontend trigger hardening |
 
 ### 🧭 Next
 
@@ -317,6 +326,7 @@ npm run build
 | Local Development | `docs/engineering/LOCAL_DEVELOPMENT.md` |
 | v0.3 Release Notes | `docs/release-notes/v0.3.0-async-redesign.md` |
 | v0.4 Release Notes | `docs/release-notes/v0.4.0-job-experience.md` |
+| v0.4.1 Release Notes | `docs/release-notes/v0.4.1-config-sync-containment.md` |
 
 ---
 
@@ -328,8 +338,8 @@ Apache-2.0
 
 <div align="center">
 
-**v0.4.0-job-experience** · Local MVP · Not a production SaaS
+**v0.4.1-config-sync-containment** · Local MVP · Not a production SaaS
 
-[Release Notes](docs/release-notes/v0.4.0-job-experience.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
+[Release Notes](docs/release-notes/v0.4.1-config-sync-containment.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
 
 </div>
