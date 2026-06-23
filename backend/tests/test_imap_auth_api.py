@@ -69,6 +69,15 @@ def test_imap_connect_creates_mailbox_and_encrypted_credential(monkeypatch) -> N
     assert mailbox_payload["provider"] == "imap"
     assert mailbox_payload["account_email"] == "inboxuser@example.com"
     assert mailbox_payload["display_name"] == "Inbox User"
+    assert mailbox_payload["provider_preset"] == "custom"
+    assert mailbox_payload["credential_status"] == "present"
+    assert mailbox_payload["provider_config"] == {
+        "host": "imap.example.com",
+        "port": 993,
+        "use_ssl": True,
+        "default_folder": "INBOX",
+        "username": "imap-user@example.com",
+    }
     assert mailbox_payload["capabilities"]["supports_password_auth"] is True
 
     with SessionLocal() as db:
@@ -88,6 +97,7 @@ def test_imap_connect_creates_mailbox_and_encrypted_credential(monkeypatch) -> N
             == "fake-imap-password"
         )
         assert credential.credentials_json == {
+            "provider_preset": "custom",
             "host": "imap.example.com",
             "port": 993,
             "username": "imap-user@example.com",
@@ -124,3 +134,48 @@ def test_imap_connect_updates_existing_mailbox_without_duplicate(monkeypatch) ->
             CredentialEncryptionService().decrypt(credential.imap_password_encrypted or "")
             == "second-password"
         )
+
+
+def test_imap_connect_creates_distinct_mailboxes_for_distinct_usernames(
+    monkeypatch,
+) -> None:
+    client, user_id = _register_client()
+
+    monkeypatch.setattr(
+        "app.services.imap_mailbox_service.ImapProvider.check_connection",
+        lambda self, password: None,
+    )
+
+    first = client.post(
+        "/api/auth/imap/connect",
+        json=_payload(
+            account_email="first@example.com",
+            username="first@example.com",
+            display_name="First Inbox",
+        ),
+    )
+    second = client.post(
+        "/api/auth/imap/connect",
+        json=_payload(
+            account_email="second@example.com",
+            username="second@example.com",
+            display_name="Second Inbox",
+        ),
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    with SessionLocal() as db:
+        mailboxes = db.scalars(
+            select(Mailbox)
+            .where(Mailbox.user_id == user_id, Mailbox.provider == "imap")
+            .order_by(Mailbox.email_address.asc())
+        ).all()
+        assert [mailbox.email_address for mailbox in mailboxes] == [
+            "first@example.com",
+            "second@example.com",
+        ]
+        assert [mailbox.provider_account_id for mailbox in mailboxes] == [
+            "imap.example.com:993:first@example.com",
+            "imap.example.com:993:second@example.com",
+        ]

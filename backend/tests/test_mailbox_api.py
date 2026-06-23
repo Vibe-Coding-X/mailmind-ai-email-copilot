@@ -76,6 +76,27 @@ def test_list_mailboxes_returns_only_current_user_mailboxes() -> None:
     }
 
 
+def test_list_mailboxes_returns_multiple_instances_for_current_user() -> None:
+    client, user_id = _register_client("mailbox-list-multiple")
+    first_id = _create_mailbox(
+        user_id, email="main@example.com", account_id="gmail-main"
+    )
+    second_id = _create_mailbox(
+        user_id, email="work@example.com", account_id="gmail-work"
+    )
+
+    response = client.get("/api/mailboxes")
+
+    assert response.status_code == 200
+    mailboxes = response.json()["data"]["mailboxes"]
+    assert [mailbox["id"] for mailbox in mailboxes] == [str(first_id), str(second_id)]
+    assert [mailbox["account_email"] for mailbox in mailboxes] == [
+        "main@example.com",
+        "work@example.com",
+    ]
+    assert all(mailbox["provider_preset"] == "gmail" for mailbox in mailboxes)
+
+
 def test_get_mailbox_detail_returns_provider_capabilities() -> None:
     client, user_id = _register_client("mailbox-detail-capabilities")
     mailbox_id = _create_mailbox(
@@ -152,6 +173,7 @@ def test_get_mailbox_detail_returns_non_secret_imap_config() -> None:
                 imap_password_encrypted="encrypted-password-placeholder",
                 scopes_snapshot=[],
                 credentials_json={
+                    "provider_preset": "custom",
                     "host": "imap.example.com",
                     "port": 993,
                     "username": "imap-user@example.com",
@@ -168,6 +190,15 @@ def test_get_mailbox_detail_returns_non_secret_imap_config() -> None:
     assert response.status_code == 200
     payload = response.json()["data"]["mailbox"]
     assert payload["provider"] == "imap"
+    assert payload["provider_preset"] == "custom"
+    assert payload["credential_status"] == "present"
+    assert payload["provider_config"] == {
+        "host": "imap.example.com",
+        "port": 993,
+        "use_ssl": True,
+        "default_folder": "INBOX",
+        "username": "imap-user@example.com",
+    }
     assert payload["imap_config"] == {
         "host": "imap.example.com",
         "port": 993,

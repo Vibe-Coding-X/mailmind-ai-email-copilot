@@ -260,7 +260,7 @@ def test_trigger_async_mailbox_sync_creates_queued_job(monkeypatch) -> None:
 
     def fake_dispatch(job_id: UUID) -> str:
         dispatched.append(job_id)
-        return "celery-job-async-1"
+        return f"celery-job-async-{job_id}"
 
     monkeypatch.setattr(
         "app.services.email_sync_service.dispatch_email_sync_job",
@@ -283,7 +283,7 @@ def test_trigger_async_mailbox_sync_creates_queued_job(monkeypatch) -> None:
         assert stored is not None
         assert stored.user_id == user_id
         assert stored.status == "queued"
-        assert stored.celery_task_id == "celery-job-async-1"
+        assert stored.celery_task_id == f"celery-job-async-{stored.id}"
 
 
 def test_trigger_async_mailbox_sync_reuses_active_job(monkeypatch) -> None:
@@ -320,6 +320,48 @@ def test_trigger_async_mailbox_sync_reuses_active_job(monkeypatch) -> None:
             )
         ).all()
         assert len(jobs) == 1
+
+
+def test_trigger_async_mailbox_sync_creates_separate_active_jobs_per_mailbox(
+    monkeypatch,
+) -> None:
+    client, user_id = _register_client("mailbox-async-sync-independent")
+    first_mailbox_id = _create_connected_mailbox(user_id)
+    second_mailbox_id = _create_connected_mailbox(user_id)
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-job-async-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    first_response = client.post(f"/api/mailboxes/{first_mailbox_id}/sync-jobs")
+    second_response = client.post(f"/api/mailboxes/{second_mailbox_id}/sync-jobs")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    first_job = first_response.json()["data"]["job"]
+    second_job = second_response.json()["data"]["job"]
+    assert first_job["job_id"] != second_job["job_id"]
+    assert first_job["related_resource_id"] == str(first_mailbox_id)
+    assert second_job["related_resource_id"] == str(second_mailbox_id)
+    assert dispatched == [UUID(first_job["job_id"]), UUID(second_job["job_id"])]
+
+    with SessionLocal() as db:
+        jobs = db.scalars(
+            select(SyncJob)
+            .where(
+                SyncJob.user_id == user_id,
+                SyncJob.job_type == "sync_today_emails",
+                SyncJob.status == "queued",
+            )
+            .order_by(SyncJob.created_at.asc())
+        ).all()
+        assert [job.mailbox_id for job in jobs] == [first_mailbox_id, second_mailbox_id]
 
 
 def test_trigger_async_mailbox_sync_blocks_other_users_mailbox() -> None:

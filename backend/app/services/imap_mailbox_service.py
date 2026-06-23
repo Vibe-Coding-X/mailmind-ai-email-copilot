@@ -84,6 +84,7 @@ def connect_imap_mailbox(
     credential.imap_password_encrypted = encryption.encrypt(password)
     credential.scopes_snapshot = []
     credential.credentials_json = {
+        "provider_preset": _provider_preset_for_host(config.host),
         "host": config.host,
         "port": config.port,
         "username": config.username,
@@ -123,3 +124,14 @@ def _build_config(
 
 def _normalize_email(value: str) -> str:
     return value.strip().lower()
+
+
+def _provider_preset_for_host(host: str) -> str:
+    normalized = host.strip().lower()
+    if normalized == "imap.qq.com":
+        return "qq"
+    if normalized == "imap.163.com":
+        return "163"
+    if normalized == "imap.gmail.com":
+        return "gmail_imap"
+    return "custom"
