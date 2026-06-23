@@ -16,7 +16,7 @@ It is not another inbox client. It is an **AI decision layer** for your email.
 ![Redis](https://img.shields.io/badge/Redis-celery%20broker-DC382D)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
-![Release](https://img.shields.io/badge/release-v0.3.0--async--redesign-orange)
+![Release](https://img.shields.io/badge/release-v0.4.0--job--experience-orange)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 <br />
@@ -72,6 +72,16 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 - Async mail sync, digest generate, and digest refresh job endpoints
 - Job retry / failure handling with `max_retries = 3` and error redaction
 - Scheduled email sync and scheduled digest foundation tasks
+
+**Job Experience (v0.4)**
+- Frontend Job API client with typed routes and polling hooks
+- Real-time job status, progress, error, and retry UI components
+- Async mailbox sync with polling and synchronous fallback
+- Async digest generate/refresh with polling and synchronous fallback
+- Recent jobs / background activity display on `/actions`
+- i18n coverage for job-related UI (English and Chinese)
+- Theme-compatible job components using existing design tokens
+- Accessible progress bars and retry buttons
 
 **Frontend**
 - Next.js 15 dashboard-first design with TypeScript and ESLint
@@ -269,12 +279,12 @@ npm run build
 | v0.1 Local MVP | Auth, Gmail OAuth, email sync, mock digest, frontend preview |
 | v0.2 Digest AI | Real AI provider chain, digest dashboard, action history, email UX |
 | v0.3 Async Redesign | Celery workers, job API, scheduled tasks, theme redesign, i18n |
+| v0.4 Job Experience | Frontend job UI, async sync/digest experience, retry, recent jobs |
 
 ### 🧭 Next
 
 | Version | Scope |
 |---------|-------|
-| v0.4 Multi Mailbox | Multiple connected mailboxes, aggregate digest |
 | v0.5 Open Source Ready | CI, Docker polish, public docs review |
 | v1.0 Personal Productivity | Stable daily driver for personal email management |
 
@@ -306,6 +316,7 @@ npm run build
 | Task Breakdown | `docs/engineering/TASK_BREAKDOWN.md` |
 | Local Development | `docs/engineering/LOCAL_DEVELOPMENT.md` |
 | v0.3 Release Notes | `docs/release-notes/v0.3.0-async-redesign.md` |
+| v0.4 Release Notes | `docs/release-notes/v0.4.0-job-experience.md` |
 
 ---
 
@@ -317,8 +328,8 @@ Apache-2.0
 
 <div align="center">
 
-**v0.3.0-async-redesign** · Local MVP · Not a production SaaS
+**v0.4.0-job-experience** · Local MVP · Not a production SaaS
 
-[Release Notes](docs/release-notes/v0.3.0-async-redesign.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
+[Release Notes](docs/release-notes/v0.4.0-job-experience.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
 
 </div>

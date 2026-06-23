@@ -1,6 +1,6 @@
 # MailMind Roadmap
 
-This roadmap describes planned product direction after `v0.2.0-digest-ai`. It is not a commitment that later items are implemented today.
+This roadmap describes planned product direction after `v0.4.0-job-experience`. It is not a commitment that later items are implemented today.
 
 ## v0.1 Local MVP
 
@@ -48,12 +48,19 @@ Status: completed.
 - UI consistency pass and runtime regression fixes.
 - Celery Beat is not implemented; scheduled tasks require manual or external trigger.
 
-## v0.4 Multi Mailbox
+## v0.4 Job Experience
 
-- Support more than one connected mailbox per user.
-- Define aggregate digest behavior across mailboxes.
-- Add mailbox-level filters and per-mailbox sync controls.
-- Evaluate Outlook and IMAP provider implementations.
+Status: completed.
+
+- Frontend Job API client with typed routes and polling hooks.
+- Real-time job status, progress, error, and retry UI components.
+- Async mailbox sync with polling and synchronous fallback.
+- Async digest generate/refresh with polling and synchronous fallback.
+- Recent jobs / background activity display on `/actions`.
+- i18n coverage for job-related UI (English and Chinese).
+- Theme-compatible job components using existing design tokens.
+- Accessible progress bars and retry buttons.
+- Backend: no changes; v0.4 wires the existing v0.3 Jobs API.
 
 ## v0.5 Open Source Ready / CI / Docker Polish
 
