@@ -20,6 +20,24 @@ values.
 Frontend public runtime config can live in `frontend/.env.local`. Copy
 `frontend/.env.example` when the API base URL differs from the default.
 
+Centralized local env files are kept outside Git at:
+
+```text
+F:\WorkSpace\mailmind-local-config\backend.env.local
+F:\WorkSpace\mailmind-local-config\frontend.env.local
+```
+
+For a new worktree, copy them into place with:
+
+```powershell
+.\scripts\bootstrap-local-env.ps1
+```
+
+The bootstrap script does not print secret values, does not add env files to
+Git, and verifies that `backend/.env.local` and `frontend/.env.local` are
+ignored. Keep `APP_ENCRYPTION_KEY` stable across worktrees so existing local
+Gmail refresh tokens remain decryptable.
+
 Never commit:
 
 - `.env`
@@ -27,6 +45,8 @@ Never commit:
 - Google Client Secret
 - `APP_ENCRYPTION_KEY`
 - LLM API key
+
+Do not put real or test keys in docs, README files, or `.env.example` files.
 
 Important warning: if `APP_ENCRYPTION_KEY` is lost, already saved Gmail refresh tokens cannot be decrypted. Reconnect Gmail to recover.
 
