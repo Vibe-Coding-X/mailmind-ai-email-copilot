@@ -1,6 +1,6 @@
 # MailMind Roadmap
 
-This roadmap describes planned product direction after `v0.4.0-job-experience`. It is not a commitment that later items are implemented today.
+This roadmap describes planned product direction after `v0.4.1-config-sync-containment`. It is not a commitment that later items are implemented today.
 
 ## v0.1 Local MVP
 
@@ -61,6 +61,18 @@ Status: completed.
 - Theme-compatible job components using existing design tokens.
 - Accessible progress bars and retry buttons.
 - Backend: no changes; v0.4 wires the existing v0.3 Jobs API.
+
+## v0.4.1 Config Sync Containment
+
+Status: completed.
+
+- Local config loading from `backend/.env.local` and `frontend/.env.local`.
+- Shared Settings object between FastAPI and Celery worker.
+- Duplicate sync job prevention with Redis per-mailbox lock.
+- Retry with exponential backoff and jitter for network failures.
+- Frontend job trigger hardening (disable buttons during active jobs).
+- Development scripts for backend, worker, frontend, and all-in-one startup.
+- No database migrations; no breaking changes.
 
 ## v0.5 Open Source Ready / CI / Docker Polish
 
