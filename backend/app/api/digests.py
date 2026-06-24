@@ -33,6 +33,10 @@ class SnoozeDigestItemRequest(BaseModel):
     snoozed_until: str
 
 
+class DigestMailboxRequest(BaseModel):
+    mailbox_id: UUID
+
+
 def _raise_digest_error(error: DigestServiceError) -> None:
     raise HTTPException(
         status_code=error.status_code,
@@ -53,11 +57,12 @@ def _raise_action_error(error: UserActionServiceError) -> None:
 
 @router.get("/today")
 def read_today_digest(
+    mailbox_id: UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        digest = get_today_digest(db, user_id=current_user.id)
+        digest = get_today_digest(db, user_id=current_user.id, mailbox_id=mailbox_id)
     except DigestServiceError as exc:
         _raise_digest_error(exc)
     return {"data": {"digest": digest_payload(digest)}, "meta": {}}
@@ -65,11 +70,16 @@ def read_today_digest(
 
 @router.post("/today/generate")
 def generate_digest(
+    request: DigestMailboxRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        digest = generate_today_digest(db, user_id=current_user.id)
+        digest = generate_today_digest(
+            db,
+            user_id=current_user.id,
+            mailbox_id=request.mailbox_id,
+        )
     except DigestServiceError as exc:
         db.commit()
         _raise_digest_error(exc)
@@ -78,11 +88,17 @@ def generate_digest(
 
 @router.post("/today/generate-jobs")
 def generate_digest_job(
+    request: DigestMailboxRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        result = enqueue_generate_today_digest_job(db, user_id=current_user.id)
+        result = enqueue_generate_today_digest_job(
+            db,
+            user_id=current_user.id,
+            mailbox_id=request.mailbox_id,
+            dispatch=True,
+        )
     except DigestServiceError as exc:
         _raise_digest_error(exc)
     from app.db.models.sync_job import SyncJob
@@ -93,11 +109,16 @@ def generate_digest_job(
 
 @router.post("/today/refresh")
 def refresh_digest(
+    request: DigestMailboxRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        digest = refresh_today_digest(db, user_id=current_user.id)
+        digest = refresh_today_digest(
+            db,
+            user_id=current_user.id,
+            mailbox_id=request.mailbox_id,
+        )
     except DigestServiceError as exc:
         db.commit()
         _raise_digest_error(exc)
@@ -106,11 +127,17 @@ def refresh_digest(
 
 @router.post("/today/refresh-jobs")
 def refresh_digest_job(
+    request: DigestMailboxRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        result = enqueue_refresh_today_digest_job(db, user_id=current_user.id)
+        result = enqueue_refresh_today_digest_job(
+            db,
+            user_id=current_user.id,
+            mailbox_id=request.mailbox_id,
+            dispatch=True,
+        )
     except DigestServiceError as exc:
         _raise_digest_error(exc)
     from app.db.models.sync_job import SyncJob

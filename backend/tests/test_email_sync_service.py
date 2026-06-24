@@ -622,6 +622,12 @@ def test_worker_can_execute_three_mailbox_jobs_sequentially(monkeypatch) -> None
             ).job_id
             for mailbox_id in mailbox_ids
         ]
+        for job_id in job_ids:
+            queued_job = db.get(SyncJob, job_id)
+            assert queued_job is not None
+            queued_job.status = "queued"
+            queued_job.celery_task_id = f"manual-dispatch-{job_id}"
+        db.flush()
         executed = [
             execute_queued_sync_job(
                 db,
@@ -739,6 +745,11 @@ def test_execute_queued_sync_job_updates_same_job_and_mailbox() -> None:
             now=now,
         )
         job_id = result.job_id
+        queued_job = db.get(SyncJob, job_id)
+        assert queued_job is not None
+        queued_job.status = "queued"
+        queued_job.celery_task_id = f"manual-dispatch-{job_id}"
+        db.flush()
         executed = execute_queued_sync_job(
             db,
             job_id=job_id,
@@ -782,6 +793,11 @@ def test_execute_queued_sync_job_marks_duplicate_when_mailbox_lock_is_held(
             dispatch=False,
             now=now,
         )
+        queued_job = db.get(SyncJob, result.job_id)
+        assert queued_job is not None
+        queued_job.status = "queued"
+        queued_job.celery_task_id = f"manual-dispatch-{result.job_id}"
+        db.flush()
         try:
             execute_queued_sync_job(
                 db,

@@ -5,10 +5,12 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.ai.base import LLMProviderError, LLMResponse
 from app.db.models.email import Email
 from app.db.models.mailbox import Mailbox
+from app.db.models.sync_job import SyncJob
 from app.db.session import SessionLocal
 from app.main import app
 
@@ -119,10 +121,10 @@ def test_get_today_digest_requires_login() -> None:
 
 def test_generate_today_digest_api_returns_current_digest(monkeypatch) -> None:
     client, user_id = _register_client("digest-api")
-    _create_mailbox_and_email(user_id, prefix="digest-api")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
     monkeypatch.setattr("app.services.digest_service.get_llm_provider", lambda: StaticProvider())
 
-    response = client.post("/api/digest/today/generate")
+    response = client.post("/api/digest/today/generate", json={"mailbox_id": str(mailbox_id)})
 
     assert response.status_code == 200
     digest = response.json()["data"]["digest"]
@@ -132,7 +134,7 @@ def test_generate_today_digest_api_returns_current_digest(monkeypatch) -> None:
     assert digest["items"][0]["priority"] == "medium"
     assert "raw_ai_output" not in digest
 
-    today = client.get("/api/digest/today")
+    today = client.get(f"/api/digest/today?mailbox_id={mailbox_id}")
     assert today.status_code == 200
     assert today.json()["data"]["digest"]["id"] == digest["id"]
 
@@ -140,9 +142,12 @@ def test_generate_today_digest_api_returns_current_digest(monkeypatch) -> None:
 def test_get_digest_blocks_other_users_digest(monkeypatch) -> None:
     owner_client, owner_id = _register_client("digest-owner")
     other_client, _ = _register_client("digest-other")
-    _create_mailbox_and_email(owner_id, prefix="digest-api")
+    mailbox_id = _create_mailbox_and_email(owner_id, prefix="digest-api")
     monkeypatch.setattr("app.services.digest_service.get_llm_provider", lambda: StaticProvider())
-    generated = owner_client.post("/api/digest/today/generate")
+    generated = owner_client.post(
+        "/api/digest/today/generate",
+        json={"mailbox_id": str(mailbox_id)},
+    )
     assert generated.status_code == 200
     digest_id = generated.json()["data"]["digest"]["id"]
 
@@ -154,12 +159,12 @@ def test_get_digest_blocks_other_users_digest(monkeypatch) -> None:
 
 def test_refresh_today_digest_api_replaces_current_digest(monkeypatch) -> None:
     client, user_id = _register_client("digest-refresh-api")
-    _create_mailbox_and_email(user_id, prefix="digest-api")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
     monkeypatch.setattr("app.services.digest_service.get_llm_provider", lambda: StaticProvider())
-    first = client.post("/api/digest/today/generate")
+    first = client.post("/api/digest/today/generate", json={"mailbox_id": str(mailbox_id)})
     assert first.status_code == 200
 
-    second = client.post("/api/digest/today/refresh")
+    second = client.post("/api/digest/today/refresh", json={"mailbox_id": str(mailbox_id)})
 
     assert second.status_code == 200
     assert second.json()["data"]["digest"]["version"] == 2
@@ -168,7 +173,7 @@ def test_refresh_today_digest_api_replaces_current_digest(monkeypatch) -> None:
 
 def test_generate_today_digest_async_job_api_returns_queued_job(monkeypatch) -> None:
     client, user_id = _register_client("digest-generate-job-api")
-    _create_mailbox_and_email(user_id, prefix="digest-api")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
     dispatched: list[UUID] = []
 
     def fake_dispatch(job_id: UUID) -> str:
@@ -177,7 +182,10 @@ def test_generate_today_digest_async_job_api_returns_queued_job(monkeypatch) -> 
 
     monkeypatch.setattr("app.services.digest_service.dispatch_digest_job", fake_dispatch)
 
-    response = client.post("/api/digest/today/generate-jobs")
+    response = client.post(
+        "/api/digest/today/generate-jobs",
+        json={"mailbox_id": str(mailbox_id)},
+    )
 
     assert response.status_code == 200
     job = response.json()["data"]["job"]
@@ -185,18 +193,22 @@ def test_generate_today_digest_async_job_api_returns_queued_job(monkeypatch) -> 
     assert job["status"] == "queued"
     assert job["progress"] == 0
     assert job["related_resource_type"] == "mailbox"
+    assert job["related_resource_id"] == str(mailbox_id)
     assert dispatched == [UUID(job["job_id"])]
 
 
 def test_refresh_today_digest_async_job_api_returns_queued_job(monkeypatch) -> None:
     client, user_id = _register_client("digest-refresh-job-api")
-    _create_mailbox_and_email(user_id, prefix="digest-api")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
     monkeypatch.setattr(
         "app.services.digest_service.dispatch_digest_job",
         lambda job_id: f"celery-digest-refresh-{job_id}",
     )
 
-    response = client.post("/api/digest/today/refresh-jobs")
+    response = client.post(
+        "/api/digest/today/refresh-jobs",
+        json={"mailbox_id": str(mailbox_id)},
+    )
 
     assert response.status_code == 200
     job = response.json()["data"]["job"]
@@ -204,12 +216,62 @@ def test_refresh_today_digest_async_job_api_returns_queued_job(monkeypatch) -> N
     assert job["status"] == "queued"
 
 
+def test_generate_today_digest_async_job_dispatches_after_job_commit(monkeypatch) -> None:
+    client, user_id = _register_client("digest-generate-job-order")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
+    checked: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        with SessionLocal() as verify_db:
+            stored = verify_db.get(SyncJob, job_id)
+            assert stored is not None
+            assert stored.status == "pending_dispatch"
+        checked.append(job_id)
+        return f"celery-digest-generate-{job_id}"
+
+    monkeypatch.setattr("app.services.digest_service.dispatch_digest_job", fake_dispatch)
+
+    response = client.post(
+        "/api/digest/today/generate-jobs",
+        json={"mailbox_id": str(mailbox_id)},
+    )
+
+    assert response.status_code == 200
+    job = response.json()["data"]["job"]
+    assert checked == [UUID(job["job_id"])]
+
+
+def test_generate_today_digest_async_job_marks_dispatch_failure(monkeypatch) -> None:
+    client, user_id = _register_client("digest-generate-job-dispatch-failure")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
+
+    def fake_dispatch(job_id: UUID) -> str:
+        raise RuntimeError("broker unavailable")
+
+    monkeypatch.setattr("app.services.digest_service.dispatch_digest_job", fake_dispatch)
+
+    response = client.post(
+        "/api/digest/today/generate-jobs",
+        json={"mailbox_id": str(mailbox_id)},
+    )
+
+    assert response.status_code == 200
+    job_id = UUID(response.json()["data"]["job"]["job_id"])
+
+    with SessionLocal() as db:
+        job = db.get(SyncJob, job_id)
+        assert job is not None
+        assert job.status == "dispatch_failed"
+        assert job.celery_task_id is None
+        assert job.error_code == "celery_dispatch_failed"
+
+
 def test_generate_today_digest_api_hides_provider_error_details(monkeypatch) -> None:
     client, user_id = _register_client("digest-error-api")
-    _create_mailbox_and_email(user_id, prefix="digest-api")
+    mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api")
     monkeypatch.setattr("app.services.digest_service.get_llm_provider", lambda: FailingProvider())
 
-    response = client.post("/api/digest/today/generate")
+    response = client.post("/api/digest/today/generate", json={"mailbox_id": str(mailbox_id)})
 
     assert response.status_code == 502
     body = response.json()
@@ -218,3 +280,11 @@ def test_generate_today_digest_api_hides_provider_error_details(monkeypatch) -> 
     serialized = json.dumps(body)
     assert "secret" not in serialized
     assert "sk-real-looking-secret" not in serialized
+
+
+def test_generate_today_digest_job_requires_mailbox_id() -> None:
+    client, _ = _register_client("digest-missing-mailbox")
+
+    response = client.post("/api/digest/today/generate-jobs", json={})
+
+    assert response.status_code == 422

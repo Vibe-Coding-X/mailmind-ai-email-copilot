@@ -63,6 +63,18 @@ class FakeImapClient:
         self.logged_out = True
 
 
+class PartialFailureImapClient(FakeImapClient):
+    def uid(self, *args):
+        self.uid_calls.append(args)
+        if args[0] == "SEARCH":
+            return "OK", [b"101 102"]
+        if args[0] == "FETCH" and args[1] == "101":
+            return "OK", [(b"101 (FLAGS (\\Seen))", RAW_MESSAGE)]
+        if args[0] == "FETCH" and args[1] == "102":
+            raise imaplib.IMAP4.error("fetch failed")
+        raise AssertionError(args)
+
+
 def _provider(client: FakeImapClient) -> ImapProvider:
     return ImapProvider(
         config=ImapMailboxConfig(
@@ -71,6 +83,8 @@ def _provider(client: FakeImapClient) -> ImapProvider:
             username="inbox@example.com",
             folder="Archive",
             use_ssl=True,
+            account_email="account@example.com",
+            mailbox_id="mailbox-123",
         ),
         client_factory=lambda host, port: client,
     )
@@ -121,6 +135,53 @@ def test_imap_provider_lists_messages_with_contract_external_id() -> None:
     assert messages[0].is_read is True
     assert messages[0].provider_labels == ["\\Seen"]
     assert len(messages[0].raw_payload_hash) == 64
+
+
+def test_imap_provider_emits_step_logs(monkeypatch) -> None:
+    client = FakeImapClient("imap.example.com", 993)
+    provider = _provider(client)
+    messages: list[str] = []
+
+    def fake_info(message: str, *args) -> None:
+        messages.append(message % args if args else message)
+
+    monkeypatch.setattr("app.providers.imap.logger.info", fake_info)
+
+    provider.list_messages_for_window(
+        "fake-imap-password",
+        window_start=datetime(2026, 6, 23, 0, 0, tzinfo=UTC),
+        window_end=datetime(2026, 6, 23, 12, 0, tzinfo=UTC),
+    )
+
+    assert any("IMAP connect start" in message for message in messages)
+    assert any("IMAP login succeeded" in message for message in messages)
+    assert any("IMAP folder selected" in message for message in messages)
+    assert any("IMAP search completed" in message for message in messages)
+    assert any("IMAP fetch completed" in message for message in messages)
+    assert any("IMAP sync completed" in message for message in messages)
+    assert any("mailbox_id=mailbox-123" in message for message in messages)
+    assert any("account_email=account@example.com" in message for message in messages)
+
+
+def test_imap_provider_skips_single_message_fetch_failure(monkeypatch) -> None:
+    client = PartialFailureImapClient("imap.example.com", 993)
+    provider = _provider(client)
+    warnings: list[str] = []
+
+    def fake_warning(message: str, *args) -> None:
+        warnings.append(message % args if args else message)
+
+    monkeypatch.setattr("app.providers.imap.logger.warning", fake_warning)
+
+    messages = provider.list_messages_for_window(
+        "fake-imap-password",
+        window_start=datetime(2026, 6, 23, 0, 0, tzinfo=UTC),
+        window_end=datetime(2026, 6, 23, 12, 0, tzinfo=UTC),
+    )
+
+    assert [message.external_id for message in messages] == ["Archive:999:101"]
+    assert any("IMAP fetch failed; skipping message" in message for message in warnings)
+    assert any("uid=102" in message for message in warnings)
 
 
 def test_imap_provider_maps_authentication_failure_to_reauth() -> None:

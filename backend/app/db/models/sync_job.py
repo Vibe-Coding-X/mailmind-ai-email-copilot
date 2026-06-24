@@ -49,7 +49,15 @@ class SyncJob(Base):
             name="sync_jobs_trigger_source_check",
         ),
         CheckConstraint(
-            "status IN ('queued', 'running', 'succeeded', 'failed', 'cancelled')",
+            "status IN ("
+            "'pending_dispatch', "
+            "'queued', "
+            "'running', "
+            "'succeeded', "
+            "'failed', "
+            "'dispatch_failed', "
+            "'cancelled'"
+            ")",
             name="sync_jobs_status_check",
         ),
         CheckConstraint("retry_count >= 0", name="sync_jobs_retry_count_check"),
@@ -66,7 +74,7 @@ class SyncJob(Base):
             "sync_jobs_active_job_key_uq",
             "job_key",
             unique=True,
-            postgresql_where=text("status IN ('queued', 'running')"),
+            postgresql_where=text("status IN ('pending_dispatch', 'queued', 'running')"),
         ),
     )
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import imaplib
+import logging
 import re
 import socket
 import ssl
@@ -18,6 +19,7 @@ from app.providers.base import ProviderCapabilities, ProviderEmailMessage, Provi
 
 
 ClientFactory = Callable[[str, int], Any]
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -28,6 +30,8 @@ class ImapMailboxConfig:
     folder: str = "INBOX"
     use_ssl: bool = True
     uidvalidity: str | None = None
+    account_email: str | None = None
+    mailbox_id: str | None = None
 
 
 class ImapProvider:
@@ -62,12 +66,14 @@ class ImapProvider:
         return refresh_token
 
     def check_connection(self, password: str) -> None:
+        logger.info("IMAP connection check start %s", _log_mailbox_context(self._config))
         client = self._connect()
         try:
             self._login(client, password)
             self._select_folder(client)
         finally:
             _close_client(client)
+        logger.info("IMAP connection check completed %s", _log_mailbox_context(self._config))
 
     def list_messages_for_window(
         self,
@@ -76,26 +82,74 @@ class ImapProvider:
         window_start: datetime,
         window_end: datetime,
     ) -> list[ProviderEmailMessage]:
+        logger.info(
+            "IMAP sync start %s window_start=%s window_end=%s",
+            _log_mailbox_context(self._config),
+            window_start.isoformat(),
+            window_end.isoformat(),
+        )
         client = self._connect()
         try:
             self._login(client, access_token)
             uidvalidity = self._select_folder(client)
             message_uids = self._search_message_uids(client, window_start, window_end)
+            logger.info(
+                "IMAP search completed %s uid_count=%s uidvalidity=%s",
+                _log_mailbox_context(self._config),
+                len(message_uids),
+                uidvalidity,
+            )
             messages: list[ProviderEmailMessage] = []
             for uid in message_uids:
-                fetched = self._fetch_message(client, uid)
-                if fetched is None:
-                    continue
-                raw_message, flags = fetched
-                messages.append(
-                    _parse_imap_message(
-                        raw_message,
-                        flags=flags,
-                        folder=self._config.folder,
-                        uidvalidity=uidvalidity,
-                        uid=uid,
+                logger.info("IMAP fetch start %s uid=%s", _log_mailbox_context(self._config), uid)
+                try:
+                    fetched = self._fetch_message(client, uid)
+                    if fetched is None:
+                        logger.info(
+                            "IMAP fetch skipped %s uid=%s reason=no_message_payload",
+                            _log_mailbox_context(self._config),
+                            uid,
+                        )
+                        continue
+                    raw_message, flags = fetched
+                    messages.append(
+                        _parse_imap_message(
+                            raw_message,
+                            flags=flags,
+                            folder=self._config.folder,
+                            uidvalidity=uidvalidity,
+                            uid=uid,
+                        )
                     )
-                )
+                    logger.info(
+                        "IMAP fetch completed %s uid=%s flags=%s",
+                        _log_mailbox_context(self._config),
+                        uid,
+                        ",".join(flags) if flags else "-",
+                    )
+                except ProviderError as exc:
+                    logger.warning(
+                        "IMAP fetch failed; skipping message %s uid=%s code=%s message=%s",
+                        _log_mailbox_context(self._config),
+                        uid,
+                        exc.code,
+                        exc.message,
+                    )
+                    continue
+                except Exception as exc:
+                    logger.warning(
+                        "IMAP parse failed; skipping message %s uid=%s error=%s",
+                        _log_mailbox_context(self._config),
+                        uid,
+                        exc,
+                    )
+                    continue
+            logger.info(
+                "IMAP sync completed %s message_count=%s uidvalidity=%s",
+                _log_mailbox_context(self._config),
+                len(messages),
+                uidvalidity,
+            )
             return messages
         finally:
             _close_client(client)
@@ -125,6 +179,7 @@ class ImapProvider:
         if factory is None:
             factory = imaplib.IMAP4_SSL if config.use_ssl else imaplib.IMAP4
         try:
+            logger.info("IMAP connect start %s", _log_mailbox_context(config))
             return factory(config.host, config.port)
         except socket.timeout as exc:
             raise ProviderError("network_timeout", "IMAP connection timed out.", 504) from exc
@@ -132,9 +187,12 @@ class ImapProvider:
             raise ProviderError("network_tls", "IMAP TLS connection failed.", 502) from exc
         except OSError as exc:
             raise ProviderError("imap_connection_failed", "IMAP connection failed.", 502) from exc
+        finally:
+            logger.info("IMAP connect finished %s", _log_mailbox_context(config))
 
     def _login(self, client: Any, password: str) -> None:
         try:
+            logger.info("IMAP login start %s", _log_mailbox_context(self._config))
             status, _ = client.login(self._config.username, password)
         except imaplib.IMAP4.error as exc:
             raise ProviderError("MAILBOX_REAUTH_REQUIRED", "IMAP authentication failed.", 401) from exc
@@ -142,15 +200,23 @@ class ImapProvider:
             raise ProviderError("network_timeout", "IMAP login timed out.", 504) from exc
         if _status_failed(status):
             raise ProviderError("MAILBOX_REAUTH_REQUIRED", "IMAP authentication failed.", 401)
+        logger.info("IMAP login succeeded %s", _log_mailbox_context(self._config))
 
     def _select_folder(self, client: Any) -> str:
         try:
+            logger.info("IMAP folder select start %s", _log_mailbox_context(self._config))
             status, _ = client.select(self._config.folder, readonly=True)
         except imaplib.IMAP4.error as exc:
             raise ProviderError("imap_folder_unavailable", "IMAP folder is unavailable.", 400) from exc
         if _status_failed(status):
             raise ProviderError("imap_folder_unavailable", "IMAP folder is unavailable.", 400)
-        return self._config.uidvalidity or _uidvalidity_from_client(client) or "unknown"
+        uidvalidity = self._config.uidvalidity or _uidvalidity_from_client(client) or "unknown"
+        logger.info(
+            "IMAP folder selected %s uidvalidity=%s",
+            _log_mailbox_context(self._config),
+            uidvalidity,
+        )
+        return uidvalidity
 
     def _search_message_uids(
         self,
@@ -161,6 +227,12 @@ class ImapProvider:
         since = _imap_date(window_start)
         before = _imap_date(window_end + timedelta(days=1))
         try:
+            logger.info(
+                'IMAP search start %s since="%s" before="%s"',
+                _log_mailbox_context(self._config),
+                since,
+                before,
+            )
             status, data = client.uid("SEARCH", None, f'(SINCE "{since}" BEFORE "{before}")')
         except socket.timeout as exc:
             raise ProviderError("network_timeout", "IMAP search timed out.", 504) from exc
@@ -176,6 +248,8 @@ class ImapProvider:
     def _fetch_message(self, client: Any, uid: str) -> tuple[bytes, list[str]] | None:
         try:
             status, data = client.uid("FETCH", uid, "(RFC822 FLAGS)")
+        except imaplib.IMAP4.error as exc:
+            raise ProviderError("imap_fetch_failed", "IMAP message fetch failed.", 502) from exc
         except socket.timeout as exc:
             raise ProviderError("network_timeout", "IMAP fetch timed out.", 504) from exc
         if _status_failed(status):
@@ -320,3 +394,18 @@ def _close_client(client: Any) -> None:
         client.logout()
     except Exception:
         pass
+
+
+def _log_mailbox_context(config: ImapMailboxConfig) -> str:
+    context = [
+        f"host={config.host}",
+        f"port={config.port}",
+        f"username={config.username}",
+        f"folder={config.folder}",
+        f"ssl={config.use_ssl}",
+    ]
+    if config.account_email:
+        context.append(f"account_email={config.account_email}")
+    if config.mailbox_id:
+        context.append(f"mailbox_id={config.mailbox_id}")
+    return " ".join(context)

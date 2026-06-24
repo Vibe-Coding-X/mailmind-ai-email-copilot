@@ -286,6 +286,57 @@ def test_trigger_async_mailbox_sync_creates_queued_job(monkeypatch) -> None:
         assert stored.celery_task_id == f"celery-job-async-{stored.id}"
 
 
+def test_trigger_async_mailbox_sync_dispatches_after_job_commit(monkeypatch) -> None:
+    client, user_id = _register_client("mailbox-async-sync-commit-order")
+    mailbox_id = _create_connected_mailbox(user_id)
+    checked: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        with SessionLocal() as verify_db:
+            stored = verify_db.get(SyncJob, job_id)
+            assert stored is not None
+            assert stored.status == "pending_dispatch"
+        checked.append(job_id)
+        return f"celery-job-async-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    response = client.post(f"/api/mailboxes/{mailbox_id}/sync-jobs")
+
+    assert response.status_code == 200
+    job = response.json()["data"]["job"]
+    assert checked == [UUID(job["job_id"])]
+
+
+def test_trigger_async_mailbox_sync_marks_dispatch_failure(monkeypatch) -> None:
+    client, user_id = _register_client("mailbox-async-sync-dispatch-failure")
+    mailbox_id = _create_connected_mailbox(user_id)
+
+    def fake_dispatch(job_id: UUID) -> str:
+        raise RuntimeError("broker unavailable")
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.dispatch_email_sync_job",
+        fake_dispatch,
+    )
+
+    response = client.post(f"/api/mailboxes/{mailbox_id}/sync-jobs")
+
+    assert response.status_code == 200
+    job = response.json()["data"]["job"]
+    assert job["status"] == "dispatch_failed"
+    assert job["celery_task_id"] is None
+
+    with SessionLocal() as db:
+        stored = db.get(SyncJob, job["job_id"])
+        assert stored is not None
+        assert stored.status == "dispatch_failed"
+        assert stored.error_code == "celery_dispatch_failed"
+
+
 def test_trigger_async_mailbox_sync_reuses_active_job(monkeypatch) -> None:
     client, user_id = _register_client("mailbox-async-sync-reuse")
     mailbox_id = _create_connected_mailbox(user_id)
@@ -393,6 +444,47 @@ def test_sync_status_returns_latest_sync_job(monkeypatch) -> None:
     assert body["last_job"]["id"] == job_id
     assert body["last_job"]["job_type"] == "sync_today_emails"
     assert body["last_job"]["status"] == "completed"
+
+
+def test_sync_status_recovers_stale_queued_job() -> None:
+    client, user_id = _register_client("mailbox-sync-status-stale")
+    mailbox_id = _create_connected_mailbox(user_id)
+    stale_created_at = datetime.now(UTC) - timedelta(minutes=10)
+
+    with SessionLocal() as db:
+        stale_job = SyncJob(
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            job_type="sync_today_emails",
+            trigger_source="manual",
+            target_date=stale_created_at.date(),
+            status="queued",
+            celery_task_id=f"lost-task-{uuid4()}",
+            created_at=stale_created_at,
+            payload_json={},
+        )
+        db.add(stale_job)
+        db.commit()
+        stale_job_id = stale_job.id
+
+    response = client.get(f"/api/mailboxes/{mailbox_id}/sync-status")
+
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["mailbox_id"] == str(mailbox_id)
+    assert body["status"] == "failed"
+    assert body["last_job"]["id"] == str(stale_job_id)
+    assert body["last_job"]["status"] == "failed"
+    assert (
+        body["last_job"]["error_message"]
+        == "Previous sync job did not complete and was replaced."
+    )
+
+    with SessionLocal() as db:
+        recovered = db.get(SyncJob, stale_job_id)
+        assert recovered is not None
+        assert recovered.status == "failed"
+        assert recovered.error_code == "stale_sync_job"
 
 
 def test_trigger_mailbox_sync_blocks_other_users_mailbox() -> None:

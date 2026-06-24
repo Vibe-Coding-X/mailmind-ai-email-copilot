@@ -24,6 +24,7 @@ from app.providers.registry import (
     get_mailbox_provider as registry_get_mailbox_provider,
 )
 from app.services.credential_encryption_service import CredentialEncryptionService
+from app.services.job_dispatch_service import dispatch_pending_job
 from app.utils.redaction import safe_error_message
 
 
@@ -52,7 +53,7 @@ class QueuedSyncJobResult:
     job_id: UUID
 
 
-ACTIVE_SYNC_STATUSES = {"queued", "running"}
+ACTIVE_SYNC_STATUSES = {"pending_dispatch", "queued", "running"}
 MAILBOX_SYNC_LOCK_TTL_SECONDS = 20 * 60
 STALE_QUEUED_SYNC_JOB_SECONDS = 5 * 60
 STALE_RUNNING_SYNC_JOB_SECONDS = MAILBOX_SYNC_LOCK_TTL_SECONDS
@@ -171,16 +172,29 @@ def enqueue_sync_today_job(
         trigger_source=trigger_source,
         job_key=job_key,
         target_date=_target_date(user, resolved_now),
-        status="queued",
+        status="pending_dispatch",
         payload_json={},
         created_at=resolved_now,
     )
     db.add(job)
     db.flush()
     if dispatch:
-        job.celery_task_id = dispatch_email_sync_job(job.id)
-        db.flush()
-    return QueuedSyncJobResult(mailbox_id=mailbox.id, status="queued", job_id=job.id)
+        dispatch_result = dispatch_pending_job(
+            db,
+            job_id=job.id,
+            dispatcher=dispatch_email_sync_job,
+            now=resolved_now,
+        )
+        return QueuedSyncJobResult(
+            mailbox_id=mailbox.id,
+            status=dispatch_result.status,
+            job_id=job.id,
+        )
+    return QueuedSyncJobResult(
+        mailbox_id=mailbox.id,
+        status="pending_dispatch",
+        job_id=job.id,
+    )
 
 
 def execute_queued_sync_job(
@@ -205,7 +219,7 @@ def execute_queued_sync_job(
             job_id=job.id,
             mailbox_id=job.mailbox_id,
             error_code="stale_or_completed_sync_task",
-            message="Sync task ignored because the database job is no longer queued.",
+            message="Sync task ignored because the database job is no longer dispatchable.",
         )
     if job.mailbox_id is None:
         raise EmailSyncError("INVALID_REQUEST", "Sync job is missing mailbox.")
@@ -282,6 +296,27 @@ def find_active_email_sync_job(
         .order_by(SyncJob.created_at.asc(), SyncJob.id.asc())
         .limit(1)
     )
+
+
+def recover_stale_email_sync_job(
+    db: Session,
+    *,
+    job: SyncJob | None,
+    now: datetime | None = None,
+) -> SyncJob | None:
+    if job is None:
+        return None
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    if not is_stale_email_sync_job(job, now=resolved_now):
+        return job
+    _fail_job(
+        db,
+        job=job,
+        code="stale_sync_job",
+        message="Previous sync job did not complete and was replaced.",
+        now=resolved_now,
+    )
+    return job
 
 
 def is_stale_email_sync_job(job: SyncJob, *, now: datetime) -> bool:
@@ -541,6 +576,8 @@ def _configure_mailbox_provider(
                 if config_json.get("uidvalidity") is not None
                 else None
             ),
+            account_email=mailbox.email_address,
+            mailbox_id=str(mailbox.id),
         )
     except (TypeError, ValueError) as exc:
         raise EmailSyncError(

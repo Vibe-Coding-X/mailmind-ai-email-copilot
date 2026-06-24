@@ -32,6 +32,7 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
         "task_always_eager": resolved_settings.background_jobs_eager,
         "task_eager_propagates": resolved_settings.background_jobs_eager,
         "broker_connection_retry_on_startup": True,
+        "worker_prefetch_multiplier": 1,
     }
     if worker_pool is not None:
         config["worker_pool"] = worker_pool

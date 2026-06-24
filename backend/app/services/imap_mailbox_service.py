@@ -40,6 +40,7 @@ def connect_imap_mailbox(
         raise ImapMailboxError("INVALID_REQUEST", "IMAP account email is required.")
     if not password:
         raise ImapMailboxError("INVALID_REQUEST", "IMAP password is required.")
+    config.account_email = normalized_email
 
     try:
         ImapProvider(config=config).check_connection(password)

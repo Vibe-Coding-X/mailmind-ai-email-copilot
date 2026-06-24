@@ -90,6 +90,8 @@ def get_sync_status(
         .where(SyncJob.mailbox_id == mailbox.id, SyncJob.user_id == current_user.id)
         .order_by(SyncJob.created_at.desc())
     )
+    last_job = email_sync_service.recover_stale_email_sync_job(db, job=last_job)
+    db.commit()
     return {
         "data": {
             "mailbox_id": str(mailbox.id),
@@ -144,12 +146,12 @@ def trigger_async_sync(
             db,
             user_id=current_user.id,
             mailbox_id=mailbox.id,
+            dispatch=True,
         )
     except EmailSyncError as exc:
         raise HTTPException(
             status_code=exc.status_code,
             detail=error_response(exc.code, exc.message, retryable=False)["error"],
         ) from exc
-
     job = db.get(SyncJob, result.job_id)
     return {"data": {"job": job_payload(job)}, "meta": {}}

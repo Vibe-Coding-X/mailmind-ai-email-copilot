@@ -15,10 +15,12 @@ PUBLIC_JOB_TYPE_BY_INTERNAL = {
     "check_new_emails_after_digest": "scheduled_email_sync",
 }
 PUBLIC_STATUS_BY_INTERNAL = {
+    "pending_dispatch": "pending_dispatch",
     "queued": "queued",
     "running": "running",
     "succeeded": "completed",
     "failed": "failed",
+    "dispatch_failed": "dispatch_failed",
     "cancelled": "cancelled",
 }
 
@@ -34,6 +36,9 @@ def job_payload(job: SyncJob) -> dict[str, Any]:
         "created_at": job.created_at,
         "started_at": job.started_at,
         "finished_at": job.finished_at,
+        "mailbox_id": job.mailbox_id,
+        "digest_id": job.digest_id,
+        "celery_task_id": job.celery_task_id,
         "error_code": job.error_code,
         "error_message": safe_error_message(job.error_message, max_length=500),
         "retry_count": job.retry_count,
@@ -59,6 +64,8 @@ def public_job_status(status: str) -> str:
 
 
 def _progress_for_status(status: str) -> int:
+    if status == "pending_dispatch":
+        return 0
     if status == "queued":
         return 0
     if status == "running":

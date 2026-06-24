@@ -6,9 +6,10 @@ from uuid import uuid4
 from app.db.models.mailbox import Mailbox
 from app.db.models.sync_job import SyncJob
 from app.db.session import SessionLocal
-from app.jobs.tasks import health_check, run_email_sync_job
+from app.jobs.tasks import health_check, run_digest_job, run_email_sync_job
 from app.services.auth_service import register_user
 from app.services.email_sync_service import EmailSyncError
+from app.services.digest_service import DigestServiceError
 
 
 def test_celery_app_uses_eager_mode_for_tests() -> None:
@@ -32,6 +33,7 @@ def test_windows_worker_pool_defaults_to_solo(monkeypatch) -> None:
 
     assert default_worker_pool() == "solo"
     assert celery_app.conf.worker_pool == "solo"
+    assert celery_app.conf.worker_prefetch_multiplier == 1
 
 
 def test_health_check_task_runs_in_eager_mode() -> None:
@@ -88,7 +90,7 @@ def test_email_sync_task_returns_serializable_ignored_result_for_stale_job() -> 
         "status": "ignored",
         "synced_count": 0,
         "error_code": "stale_or_completed_sync_task",
-        "message": "Sync task ignored because the database job is no longer queued.",
+        "message": "Sync task ignored because the database job is no longer dispatchable.",
     }
 
 
@@ -127,4 +129,69 @@ def test_email_sync_task_catches_non_retryable_sync_error(monkeypatch) -> None:
         "synced_count": 0,
         "error_code": "INVALID_REQUEST",
         "message": "Sync job not found.",
+    }
+
+
+def test_email_sync_task_serializes_retryable_sync_error_without_retrying(
+    monkeypatch,
+) -> None:
+    job_id = uuid4()
+
+    def fake_execute(*args, **kwargs):
+        raise EmailSyncError("PROVIDER_SYNC_FAILED", "Gmail request failed.", 502)
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.execute_queued_sync_job",
+        fake_execute,
+    )
+
+    result = run_email_sync_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "mailbox_id": None,
+        "status": "failed",
+        "synced_count": 0,
+        "error_code": "PROVIDER_SYNC_FAILED",
+        "message": "Gmail request failed.",
+    }
+
+
+def test_digest_task_returns_serializable_result_for_orphaned_job() -> None:
+    job_id = uuid4()
+
+    result = run_digest_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "digest_id": None,
+        "mailbox_id": None,
+        "status": "ignored",
+        "mail_count": 0,
+        "error_code": "orphaned_digest_task",
+        "message": "Digest task ignored because the database job no longer exists.",
+    }
+
+
+def test_digest_task_catches_non_retryable_digest_error(monkeypatch) -> None:
+    job_id = uuid4()
+
+    def fake_execute(*args, **kwargs):
+        raise DigestServiceError("INVALID_REQUEST", "Digest job not found.", 404)
+
+    monkeypatch.setattr(
+        "app.services.digest_service.execute_queued_digest_job",
+        fake_execute,
+    )
+
+    result = run_digest_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "digest_id": None,
+        "mailbox_id": None,
+        "status": "failed",
+        "mail_count": 0,
+        "error_code": "INVALID_REQUEST",
+        "message": "Digest job not found.",
     }

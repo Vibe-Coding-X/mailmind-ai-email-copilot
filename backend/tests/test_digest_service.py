@@ -76,6 +76,47 @@ def _create_user_mailbox_and_email(
         return user.id, mailbox.id, email.id
 
 
+def _create_additional_active_mailbox_email(
+    *,
+    user_id: UUID,
+    provider: str,
+    prefix: str,
+    received_at: datetime = datetime(2026, 6, 19, 2, 30, tzinfo=UTC),
+) -> tuple[UUID, UUID]:
+    with SessionLocal() as db:
+        mailbox = Mailbox(
+            user_id=user_id,
+            provider=provider,
+            provider_account_id=f"{prefix}-{uuid4().hex}",
+            email_address=_email(f"{prefix}-mailbox"),
+            permission_mode="write_enabled",
+            granted_scopes=[],
+            status="active",
+        )
+        db.add(mailbox)
+        db.flush()
+        email = Email(
+            user_id=user_id,
+            mailbox_id=mailbox.id,
+            provider=provider,
+            external_id=f"{prefix}-email-1",
+            external_thread_id=f"{prefix}-thread-1",
+            subject=f"{provider.upper()} item",
+            from_address="sender@example.com",
+            to_addresses=["me@example.com"],
+            cc_addresses=[],
+            snippet="Follow up needed.",
+            body_text="Please include this mailbox in the digest.",
+            body_text_truncated=False,
+            received_at=received_at,
+            is_read=False,
+            provider_labels=["INBOX"],
+        )
+        db.add(email)
+        db.commit()
+        return mailbox.id, email.id
+
+
 class StaticProvider(LLMProvider):
     provider_id = "mock"
     provider_type = "mock"
@@ -196,6 +237,7 @@ def test_generate_today_digest_creates_digest_items_ai_run_and_sync_job() -> Non
         digest = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=StaticProvider("digest-service-gmail-1"),
             now=now,
         )
@@ -230,13 +272,14 @@ def test_generate_today_digest_creates_digest_items_ai_run_and_sync_job() -> Non
 
 
 def test_generate_today_digest_uses_only_current_users_emails() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-owned")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-owned")
     _create_user_mailbox_and_email(prefix="digest-other")
 
     with SessionLocal() as db:
         digest = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=StaticProvider("digest-owned-gmail-1"),
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
@@ -249,6 +292,48 @@ def test_generate_today_digest_uses_only_current_users_emails() -> None:
         assert item.user_id == user_id
 
 
+def test_generate_today_digest_supports_selected_imap_mailbox_scope() -> None:
+    user_id, mailbox_id, gmail_email_id = _create_user_mailbox_and_email(prefix="digest-multi-mailbox")
+    imap_mailbox_id, imap_email_id = _create_additional_active_mailbox_email(
+        user_id=user_id,
+        provider="imap",
+        prefix="digest-multi-imap",
+    )
+    output = json.dumps(
+        {
+            "overview": {"mail_count": 1, "summary": "The selected IMAP mailbox contributed one email."},
+            "items": [
+                {
+                    "email_id": "digest-multi-imap-email-1",
+                    "summary": "IMAP email.",
+                },
+            ],
+        }
+    )
+
+    with SessionLocal() as db:
+        digest = generate_today_digest(
+            db,
+            user_id=user_id,
+            mailbox_id=imap_mailbox_id,
+            llm_provider=RawOutputProvider(output),
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+        digest_id = digest.id
+
+    with SessionLocal() as db:
+        stored = db.get(DailyDigest, digest_id)
+        items = db.scalars(
+            select(DigestItem).where(DigestItem.digest_id == digest_id).order_by(DigestItem.id.asc())
+        ).all()
+        assert stored is not None
+        assert stored.mailbox_id == imap_mailbox_id
+        assert stored.mail_count == 1
+        assert {item.email_id for item in items} == {imap_email_id}
+        assert gmail_email_id not in {item.email_id for item in items}
+
+
 def test_refresh_today_digest_replaces_current_version_only_after_success() -> None:
     user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-refresh")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
@@ -257,6 +342,7 @@ def test_refresh_today_digest_replaces_current_version_only_after_success() -> N
         first = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=StaticProvider("digest-refresh-gmail-1"),
             now=now,
         )
@@ -267,6 +353,7 @@ def test_refresh_today_digest_replaces_current_version_only_after_success() -> N
         second = refresh_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=StaticProvider("digest-refresh-gmail-1"),
             now=now,
         )
@@ -276,7 +363,7 @@ def test_refresh_today_digest_replaces_current_version_only_after_success() -> N
     with SessionLocal() as db:
         first = db.get(DailyDigest, first_id)
         second = db.get(DailyDigest, second_id)
-        current = get_today_digest(db, user_id=user_id, now=now)
+        current = get_today_digest(db, user_id=user_id, mailbox_id=mailbox_id, now=now)
         assert first is not None
         assert second is not None
         assert first.mailbox_id == mailbox_id
@@ -287,13 +374,14 @@ def test_refresh_today_digest_replaces_current_version_only_after_success() -> N
 
 
 def test_failed_refresh_preserves_previous_current_digest() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-failure")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-failure")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
 
     with SessionLocal() as db:
         first = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=StaticProvider("digest-failure-gmail-1"),
             now=now,
         )
@@ -305,13 +393,14 @@ def test_failed_refresh_preserves_previous_current_digest() -> None:
             refresh_today_digest(
                 db,
                 user_id=user_id,
+                mailbox_id=mailbox_id,
                 llm_provider=FailingProvider(),
                 now=now,
             )
         db.commit()
 
     with SessionLocal() as db:
-        current = get_today_digest(db, user_id=user_id, now=now)
+        current = get_today_digest(db, user_id=user_id, mailbox_id=mailbox_id, now=now)
         failed = db.scalar(
             select(DailyDigest)
             .where(DailyDigest.user_id == user_id, DailyDigest.status == "failed")
@@ -323,13 +412,14 @@ def test_failed_refresh_preserves_previous_current_digest() -> None:
 
 
 def test_failed_refresh_from_invalid_ai_output_preserves_previous_current_digest() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-invalid-output")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-invalid-output")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
 
     with SessionLocal() as db:
         first = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=StaticProvider("digest-invalid-output-gmail-1"),
             now=now,
         )
@@ -341,13 +431,14 @@ def test_failed_refresh_from_invalid_ai_output_preserves_previous_current_digest
             refresh_today_digest(
                 db,
                 user_id=user_id,
+                mailbox_id=mailbox_id,
                 llm_provider=InvalidOutputProvider(),
                 now=now,
             )
         db.commit()
 
     with SessionLocal() as db:
-        current = get_today_digest(db, user_id=user_id, now=now)
+        current = get_today_digest(db, user_id=user_id, mailbox_id=mailbox_id, now=now)
         failed = db.scalar(
             select(DailyDigest)
             .where(DailyDigest.user_id == user_id, DailyDigest.status == "failed")
@@ -379,11 +470,13 @@ def test_generate_today_digest_handles_no_emails_with_empty_digest() -> None:
         db.add(mailbox)
         db.commit()
         user_id = user.id
+        mailbox_id = mailbox.id
 
     with SessionLocal() as db:
         digest = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
         db.commit()
@@ -398,7 +491,7 @@ def test_generate_today_digest_handles_no_emails_with_empty_digest() -> None:
 
 
 def test_generate_today_digest_accepts_real_provider_like_alias_output() -> None:
-    user_id, _, email_id = _create_user_mailbox_and_email(prefix="digest-real-like")
+    user_id, mailbox_id, email_id = _create_user_mailbox_and_email(prefix="digest-real-like")
     output = json.dumps(
         {
             "overview": {"mail_count": 1, "summary": "One email needs review."},
@@ -424,6 +517,7 @@ def test_generate_today_digest_accepts_real_provider_like_alias_output() -> None
         digest = generate_today_digest(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             llm_provider=RawOutputProvider(output),
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
@@ -446,13 +540,14 @@ def test_generate_today_digest_accepts_real_provider_like_alias_output() -> None
 
 
 def test_malformed_provider_output_records_safe_diagnostic() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-bad-json")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-bad-json")
 
     with SessionLocal() as db:
         with pytest.raises(DigestServiceError) as exc_info:
             generate_today_digest(
                 db,
                 user_id=user_id,
+                mailbox_id=mailbox_id,
                 llm_provider=RawOutputProvider(
                     "{not json access_token=secret sk-real-looking-secret"
                 ),
@@ -469,7 +564,7 @@ def test_malformed_provider_output_records_safe_diagnostic() -> None:
 
 
 def test_unknown_email_id_records_safe_diagnostic() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-unknown-email")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-unknown-email")
     output = json.dumps(
         {
             "overview": {"mail_count": 1, "summary": "Unknown reference."},
@@ -482,6 +577,7 @@ def test_unknown_email_id_records_safe_diagnostic() -> None:
             generate_today_digest(
                 db,
                 user_id=user_id,
+                mailbox_id=mailbox_id,
                 llm_provider=RawOutputProvider(output),
                 now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
             )
@@ -494,13 +590,14 @@ def test_unknown_email_id_records_safe_diagnostic() -> None:
 
 
 def test_provider_error_records_safe_diagnostic_without_secret() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-provider-error")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-provider-error")
 
     with SessionLocal() as db:
         with pytest.raises(DigestServiceError) as exc_info:
             generate_today_digest(
                 db,
                 user_id=user_id,
+                mailbox_id=mailbox_id,
                 llm_provider=ProviderErrorProvider(),
                 now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
             )
@@ -533,6 +630,7 @@ def test_enqueue_generate_today_digest_job_creates_queued_job_and_dispatches(
         result = enqueue_generate_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
         db.commit()
@@ -553,7 +651,7 @@ def test_enqueue_generate_today_digest_job_creates_queued_job_and_dispatches(
 def test_enqueue_generate_today_digest_job_reuses_existing_active_job(
     monkeypatch,
 ) -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-queue-reuse")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-queue-reuse")
     dispatched: list[UUID] = []
 
     def fake_dispatch(job_id: UUID) -> str:
@@ -569,11 +667,13 @@ def test_enqueue_generate_today_digest_job_reuses_existing_active_job(
         first = enqueue_generate_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
         second = enqueue_generate_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 1, tzinfo=UTC),
         )
         db.commit()
@@ -584,24 +684,30 @@ def test_enqueue_generate_today_digest_job_reuses_existing_active_job(
 
 
 def test_execute_queued_digest_job_generates_digest_and_updates_job() -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-worker")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-worker")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)
 
     with SessionLocal() as db:
         queued = enqueue_generate_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             dispatch=False,
             now=now,
         )
-        digest = execute_queued_digest_job(
+        queued_job = db.get(SyncJob, queued.job_id)
+        assert queued_job is not None
+        queued_job.status = "queued"
+        queued_job.celery_task_id = f"manual-dispatch-{queued.job_id}"
+        db.flush()
+        result = execute_queued_digest_job(
             db,
             job_id=queued.job_id,
             llm_provider=StaticProvider("digest-worker-gmail-1"),
             now=now,
         )
         db.commit()
-        digest_id = digest.id
+        digest_id = result.digest_id
         job_id = queued.job_id
 
     with SessionLocal() as db:
@@ -621,8 +727,48 @@ def test_execute_queued_digest_job_generates_digest_and_updates_job() -> None:
         assert ai_run.status == "succeeded"
 
 
+def test_execute_orphaned_digest_task_is_ignored() -> None:
+    with SessionLocal() as db:
+        ignored = execute_queued_digest_job(db, job_id=uuid4())
+
+    assert ignored.digest_id is None
+    assert ignored.status == "ignored"
+    assert ignored.error_code == "orphaned_digest_task"
+
+
+def test_execute_completed_digest_task_is_ignored() -> None:
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-ignored-completed")
+
+    with SessionLocal() as db:
+        job = SyncJob(
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            job_type="generate_daily_digest",
+            trigger_source="manual",
+            target_date=datetime(2026, 6, 19, tzinfo=UTC).date(),
+            status="failed",
+            error_code="stale_digest_job",
+            error_message="Previous digest job did not complete and was replaced.",
+            created_at=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+            finished_at=datetime(2026, 6, 19, 10, 10, tzinfo=UTC),
+            payload_json={},
+        )
+        db.add(job)
+        db.commit()
+        job_id = job.id
+
+    with SessionLocal() as db:
+        ignored = execute_queued_digest_job(db, job_id=job_id)
+
+    assert ignored.job_id == job_id
+    assert ignored.digest_id is None
+    assert ignored.mailbox_id == mailbox_id
+    assert ignored.status == "ignored"
+    assert ignored.error_code == "stale_or_completed_digest_task"
+
+
 def test_enqueue_refresh_today_digest_job_uses_refresh_job_type(monkeypatch) -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-refresh-queue")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-refresh-queue")
     monkeypatch.setattr(
         "app.services.digest_service.dispatch_digest_job",
         lambda job_id: f"celery-digest-refresh-{job_id}",
@@ -632,6 +778,7 @@ def test_enqueue_refresh_today_digest_job_uses_refresh_job_type(monkeypatch) -> 
         result = enqueue_refresh_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
         db.commit()
@@ -648,7 +795,7 @@ def test_enqueue_refresh_today_digest_job_uses_refresh_job_type(monkeypatch) -> 
 def test_enqueue_refresh_today_digest_job_reuses_existing_active_job(
     monkeypatch,
 ) -> None:
-    user_id, _, _ = _create_user_mailbox_and_email(prefix="digest-refresh-reuse")
+    user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-refresh-reuse")
     dispatched: list[UUID] = []
 
     def fake_dispatch(job_id: UUID) -> str:
@@ -664,11 +811,13 @@ def test_enqueue_refresh_today_digest_job_reuses_existing_active_job(
         first = enqueue_refresh_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
         )
         second = enqueue_refresh_today_digest_job(
             db,
             user_id=user_id,
+            mailbox_id=mailbox_id,
             now=datetime(2026, 6, 19, 10, 1, tzinfo=UTC),
         )
         db.commit()
