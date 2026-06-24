@@ -1,5 +1,6 @@
 import { API_ROUTES } from "./api-routes";
 import {
+  connectImapMailbox,
   disconnectGmail,
   dismissDigestItem,
   generateTodayDigest,
@@ -29,11 +30,14 @@ import {
 import type {
   ApiResult,
   DigestItemActionResponse,
+  DigestScopeRequest,
   DigestResponse,
   EmailMutationResponse,
   EmailResponse,
   TodayEmailsResponse,
   GmailLoginResponse,
+  ImapConnectRequest,
+  ImapConnectResponse,
   JobResponse,
   JobListQuery,
   JobsResponse,
@@ -55,6 +59,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <
 type Assert<T extends true> = T;
 
 type GmailAuthRouteKeys = keyof typeof API_ROUTES.gmailAuth;
+type ImapAuthRouteKeys = keyof typeof API_ROUTES.imapAuth;
 type MailboxRouteKeys = keyof typeof API_ROUTES.mailboxes;
 type DigestRouteKeys = keyof typeof API_ROUTES.digest;
 type JobRouteKeys = keyof typeof API_ROUTES.jobs;
@@ -62,6 +67,9 @@ type ActionsRouteKeys = keyof typeof API_ROUTES.actions;
 
 type GmailRoutesMatchResolvedContract = Assert<
   Equal<GmailAuthRouteKeys, "login" | "disconnect">
+>;
+type ImapRoutesMatchResolvedContract = Assert<
+  Equal<ImapAuthRouteKeys, "connect">
 >;
 type MailboxRoutesMatchResolvedContract = Assert<
   Equal<MailboxRouteKeys, "list" | "byId" | "syncStatus" | "sync" | "syncJobs">
@@ -90,6 +98,7 @@ type ActionsRoutesMatchResolvedContract = Assert<
 const gmailLoginPath: "/api/auth/gmail/login" = API_ROUTES.gmailAuth.login;
 const gmailDisconnectPath: "/api/auth/gmail/disconnect" =
   API_ROUTES.gmailAuth.disconnect;
+const imapConnectPath: "/api/auth/imap/connect" = API_ROUTES.imapAuth.connect;
 const mailboxesPath: "/api/mailboxes" = API_ROUTES.mailboxes.list;
 const mailboxDetailPath: "/api/mailboxes/mailbox-id" =
   API_ROUTES.mailboxes.byId("mailbox-id");
@@ -169,17 +178,41 @@ type StartGmailLoginSignature = Assert<
 type DisconnectGmailSignature = Assert<
   Equal<ReturnType<typeof disconnectGmail>, Promise<ApiResult>>
 >;
+type ConnectImapParameters = Assert<
+  Equal<Parameters<typeof connectImapMailbox>, [payload: ImapConnectRequest]>
+>;
+type ConnectImapSignature = Assert<
+  Equal<ReturnType<typeof connectImapMailbox>, Promise<ImapConnectResponse>>
+>;
+type GetTodayDigestParameters = Assert<
+  Equal<
+    Parameters<typeof getTodayDigest>,
+    [input?: { scope_type?: "all" | "mailbox"; mailbox_id?: string }]
+  >
+>;
 type GetTodayDigestSignature = Assert<
   Equal<ReturnType<typeof getTodayDigest>, Promise<DigestResponse>>
+>;
+type GenerateTodayDigestParameters = Assert<
+  Equal<Parameters<typeof generateTodayDigest>, [payload: DigestScopeRequest]>
 >;
 type GenerateTodayDigestSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigest>, Promise<DigestResponse>>
 >;
+type GenerateTodayDigestJobParameters = Assert<
+  Equal<Parameters<typeof generateTodayDigestJob>, [payload: DigestScopeRequest]>
+>;
 type GenerateTodayDigestJobSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigestJob>, Promise<JobResponse>>
 >;
+type RefreshTodayDigestParameters = Assert<
+  Equal<Parameters<typeof refreshTodayDigest>, [payload: DigestScopeRequest]>
+>;
 type RefreshTodayDigestSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigest>, Promise<DigestResponse>>
+>;
+type RefreshTodayDigestJobParameters = Assert<
+  Equal<Parameters<typeof refreshTodayDigestJob>, [payload: DigestScopeRequest]>
 >;
 type RefreshTodayDigestJobSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigestJob>, Promise<JobResponse>>
@@ -256,6 +289,7 @@ type RetryJobSignature = Assert<
 
 type ContractAssertions = [
   GmailRoutesMatchResolvedContract,
+  ImapRoutesMatchResolvedContract,
   MailboxRoutesMatchResolvedContract,
   DigestRoutesMatchResolvedContract,
   JobRoutesMatchResolvedContract,
@@ -271,10 +305,17 @@ type ContractAssertions = [
   TriggerMailboxSyncJobSignature,
   StartGmailLoginSignature,
   DisconnectGmailSignature,
+  ConnectImapParameters,
+  ConnectImapSignature,
+  GetTodayDigestParameters,
   GetTodayDigestSignature,
+  GenerateTodayDigestParameters,
   GenerateTodayDigestSignature,
+  GenerateTodayDigestJobParameters,
   GenerateTodayDigestJobSignature,
+  RefreshTodayDigestParameters,
   RefreshTodayDigestSignature,
+  RefreshTodayDigestJobParameters,
   RefreshTodayDigestJobSignature,
   GetDigestParameters,
   GetDigestSignature,
@@ -348,11 +389,20 @@ const contractAssertions: ContractAssertions = [
   true,
   true,
   true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
+  true,
 ];
 
 void contractAssertions;
 void gmailLoginPath;
 void gmailDisconnectPath;
+void imapConnectPath;
 void mailboxesPath;
 void mailboxDetailPath;
 void mailboxSyncStatusPath;

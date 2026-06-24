@@ -1,6 +1,8 @@
 # Local Development
 
-This document records the current `v0.4.1-config-sync-containment` local setup including backend config hardening, Celery sync containment, and frontend job trigger hardening. It reflects the implemented repository, not future full-stack deployment plans.
+This document records the current local setup through the v0.5 provider mailbox
+foundation candidate. It reflects the implemented repository, not future
+full-stack deployment plans.
 
 ## Prerequisites
 
@@ -58,7 +60,9 @@ PostgreSQL and Redis are defined in `docker/docker-compose.yml`.
 docker compose -f docker/docker-compose.yml up -d postgres redis
 ```
 
-The current backend uses PostgreSQL. Redis is present for local infrastructure and future background-job/token-cache work.
+The current backend uses PostgreSQL. Redis is used for Celery broker transport,
+Celery results, and mailbox sync locks. PostgreSQL remains the background-job
+fact source.
 
 ## Backend
 
@@ -98,7 +102,11 @@ uv run celery -A app.jobs.celery_app call app.jobs.scheduled_email_sync
 uv run celery -A app.jobs.celery_app call app.jobs.scheduled_digest
 ```
 
-These tasks enqueue due jobs; they do not run Celery Beat or a production scheduler. `app.jobs.scheduled_email_sync` queues at most one scheduled sync per active Gmail mailbox per user-local day. `app.jobs.scheduled_digest` queues at most one scheduled digest per active Gmail mailbox per user-local day after `DIGEST_GENERATE_TIME` when `DIGEST_AUTO_GENERATE=true`.
+These tasks enqueue due jobs; they do not run Celery Beat or a production
+scheduler. `app.jobs.scheduled_email_sync` queues at most one scheduled sync
+per active mailbox per user-local day. `app.jobs.scheduled_digest` queues at
+most one scheduled digest per active mailbox per user-local day after
+`DIGEST_GENERATE_TIME` when `DIGEST_AUTO_GENERATE=true`.
 
 Backend verification:
 
@@ -154,6 +162,19 @@ FRONTEND_BASE_URL=http://localhost:3000
 
 The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public production distribution requires Google OAuth verification and restricted-scope review.
 
+## IMAP Local Testing
+
+IMAP mailboxes can be connected from `/settings/mailboxes` with host, port,
+username, password or app password, folder, and SSL preference. The backend
+validates the IMAP connection and stores only encrypted password plus non-secret
+connection config. Do not place IMAP passwords in tracked files or docs.
+
+## Outlook Local Testing
+
+Outlook is skeleton-only unless all local `OUTLOOK_*` values are configured.
+When checking local configuration, report only `present` or `absent`; never
+print client ids, secrets, redirect URIs, tokens, or authorization headers.
+
 ## v0.1 Runtime Shape
 
 - Backend API runs in-process through FastAPI/Uvicorn.
@@ -164,12 +185,17 @@ The v0.1 Gmail workflow uses `gmail.readonly` and `gmail.modify`. Public product
 ## v0.3 Background Job Foundation
 
 - Celery is available as the local background-job runtime.
-- Redis is the default broker and result backend.
+- Redis is the default broker and result backend. It is not the source of truth
+  for job lifecycle.
 - `app.jobs.celery_app` is the worker entrypoint.
 - `BACKGROUND_JOBS_EAGER=true` runs tasks eagerly for tests and local diagnostics.
 - Scheduled sync and scheduled digest foundation tasks can be invoked manually or by an external local scheduler; Celery Beat is not implemented.
 - Job status is queryable through `GET /api/jobs` and `GET /api/jobs/{job_id}`.
 - Failed jobs can be retried through `POST /api/jobs/{job_id}/retry` (max 3 retries).
+- Async job creation uses `pending_dispatch -> queued` semantics. `queued`
+  means Celery dispatch succeeded and `celery_task_id` was written.
+- Orphaned, stale, failed, completed, cancelled, and dispatch-failed tasks are
+  ignored safely by workers and returned as serializable result dicts.
 
 ## v0.4 Frontend Job Experience
 

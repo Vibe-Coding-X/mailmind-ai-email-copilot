@@ -4,7 +4,7 @@
 
 **Your inbox, distilled into decisions.**
 
-MailMind is a local-first AI email copilot that turns Gmail overload into an actionable Daily Digest.
+MailMind is a local-first AI email copilot that turns multi-mailbox overload into an actionable Daily Digest.
 
 It is not another inbox client. It is an **AI decision layer** for your email.
 
@@ -58,8 +58,18 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 - Email list with search, read-state filters, date filters, and pagination
 - Email detail with read/unread writeback to Gmail
 
+**Provider Mailbox Foundation (v0.5 candidate)**
+- Provider-aware mailbox contract with `gmail`, `imap`, and `outlook` keys
+- Mailbox capabilities returned by mailbox list/detail APIs
+- Gmail migrated behind the `MailboxProvider` abstraction
+- IMAP Provider MVP with encrypted password storage, mocked provider tests, and real connect API
+- Outlook provider skeleton and contract; no fake Outlook connect UI
+- Mailbox provider badges and mailbox filter on `/emails`
+
 **Daily Digest & AI**
 - Digest generation and refresh (synchronous + async job endpoints)
+- Digest scope selector with `All Mailboxes` and single-mailbox views
+- All-mailboxes digest with priority queue plus grouped mailbox summaries
 - Mock AI provider for local development (no paid API calls needed)
 - OpenAI-compatible provider chain via environment configuration
 - `ai_runs` audit trail for provider/model metadata and output traceability
@@ -96,14 +106,13 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 - 4 themes: Amber Focus, Noir Pulse, Paper Calm, Dense Minimal
 - i18n foundation with English and Chinese language resources
 - Avatar account menu with sign-out
-- Digest dashboard with generate/refresh controls
+- Digest dashboard with generate/refresh controls and mailbox scope selector
 - Action history page with filters and pagination
 - Mailbox settings with Gmail connection, disconnect, and sync
 
 ### 🧭 Planned
 
-- Multi-mailbox support with aggregate digest
-- Outlook and IMAP provider implementations
+- Full Outlook OAuth provider implementation
 - In-app AI provider settings UI
 - Celery Beat for automated scheduling
 - Production deployment and Google OAuth verification
@@ -171,7 +180,7 @@ MailMind's AI layer is designed for traceability, not just output.
 | Database | PostgreSQL 15 |
 | Cache / Broker | Redis |
 | AI | Mock provider + OpenAI-compatible provider chain |
-| Email | Gmail API via provider adapter |
+| Email | Gmail API + IMAP via provider adapters |
 | Infra | Docker Compose, `uv` (Python), npm |
 
 ---
@@ -206,7 +215,7 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ```bash
 cd backend
-uv run celery -A app.jobs.worker:app worker --loglevel=info --pool=solo
+uv run celery -A app.jobs.celery_app worker --loglevel=info --pool=solo
 ```
 
 ### 5. Start frontend

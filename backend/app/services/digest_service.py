@@ -26,6 +26,7 @@ from app.services.ai_run_service import (
     mark_ai_run_failed,
     mark_ai_run_succeeded,
 )
+from app.services.job_dispatch_service import dispatch_pending_job
 from app.utils.redaction import safe_error_message
 
 
@@ -53,31 +54,59 @@ class DigestWindow:
 
 
 @dataclass(slots=True)
+class DigestScope:
+    scope_type: str
+    mailbox_id: UUID | None
+    mailboxes: list[Mailbox]
+
+
+@dataclass(slots=True)
 class QueuedDigestJobResult:
     job_id: UUID
     status: str
 
 
-ACTIVE_DIGEST_JOB_STATUSES = {"queued", "running"}
+@dataclass(slots=True)
+class DigestExecutionResult:
+    job_id: UUID
+    digest_id: UUID | None
+    mailbox_id: UUID | None
+    status: str
+    mail_count: int
+    error_code: str | None = None
+    message: str | None = None
+
+
+ACTIVE_DIGEST_JOB_STATUSES = {"pending_dispatch", "queued", "running"}
 
 
 def get_today_digest(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None = None,
+    mailbox_id: UUID | str | None = None,
     now: datetime | None = None,
 ) -> DailyDigest:
     user = _get_user(db, user_id)
-    mailbox = _get_active_mailbox(db, user_id=user.id)
-    window = calculate_digest_window(user.timezone, now=now or datetime.now(UTC))
-    digest = db.scalar(
-        select(DailyDigest).where(
-            DailyDigest.user_id == user.id,
-            DailyDigest.mailbox_id == mailbox.id,
-            DailyDigest.digest_date == window.digest_date,
-            DailyDigest.is_current.is_(True),
-        )
+    scope = _resolve_digest_scope(
+        db,
+        user_id=user.id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
     )
+    window = calculate_digest_window(user.timezone, now=now or datetime.now(UTC))
+    query = select(DailyDigest).where(
+        DailyDigest.user_id == user.id,
+        DailyDigest.scope_type == scope.scope_type,
+        DailyDigest.digest_date == window.digest_date,
+        DailyDigest.is_current.is_(True),
+    )
+    if scope.mailbox_id is None:
+        query = query.where(DailyDigest.mailbox_id.is_(None))
+    else:
+        query = query.where(DailyDigest.mailbox_id == scope.mailbox_id)
+    digest = db.scalar(query)
     if digest is None:
         raise DigestServiceError(
             "DIGEST_NOT_READY",
@@ -114,12 +143,16 @@ def generate_today_digest(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None = None,
+    mailbox_id: UUID | str | None = None,
     llm_provider: LLMProvider | None = None,
     now: datetime | None = None,
 ) -> DailyDigest:
     return _generate_digest(
         db,
         user_id=user_id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
         trigger_source="manual",
         job_type="generate_daily_digest",
         llm_provider=llm_provider,
@@ -131,12 +164,16 @@ def refresh_today_digest(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None = None,
+    mailbox_id: UUID | str | None = None,
     llm_provider: LLMProvider | None = None,
     now: datetime | None = None,
 ) -> DailyDigest:
     return _generate_digest(
         db,
         user_id=user_id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
         trigger_source="refresh",
         job_type="refresh_daily_digest",
         llm_provider=llm_provider,
@@ -148,12 +185,16 @@ def enqueue_generate_today_digest_job(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None = None,
+    mailbox_id: UUID | str | None = None,
     dispatch: bool = True,
     now: datetime | None = None,
 ) -> QueuedDigestJobResult:
     return _enqueue_digest_job(
         db,
         user_id=user_id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
         job_type="generate_daily_digest",
         trigger_source="manual",
         dispatch=dispatch,
@@ -165,12 +206,16 @@ def enqueue_refresh_today_digest_job(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None = None,
+    mailbox_id: UUID | str | None = None,
     dispatch: bool = True,
     now: datetime | None = None,
 ) -> QueuedDigestJobResult:
     return _enqueue_digest_job(
         db,
         user_id=user_id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
         job_type="refresh_daily_digest",
         trigger_source="refresh",
         dispatch=dispatch,
@@ -184,38 +229,49 @@ def execute_queued_digest_job(
     job_id: UUID | str,
     llm_provider: LLMProvider | None = None,
     now: datetime | None = None,
-) -> DailyDigest:
+) -> DigestExecutionResult:
     resolved_now = _ensure_utc(now or datetime.now(UTC))
-    job = db.get(SyncJob, _as_uuid(job_id))
+    resolved_job_id = _as_uuid(job_id)
+    job = db.get(SyncJob, resolved_job_id)
     if job is None:
-        raise DigestServiceError("INVALID_REQUEST", "Digest job not found.", 404)
+        return DigestExecutionResult(
+            job_id=resolved_job_id,
+            digest_id=None,
+            mailbox_id=None,
+            status="ignored",
+            mail_count=0,
+            error_code="orphaned_digest_task",
+            message="Digest task ignored because the database job no longer exists.",
+        )
     if job.status != "queued":
-        raise DigestServiceError("INVALID_REQUEST", "Digest job is not queued.")
+        return DigestExecutionResult(
+            job_id=job.id,
+            digest_id=job.digest_id,
+            mailbox_id=job.mailbox_id,
+            status="ignored",
+            mail_count=0,
+            error_code="stale_or_completed_digest_task",
+            message="Digest task ignored because the database job is no longer dispatchable.",
+        )
+    scope_type = _job_scope_type(job)
 
     job.status = "running"
     job.started_at = resolved_now
     db.flush()
     try:
-        if job.job_type == "generate_daily_digest":
-            digest = _generate_digest(
-                db,
-                user_id=job.user_id,
-                trigger_source=job.trigger_source,
-                job_type=job.job_type,
-                llm_provider=llm_provider,
-                now=resolved_now,
-            )
-        elif job.job_type == "refresh_daily_digest":
-            digest = _generate_digest(
-                db,
-                user_id=job.user_id,
-                trigger_source=job.trigger_source,
-                job_type=job.job_type,
-                llm_provider=llm_provider,
-                now=resolved_now,
-            )
-        else:
+        if job.job_type not in {"generate_daily_digest", "refresh_daily_digest"}:
             raise DigestServiceError("INVALID_REQUEST", "Unsupported digest job type.")
+        digest = _generate_digest(
+            db,
+            user_id=job.user_id,
+            scope_type=scope_type,
+            mailbox_id=job.mailbox_id,
+            trigger_source=job.trigger_source,
+            job_type=job.job_type,
+            llm_provider=llm_provider,
+            now=resolved_now,
+            existing_job=job,
+        )
     except DigestServiceError as exc:
         job.status = "failed"
         job.error_code = exc.code
@@ -228,18 +284,13 @@ def execute_queued_digest_job(
         db.scalar(select(func.count(DigestItem.id)).where(DigestItem.digest_id == digest.id))
         or 0
     )
-    job.digest_id = digest.id
-    job.status = "succeeded"
-    job.finished_at = resolved_now
-    job.error_code = None
-    job.error_message = None
-    job.payload_json = {
-        "digest_id": str(digest.id),
-        "item_count": item_count,
-        "mail_count": digest.mail_count,
-    }
-    db.flush()
-    return digest
+    return DigestExecutionResult(
+        job_id=job.id,
+        digest_id=digest.id,
+        mailbox_id=job.mailbox_id,
+        status="completed",
+        mail_count=digest.mail_count,
+    )
 
 
 def dispatch_digest_job(job_id: UUID) -> str:
@@ -265,6 +316,8 @@ def _enqueue_digest_job(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None,
+    mailbox_id: UUID | str | None,
     job_type: str,
     trigger_source: str,
     dispatch: bool,
@@ -272,12 +325,17 @@ def _enqueue_digest_job(
 ) -> QueuedDigestJobResult:
     resolved_now = _ensure_utc(now or datetime.now(UTC))
     user = _get_user(db, user_id)
-    mailbox = _get_active_mailbox(db, user_id=user.id)
+    scope = _resolve_digest_scope(
+        db,
+        user_id=user.id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
+    )
     window = calculate_digest_window(user.timezone, now=resolved_now)
     active_job = _find_active_digest_job(
         db,
         user_id=user.id,
-        mailbox_id=mailbox.id,
+        mailbox_id=scope.mailbox_id,
         job_type=job_type,
         target_date=window.digest_date,
     )
@@ -285,36 +343,45 @@ def _enqueue_digest_job(
         return QueuedDigestJobResult(job_id=active_job.id, status=active_job.status)
     job = SyncJob(
         user_id=user.id,
-        mailbox_id=mailbox.id,
+        mailbox_id=scope.mailbox_id,
         job_type=job_type,
         trigger_source=trigger_source,
-        job_key=None,
+        job_key=_digest_job_key(
+            job_type=job_type,
+            scope_type=scope.scope_type,
+            mailbox_id=scope.mailbox_id,
+            target_date=window.digest_date,
+        ),
         target_date=window.digest_date,
-        status="queued",
-        payload_json={},
+        status="pending_dispatch",
+        payload_json={"scope_type": scope.scope_type},
         created_at=resolved_now,
     )
     db.add(job)
     db.flush()
     if dispatch:
-        job.celery_task_id = dispatch_digest_job(job.id)
-        db.flush()
-    return QueuedDigestJobResult(job_id=job.id, status="queued")
+        dispatch_result = dispatch_pending_job(
+            db,
+            job_id=job.id,
+            dispatcher=dispatch_digest_job,
+            now=resolved_now,
+        )
+        return QueuedDigestJobResult(job_id=job.id, status=dispatch_result.status)
+    return QueuedDigestJobResult(job_id=job.id, status="pending_dispatch")
 
 
 def _find_active_digest_job(
     db: Session,
     *,
     user_id: UUID,
-    mailbox_id: UUID,
+    mailbox_id: UUID | None,
     job_type: str,
     target_date: object,
 ) -> SyncJob | None:
-    return db.scalar(
+    query = (
         select(SyncJob)
         .where(
             SyncJob.user_id == user_id,
-            SyncJob.mailbox_id == mailbox_id,
             SyncJob.job_type == job_type,
             SyncJob.target_date == target_date,
             SyncJob.status.in_(ACTIVE_DIGEST_JOB_STATUSES),
@@ -322,26 +389,46 @@ def _find_active_digest_job(
         .order_by(SyncJob.created_at.asc(), SyncJob.id.asc())
         .limit(1)
     )
+    if mailbox_id is None:
+        query = query.where(SyncJob.mailbox_id.is_(None))
+    else:
+        query = query.where(SyncJob.mailbox_id == mailbox_id)
+    return db.scalar(query)
 
 
 def _generate_digest(
     db: Session,
     *,
     user_id: UUID | str,
+    scope_type: str | None,
+    mailbox_id: UUID | str | None,
     trigger_source: str,
     job_type: str,
     llm_provider: LLMProvider | None,
     now: datetime | None,
+    existing_job: SyncJob | None = None,
 ) -> DailyDigest:
     resolved_now = _ensure_utc(now or datetime.now(UTC))
     user = _get_user(db, user_id)
-    mailbox = _get_active_mailbox(db, user_id=user.id)
+    scope = _resolve_digest_scope(
+        db,
+        user_id=user.id,
+        scope_type=scope_type,
+        mailbox_id=mailbox_id,
+    )
     window = calculate_digest_window(user.timezone, now=resolved_now)
-    version = _next_digest_version(db, mailbox_id=mailbox.id, digest_date=window.digest_date)
+    version = _next_digest_version(
+        db,
+        user_id=user.id,
+        scope_type=scope.scope_type,
+        mailbox_id=scope.mailbox_id,
+        digest_date=window.digest_date,
+    )
 
     digest = DailyDigest(
         user_id=user.id,
-        mailbox_id=mailbox.id,
+        scope_type=scope.scope_type,
+        mailbox_id=scope.mailbox_id,
         digest_date=window.digest_date,
         version=version,
         is_current=False,
@@ -358,23 +445,28 @@ def _generate_digest(
     db.add(digest)
     db.flush()
 
-    job = _create_digest_job(
+    job = existing_job or _create_digest_job(
         db,
         user_id=user.id,
-        mailbox_id=mailbox.id,
+        scope_type=scope.scope_type,
+        mailbox_id=scope.mailbox_id,
         digest_id=digest.id,
         job_type=job_type,
         trigger_source=trigger_source,
         target_date=window.digest_date,
         now=resolved_now,
     )
+    if existing_job is not None:
+        job.digest_id = digest.id
+        job.mailbox_id = scope.mailbox_id
+        job.payload_json = {**(job.payload_json or {}), "scope_type": scope.scope_type}
     ai_run: AIRun | None = None
 
     try:
         emails = _list_digest_emails(
             db,
             user_id=user.id,
-            mailbox_id=mailbox.id,
+            mailbox_ids=[mailbox.id for mailbox in scope.mailboxes],
             window_start=window.start,
             window_end=window.end,
         )
@@ -382,12 +474,14 @@ def _generate_digest(
             emails,
             coverage_start=window.start,
             coverage_end=window.end,
+            scope_type=scope.scope_type,
+            mailboxes=scope.mailboxes,
         )
         provider = llm_provider or get_llm_provider()
         ai_run = create_ai_run(
             db,
             user_id=user.id,
-            mailbox_id=mailbox.id,
+            mailbox_id=scope.mailbox_id,
             digest_id=digest.id,
             trigger_source=trigger_source,
             provider_id=getattr(provider, "provider_id", None),
@@ -411,6 +505,8 @@ def _generate_digest(
         parsed = parse_digest_output(
             response.text,
             {email.external_id: email for email in emails},
+            default_mailbox_id=scope.mailbox_id,
+            allowed_mailboxes={mailbox.id: mailbox for mailbox in scope.mailboxes},
         )
         _create_digest_items(
             db,
@@ -426,7 +522,9 @@ def _generate_digest(
         _switch_current_digest(
             db,
             digest=digest,
-            mailbox_id=mailbox.id,
+            user_id=user.id,
+            scope_type=scope.scope_type,
+            mailbox_id=scope.mailbox_id,
             digest_date=window.digest_date,
             now=resolved_now,
         )
@@ -444,6 +542,7 @@ def _generate_digest(
                 "digest_id": str(digest.id),
                 "item_count": len(parsed.items),
                 "mail_count": digest.mail_count,
+                "scope_type": scope.scope_type,
             },
             now=resolved_now,
         )
@@ -526,12 +625,17 @@ def _get_user(db: Session, user_id: UUID | str) -> User:
     return user
 
 
-def _get_active_mailbox(db: Session, *, user_id: UUID) -> Mailbox:
+def _get_mailbox_scope(
+    db: Session,
+    *,
+    user_id: UUID,
+    mailbox_id: UUID | str,
+) -> Mailbox:
     mailbox = db.scalar(
         select(Mailbox)
         .where(
             Mailbox.user_id == user_id,
-            Mailbox.provider == "gmail",
+            Mailbox.id == _as_uuid(mailbox_id),
             Mailbox.status == "active",
         )
         .order_by(Mailbox.created_at.asc())
@@ -539,19 +643,83 @@ def _get_active_mailbox(db: Session, *, user_id: UUID) -> Mailbox:
     if mailbox is None:
         raise DigestServiceError(
             "MAILBOX_REAUTH_REQUIRED",
-            "Connected Gmail mailbox is required.",
-            401,
+            "An active mailbox selection is required.",
+            404,
         )
     return mailbox
 
 
-def _next_digest_version(db: Session, *, mailbox_id: UUID, digest_date: object) -> int:
-    current_max = db.scalar(
-        select(func.max(DailyDigest.version)).where(
-            DailyDigest.mailbox_id == mailbox_id,
-            DailyDigest.digest_date == digest_date,
-        )
+def _list_active_mailboxes(db: Session, *, user_id: UUID) -> list[Mailbox]:
+    return list(
+        db.scalars(
+            select(Mailbox)
+            .where(
+                Mailbox.user_id == user_id,
+                Mailbox.status == "active",
+            )
+            .order_by(Mailbox.created_at.asc(), Mailbox.id.asc())
+        ).all()
     )
+
+
+def _resolve_scope_type(scope_type: str | None, mailbox_id: UUID | str | None) -> str:
+    if scope_type is None:
+        return "mailbox" if mailbox_id is not None else "all"
+    normalized = scope_type.strip().lower()
+    if normalized not in {"all", "mailbox"}:
+        raise DigestServiceError("INVALID_REQUEST", "scope_type must be all or mailbox.", 422)
+    if normalized == "mailbox" and mailbox_id is None:
+        raise DigestServiceError(
+            "INVALID_REQUEST",
+            "mailbox_id is required when scope_type is mailbox.",
+            422,
+        )
+    return normalized
+
+
+def _resolve_digest_scope(
+    db: Session,
+    *,
+    user_id: UUID,
+    scope_type: str | None,
+    mailbox_id: UUID | str | None,
+) -> DigestScope:
+    resolved_scope_type = _resolve_scope_type(scope_type, mailbox_id)
+    if resolved_scope_type == "mailbox":
+        mailbox = _get_mailbox_scope(db, user_id=user_id, mailbox_id=mailbox_id)
+        return DigestScope(
+            scope_type="mailbox",
+            mailbox_id=mailbox.id,
+            mailboxes=[mailbox],
+        )
+    mailboxes = _list_active_mailboxes(db, user_id=user_id)
+    if not mailboxes:
+        raise DigestServiceError(
+            "INVALID_REQUEST",
+            "No connected mailboxes are available for digest generation.",
+            400,
+        )
+    return DigestScope(scope_type="all", mailbox_id=None, mailboxes=mailboxes)
+
+
+def _next_digest_version(
+    db: Session,
+    *,
+    user_id: UUID,
+    scope_type: str,
+    mailbox_id: UUID | None,
+    digest_date: object,
+) -> int:
+    query = select(func.max(DailyDigest.version)).where(
+        DailyDigest.user_id == user_id,
+        DailyDigest.scope_type == scope_type,
+        DailyDigest.digest_date == digest_date,
+    )
+    if mailbox_id is None:
+        query = query.where(DailyDigest.mailbox_id.is_(None))
+    else:
+        query = query.where(DailyDigest.mailbox_id == mailbox_id)
+    current_max = db.scalar(query)
     return int(current_max or 0) + 1
 
 
@@ -559,7 +727,8 @@ def _create_digest_job(
     db: Session,
     *,
     user_id: UUID,
-    mailbox_id: UUID,
+    scope_type: str,
+    mailbox_id: UUID | None,
     digest_id: UUID,
     job_type: str,
     trigger_source: str,
@@ -572,11 +741,11 @@ def _create_digest_job(
         digest_id=digest_id,
         job_type=job_type,
         trigger_source=trigger_source,
-        job_key=f"{job_type}:{mailbox_id}:{target_date}",
+        job_key=None,
         target_date=target_date,
         status="running",
         started_at=now,
-        payload_json={},
+        payload_json={"scope_type": scope_type},
     )
     db.add(job)
     db.flush()
@@ -587,16 +756,18 @@ def _list_digest_emails(
     db: Session,
     *,
     user_id: UUID,
-    mailbox_id: UUID,
+    mailbox_ids: list[UUID],
     window_start: datetime,
     window_end: datetime,
 ) -> list[Email]:
+    if not mailbox_ids:
+        return []
     return list(
         db.scalars(
             select(Email)
             .where(
                 Email.user_id == user_id,
-                Email.mailbox_id == mailbox_id,
+                Email.mailbox_id.in_(mailbox_ids),
                 Email.received_at >= window_start,
                 Email.received_at <= window_end,
             )
@@ -613,11 +784,13 @@ def _create_digest_items(
     now: datetime,
 ) -> None:
     for display_order, item in enumerate(parsed_items):
+        if item.mailbox_id is None:
+            raise DigestParseError("Digest item mailbox_id could not be resolved.")
         db.add(
             DigestItem(
                 digest_id=digest.id,
                 user_id=digest.user_id,
-                mailbox_id=digest.mailbox_id,
+                mailbox_id=item.mailbox_id,
                 email_id=item.email_id,
                 item_type=item.item_type,
                 section=item.section,
@@ -641,22 +814,50 @@ def _switch_current_digest(
     db: Session,
     *,
     digest: DailyDigest,
-    mailbox_id: UUID,
+    user_id: UUID,
+    scope_type: str,
+    mailbox_id: UUID | None,
     digest_date: object,
     now: datetime,
 ) -> None:
-    db.execute(
+    query = (
         update(DailyDigest)
         .where(
-            DailyDigest.mailbox_id == mailbox_id,
+            DailyDigest.user_id == user_id,
+            DailyDigest.scope_type == scope_type,
             DailyDigest.digest_date == digest_date,
             DailyDigest.id != digest.id,
             DailyDigest.is_current.is_(True),
         )
         .values(is_current=False, updated_at=now)
     )
+    if mailbox_id is None:
+        query = query.where(DailyDigest.mailbox_id.is_(None))
+    else:
+        query = query.where(DailyDigest.mailbox_id == mailbox_id)
+    db.execute(query)
     digest.is_current = True
     digest.updated_at = now
+
+
+def _digest_job_key(
+    *,
+    job_type: str,
+    scope_type: str,
+    mailbox_id: UUID | None,
+    target_date: object,
+) -> str:
+    if scope_type == "all":
+        return f"{job_type}:all:{target_date}"
+    return f"{job_type}:{mailbox_id}:{target_date}"
+
+
+def _job_scope_type(job: SyncJob) -> str:
+    payload = job.payload_json if isinstance(job.payload_json, dict) else {}
+    scope_type = str(payload.get("scope_type") or "").strip().lower()
+    if scope_type in {"all", "mailbox"}:
+        return scope_type
+    return "mailbox" if job.mailbox_id is not None else "all"
 
 
 def _succeed_job(job: SyncJob, *, payload: dict[str, object], now: datetime) -> None:

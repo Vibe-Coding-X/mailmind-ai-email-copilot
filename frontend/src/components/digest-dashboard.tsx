@@ -16,12 +16,20 @@ import {
   generateTodayDigestJob,
   getDigest,
   getTodayDigest,
+  listMailboxes,
   markDigestItemDone,
   refreshTodayDigest,
   refreshTodayDigestJob,
   snoozeDigestItem,
 } from "@/lib/api-client";
-import type { Digest, DigestItem, Job } from "@/lib/api-types";
+import type {
+  Digest,
+  DigestItem,
+  DigestMailboxSummary,
+  DigestScopeRequest,
+  Job,
+  Mailbox,
+} from "@/lib/api-types";
 import { digestIdFromJob, isActiveJob } from "@/lib/jobs";
 import { useI18n, type TranslationKey } from "@/i18n/provider";
 
@@ -179,6 +187,43 @@ function groupDigestItems(items: DigestItem[]): Array<{
   }));
 }
 
+function mailboxOptionLabel(mailbox: Mailbox): string {
+  const provider = mailbox.provider.toLowerCase();
+  const prefix =
+    provider === "gmail"
+      ? "Gmail"
+      : provider === "imap"
+        ? mailbox.provider_preset === "qq"
+          ? "QQ Mail / IMAP"
+          : mailbox.provider_preset === "163"
+            ? "163 Mail / IMAP"
+            : mailbox.provider_preset === "gmail_imap"
+              ? "Gmail IMAP"
+              : "Custom IMAP"
+        : mailbox.display_name?.trim() || provider;
+  return `${prefix} - ${mailbox.account_email ?? mailbox.email_address}`;
+}
+
+function scopeRequestFromSelection(selection: string): DigestScopeRequest {
+  if (selection === "all") {
+    return { scope_type: "all" };
+  }
+  return { scope_type: "mailbox", mailbox_id: selection };
+}
+
+function priorityRank(priority: string): number {
+  switch (priority) {
+    case "high":
+      return 0;
+    case "medium":
+      return 1;
+    case "low":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
 function buildSnoozeOptions(t: TFunction): SnoozeOption[] {
   return [
     { label: t("digest.snoozeTomorrow"), value: futureIsoDate(1) },
@@ -199,6 +244,8 @@ export function DigestDashboard() {
   const [pageState, setPageState] = useState<DigestPageState>("loading");
   const [digest, setDigest] = useState<Digest | null>(null);
   const [pageError, setPageError] = useState<DigestErrorView | null>(null);
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [selectedScopeValue, setSelectedScopeValue] = useState<string>("all");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"generate" | "refresh" | null>(
@@ -223,12 +270,23 @@ export function DigestDashboard() {
   const snoozeOptions = useMemo(() => buildSnoozeOptions(t), [t]);
 
   const loadDigest = useCallback(async (): Promise<boolean> => {
+    if (mailboxes.length === 0) {
+      setDigest(null);
+      setPageError({
+        state: "empty",
+        title: t("digest.noDigestTitle"),
+        message: t("digest.noMailboxesConnectedMessage"),
+      });
+      setPageState("empty");
+      return false;
+    }
+    const scopeRequest = scopeRequestFromSelection(selectedScopeValue);
     setPageState("loading");
     setPageError(null);
     setActionError(null);
 
     try {
-      const response = await getTodayDigest();
+      const response = await getTodayDigest(scopeRequest);
       setDigest(response.data.digest);
       setPageState("loaded");
       return true;
@@ -239,7 +297,7 @@ export function DigestDashboard() {
       setPageState(view.state);
       return false;
     }
-  }, [t]);
+  }, [mailboxes.length, selectedScopeValue, t]);
 
   const loadDigestAfterJob = useCallback(
     async (job: Job): Promise<boolean> => {
@@ -247,7 +305,7 @@ export function DigestDashboard() {
       try {
         const response = digestId
           ? await getDigest(digestId)
-          : await getTodayDigest();
+          : await getTodayDigest(scopeRequestFromSelection(selectedScopeValue));
         setDigest(response.data.digest);
         setPageState("loaded");
         setPageError(null);
@@ -256,7 +314,7 @@ export function DigestDashboard() {
         return loadDigest();
       }
     },
-    [loadDigest],
+    [loadDigest, selectedScopeValue],
   );
 
   const onDigestJobCompleted = useCallback(
@@ -288,6 +346,9 @@ export function DigestDashboard() {
     const restoredJob = recentDigestJobs.jobs.find(
       (job) =>
         isActiveJob(job) &&
+        (selectedScopeValue === "all"
+          ? job.scope_type === "all"
+          : job.scope_type === "mailbox" && job.mailbox_id === selectedScopeValue) &&
         (job.job_type === "digest_generate" ||
           job.job_type === "digest_refresh" ||
           job.job_type === "scheduled_digest"),
@@ -295,7 +356,7 @@ export function DigestDashboard() {
     if (restoredJob) {
       setActiveDigestJob(restoredJob);
     }
-  }, [activeDigestJob, recentDigestJobs.jobs]);
+  }, [activeDigestJob, recentDigestJobs.jobs, selectedScopeValue]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -325,8 +386,37 @@ export function DigestDashboard() {
       return;
     }
 
-    void loadDigest();
-  }, [authStatus, loadDigest, t]);
+    void (async () => {
+      try {
+        const response = await listMailboxes();
+        const connectedMailboxes = response.data.mailboxes.filter(
+          (mailbox) => mailbox.status !== "disconnected",
+        );
+        setMailboxes(connectedMailboxes);
+        setSelectedScopeValue((current) => {
+          if (current === "all") {
+            return "all";
+          }
+          if (connectedMailboxes.some((mailbox) => mailbox.id === current)) {
+            return current;
+          }
+          return "all";
+        });
+      } catch (error) {
+        const view = digestErrorView(error, t);
+        setMailboxes([]);
+        setDigest(null);
+        setPageError(view);
+        setPageState(view.state);
+      }
+    })();
+  }, [authStatus, t]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      void loadDigest();
+    }
+  }, [authStatus, loadDigest]);
 
   async function onGenerate() {
     setActionError(null);
@@ -335,12 +425,22 @@ export function DigestDashboard() {
     setBusyAction("generate");
 
     try {
-      const response = await generateTodayDigestJob();
+      if (mailboxes.length === 0) {
+        setActionError(t("digest.noMailboxesConnectedMessage"));
+        return;
+      }
+      const request = scopeRequestFromSelection(selectedScopeValue);
+      const response = await generateTodayDigestJob(request);
       setActiveDigestJob(response.data.job);
       setActionMessage(t("digest.jobQueuedMessage"));
     } catch (error) {
       try {
-        const response = await generateTodayDigest();
+        if (mailboxes.length === 0) {
+          throw error;
+        }
+        const response = await generateTodayDigest(
+          scopeRequestFromSelection(selectedScopeValue),
+        );
         setDigest(response.data.digest);
         setPageState("loaded");
         setPageError(null);
@@ -365,12 +465,22 @@ export function DigestDashboard() {
     setBusyAction("refresh");
 
     try {
-      const response = await refreshTodayDigestJob();
+      if (mailboxes.length === 0) {
+        setActionError(t("digest.noMailboxesConnectedMessage"));
+        return;
+      }
+      const request = scopeRequestFromSelection(selectedScopeValue);
+      const response = await refreshTodayDigestJob(request);
       setActiveDigestJob(response.data.job);
       setActionMessage(t("digest.jobQueuedMessage"));
     } catch (error) {
       try {
-        const response = await refreshTodayDigest();
+        if (mailboxes.length === 0) {
+          throw error;
+        }
+        const response = await refreshTodayDigest(
+          scopeRequestFromSelection(selectedScopeValue),
+        );
         setDigest(response.data.digest);
         setPageState("loaded");
         setPageError(null);
@@ -460,6 +570,7 @@ export function DigestDashboard() {
   const activeJobBusy =
     polledDigestJob.job !== null && isActiveJob(polledDigestJob.job);
   const busy = busyAction !== null || activeJobBusy;
+  const hasSelectableMailboxes = mailboxes.length > 0;
   const canGenerate =
     authStatus === "authenticated" &&
     (pageState === "empty" || pageState === "error" || pageState === "loaded");
@@ -470,6 +581,22 @@ export function DigestDashboard() {
       <section className="mm-card">
         <div className="mm-spread" style={{ alignItems: "flex-start" }}>
           <div className="mm-stack" style={{ gap: 8 }}>
+            <label className="mm-muted" style={{ fontSize: 12 }}>
+              {t("digest.scopeLabel")}
+            </label>
+            <select
+              className="mm-input"
+              value={selectedScopeValue}
+              onChange={(event) => setSelectedScopeValue(event.target.value)}
+              style={{ minWidth: 260, maxWidth: "100%" }}
+            >
+              <option value="all">{t("digest.allMailboxes")}</option>
+              {mailboxes.map((mailbox) => (
+                <option key={mailbox.id} value={mailbox.id}>
+                  {mailboxOptionLabel(mailbox)}
+                </option>
+              ))}
+            </select>
             <div className="mm-row">
               <Badge
                 tone={digest ? digestStatusTone(digest.status) : "neutral"}
@@ -495,8 +622,8 @@ export function DigestDashboard() {
               type="button"
               className="mm-btn mm-btn--primary"
               onClick={() => void onGenerate()}
-              disabled={!canGenerate || busy}
-              aria-disabled={!canGenerate || busy}
+              disabled={!canGenerate || busy || !hasSelectableMailboxes}
+              aria-disabled={!canGenerate || busy || !hasSelectableMailboxes}
             >
               {busyAction === "generate" ? t("digest.generating") : t("digest.generate")}
             </button>
@@ -504,8 +631,8 @@ export function DigestDashboard() {
               type="button"
               className="mm-btn"
               onClick={() => void onRefreshDigest()}
-              disabled={!canRefresh || busy}
-              aria-disabled={!canRefresh || busy}
+              disabled={!canRefresh || busy || !hasSelectableMailboxes}
+              aria-disabled={!canRefresh || busy || !hasSelectableMailboxes}
             >
               {busyAction === "refresh" ? t("digest.refreshing") : t("digest.refresh")}
             </button>
@@ -708,6 +835,12 @@ function DigestLoadedView({
   onSnoozeValueChange: (itemId: string, value: string) => void;
   t: TFunction;
 }) {
+  const priorityItems = [...digest.items].sort(
+    (left, right) =>
+      priorityRank(left.priority) - priorityRank(right.priority) ||
+      left.display_order - right.display_order,
+  );
+  const isAllScope = digest.scope_type === "all";
   return (
     <div className="mm-stack">
       <div className="mm-grid mm-grid-3">
@@ -717,8 +850,10 @@ function DigestLoadedView({
           value={String(digest.new_mail_count_after_digest)}
         />
         <MetricCard
-          label={t("digest.digestWindow")}
-          value={digest.digest_date}
+          label={isAllScope ? t("digest.mailboxesIncluded") : t("digest.digestWindow")}
+          value={
+            isAllScope ? String(digest.mailbox_summaries.length || 0) : digest.digest_date
+          }
           detail={`${formatDateTime(digest.coverage_start)} to ${formatDateTime(
             digest.coverage_end,
           )}`}
@@ -750,6 +885,39 @@ function DigestLoadedView({
           title={t("digest.noItemsTitle")}
           hint={t("digest.noItemsMessage")}
         />
+      ) : isAllScope ? (
+        <>
+          <section className="mm-card">
+            <div className="mm-card-title">{t("digest.priorityQueue")}</div>
+            <p className="mm-muted" style={{ fontSize: 13 }}>
+              {priorityItems.length} {priorityItems.length === 1 ? t("digest.item") : t("digest.items")}
+            </p>
+            <div className="mm-stack" style={{ gap: 0, marginTop: 8 }}>
+              {priorityItems.map((item, index) => (
+                <DigestItemRow
+                  key={item.id}
+                  item={item}
+                  showTopBorder={index > 0}
+                  busy={busyItemId === item.id}
+                  feedback={itemFeedback[item.id]}
+                  snoozeOptions={snoozeOptions}
+                  onAction={onDigestItemAction}
+                  onSnoozeValueChange={onSnoozeValueChange}
+                  t={t}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="mm-card">
+            <div className="mm-card-title">{t("digest.byMailbox")}</div>
+            <div className="mm-stack" style={{ marginTop: 12 }}>
+              {digest.mailbox_summaries.map((summary) => (
+                <MailboxSummaryCard key={summary.mailbox_id} summary={summary} />
+              ))}
+            </div>
+          </section>
+        </>
       ) : (
         groupedItems.map((group) => (
           <section className="mm-card" key={group.section}>
@@ -817,6 +985,32 @@ function MetricCard({
   );
 }
 
+function MailboxSummaryCard({ summary }: { summary: DigestMailboxSummary }) {
+  return (
+    <article
+      style={{
+        border: "1px solid var(--mm-border)",
+        borderRadius: 8,
+        padding: 14,
+      }}
+    >
+      <div className="mm-card-title">{summary.title ?? summary.account_email ?? summary.mailbox_id}</div>
+      <p className="mm-muted" style={{ fontSize: 13, marginTop: 6 }}>
+        {summary.summary}
+      </p>
+      {summary.highlights.length > 0 ? (
+        <ul style={{ marginTop: 10, paddingLeft: 18 }}>
+          {summary.highlights.map((highlight) => (
+            <li key={highlight} style={{ marginTop: 4 }}>
+              {highlight}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </article>
+  );
+}
+
 function DigestItemRow({
   item,
   showTopBorder,
@@ -879,6 +1073,9 @@ function DigestItemRow({
         <Badge tone="neutral">{statusLabel(item.category)}</Badge>
         <Badge tone="info">{statusLabel(item.suggested_action)}</Badge>
         <Badge tone="neutral">{formatConfidence(item.confidence, t)}</Badge>
+        {item.source_mailbox ? (
+          <Badge tone="neutral">{item.source_mailbox.title}</Badge>
+        ) : null}
       </div>
 
       {item.reason ? (

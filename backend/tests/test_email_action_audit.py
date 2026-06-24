@@ -141,6 +141,32 @@ def test_mark_read_and_unread_write_completed_user_actions(monkeypatch) -> None:
         assert "Body should not be audited in full" not in str(actions[0].after_state)
 
 
+def test_mark_read_resolves_provider_from_registry(monkeypatch) -> None:
+    client, user_id = _register_client("email-audit-registry")
+    mailbox_id = _create_mailbox(user_id, prefix="email-audit-registry")
+    email_id = _create_email(
+        user_id,
+        mailbox_id,
+        external_id="email-audit-registry",
+        is_read=False,
+    )
+    calls: list[str] = []
+
+    def fake_get_mailbox_provider(provider_key: str):
+        calls.append(provider_key)
+        return FakeProvider()
+
+    monkeypatch.setattr(
+        "app.services.email_service.get_mailbox_provider",
+        fake_get_mailbox_provider,
+    )
+
+    response = client.post(f"/api/emails/{email_id}/mark-read")
+
+    assert response.status_code == 200
+    assert calls == ["gmail"]
+
+
 def test_mark_read_provider_failure_records_failed_action_without_updating_email(
     monkeypatch,
 ) -> None:

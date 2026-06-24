@@ -18,7 +18,13 @@ from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.providers.base import ProviderEmailMessage, ProviderError
 from app.providers.gmail import GmailProvider
+from app.providers.imap import ImapMailboxConfig
+from app.providers.registry import (
+    ProviderRegistryError,
+    get_mailbox_provider as registry_get_mailbox_provider,
+)
 from app.services.credential_encryption_service import CredentialEncryptionService
+from app.services.job_dispatch_service import dispatch_pending_job
 from app.utils.redaction import safe_error_message
 
 
@@ -32,10 +38,12 @@ class EmailSyncError(Exception):
 
 @dataclass(slots=True)
 class SyncTodayResult:
-    mailbox_id: UUID
+    mailbox_id: UUID | None
     status: str
     synced_count: int
     job_id: UUID
+    error_code: str | None = None
+    message: str | None = None
 
 
 @dataclass(slots=True)
@@ -45,8 +53,10 @@ class QueuedSyncJobResult:
     job_id: UUID
 
 
-ACTIVE_SYNC_STATUSES = {"queued", "running"}
+ACTIVE_SYNC_STATUSES = {"pending_dispatch", "queued", "running"}
 MAILBOX_SYNC_LOCK_TTL_SECONDS = 20 * 60
+STALE_QUEUED_SYNC_JOB_SECONDS = 5 * 60
+STALE_RUNNING_SYNC_JOB_SECONDS = MAILBOX_SYNC_LOCK_TTL_SECONDS
 
 
 @dataclass(slots=True)
@@ -141,11 +151,20 @@ def enqueue_sync_today_job(
         mailbox_id=mailbox.id,
     )
     if active_job is not None:
-        return QueuedSyncJobResult(
-            mailbox_id=mailbox.id,
-            status=active_job.status,
-            job_id=active_job.id,
-        )
+        if is_stale_email_sync_job(active_job, now=resolved_now):
+            _fail_job(
+                db,
+                job=active_job,
+                code="stale_sync_job",
+                message="Previous sync job did not complete and was replaced.",
+                now=resolved_now,
+            )
+        else:
+            return QueuedSyncJobResult(
+                mailbox_id=mailbox.id,
+                status=active_job.status,
+                job_id=active_job.id,
+            )
     job = SyncJob(
         user_id=user.id,
         mailbox_id=mailbox.id,
@@ -153,16 +172,29 @@ def enqueue_sync_today_job(
         trigger_source=trigger_source,
         job_key=job_key,
         target_date=_target_date(user, resolved_now),
-        status="queued",
+        status="pending_dispatch",
         payload_json={},
         created_at=resolved_now,
     )
     db.add(job)
     db.flush()
     if dispatch:
-        job.celery_task_id = dispatch_email_sync_job(job.id)
-        db.flush()
-    return QueuedSyncJobResult(mailbox_id=mailbox.id, status="queued", job_id=job.id)
+        dispatch_result = dispatch_pending_job(
+            db,
+            job_id=job.id,
+            dispatcher=dispatch_email_sync_job,
+            now=resolved_now,
+        )
+        return QueuedSyncJobResult(
+            mailbox_id=mailbox.id,
+            status=dispatch_result.status,
+            job_id=job.id,
+        )
+    return QueuedSyncJobResult(
+        mailbox_id=mailbox.id,
+        status="pending_dispatch",
+        job_id=job.id,
+    )
 
 
 def execute_queued_sync_job(
@@ -173,11 +205,22 @@ def execute_queued_sync_job(
     now: datetime | None = None,
 ) -> SyncTodayResult:
     resolved_now = _ensure_utc(now or datetime.now(UTC))
-    job = db.get(SyncJob, _as_uuid(job_id))
+    resolved_job_id = _as_uuid(job_id)
+    job = db.get(SyncJob, resolved_job_id)
     if job is None:
-        raise EmailSyncError("INVALID_REQUEST", "Sync job not found.", 404)
+        return ignored_sync_task_result(
+            job_id=resolved_job_id,
+            mailbox_id=None,
+            error_code="orphaned_sync_task",
+            message="Sync task ignored because the database job no longer exists.",
+        )
     if job.status != "queued":
-        raise EmailSyncError("INVALID_REQUEST", "Sync job is not queued.")
+        return ignored_sync_task_result(
+            job_id=job.id,
+            mailbox_id=job.mailbox_id,
+            error_code="stale_or_completed_sync_task",
+            message="Sync task ignored because the database job is no longer dispatchable.",
+        )
     if job.mailbox_id is None:
         raise EmailSyncError("INVALID_REQUEST", "Sync job is missing mailbox.")
     user, mailbox = _get_sync_context(
@@ -229,6 +272,13 @@ def dispatch_email_sync_job(job_id: UUID) -> str:
     return str(result.id)
 
 
+def get_mailbox_provider(provider_key: str) -> object:
+    normalized = provider_key.strip().lower()
+    if normalized == "gmail":
+        return GmailProvider()
+    return registry_get_mailbox_provider(normalized)
+
+
 def find_active_email_sync_job(
     db: Session,
     *,
@@ -246,6 +296,42 @@ def find_active_email_sync_job(
         .order_by(SyncJob.created_at.asc(), SyncJob.id.asc())
         .limit(1)
     )
+
+
+def recover_stale_email_sync_job(
+    db: Session,
+    *,
+    job: SyncJob | None,
+    now: datetime | None = None,
+) -> SyncJob | None:
+    if job is None:
+        return None
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    if not is_stale_email_sync_job(job, now=resolved_now):
+        return job
+    _fail_job(
+        db,
+        job=job,
+        code="stale_sync_job",
+        message="Previous sync job did not complete and was replaced.",
+        now=resolved_now,
+    )
+    return job
+
+
+def is_stale_email_sync_job(job: SyncJob, *, now: datetime) -> bool:
+    resolved_now = _ensure_utc(now)
+    if job.status == "queued":
+        created_at = _ensure_utc(job.created_at)
+        return (
+            resolved_now - created_at
+        ).total_seconds() > STALE_QUEUED_SYNC_JOB_SECONDS
+    if job.status == "running":
+        started_at = job.started_at or job.created_at
+        return (
+            resolved_now - _ensure_utc(started_at)
+        ).total_seconds() > STALE_RUNNING_SYNC_JOB_SECONDS
+    return False
 
 
 def acquire_mailbox_sync_lock(
@@ -279,10 +365,15 @@ def _execute_sync_today(
     window_start, window_end = calculate_today_window(user.timezone, now=now)
 
     try:
-        refresh_token = _decrypt_refresh_token(db, mailbox_id=mailbox.id)
-        gmail_provider = provider or GmailProvider()
-        access_token = gmail_provider.refresh_access_token(refresh_token)
-        messages = gmail_provider.list_messages_for_window(
+        mailbox_provider = provider or get_mailbox_provider(mailbox.provider)
+        mailbox_provider = _configure_mailbox_provider(
+            db,
+            mailbox=mailbox,
+            provider=mailbox_provider,
+        )
+        provider_secret = _decrypt_provider_secret(db, mailbox=mailbox)
+        access_token = mailbox_provider.refresh_access_token(provider_secret)
+        messages = mailbox_provider.list_messages_for_window(
             access_token,
             window_start=window_start,
             window_end=window_end,
@@ -303,6 +394,9 @@ def _execute_sync_today(
     except EmailSyncError as exc:
         _fail_job(db, job=job, code=exc.code, message=exc.message, now=now)
         raise
+    except ProviderRegistryError as exc:
+        _fail_job(db, job=job, code=exc.code, message=exc.message, now=now)
+        raise EmailSyncError(exc.code, exc.message, exc.status_code) from exc
     except Exception as exc:
         _fail_job(
             db,
@@ -323,6 +417,23 @@ def _execute_sync_today(
         status="completed",
         synced_count=synced_count,
         job_id=job.id,
+    )
+
+
+def ignored_sync_task_result(
+    *,
+    job_id: UUID,
+    mailbox_id: UUID | None,
+    error_code: str,
+    message: str,
+) -> SyncTodayResult:
+    return SyncTodayResult(
+        mailbox_id=mailbox_id,
+        status="ignored",
+        synced_count=0,
+        job_id=job_id,
+        error_code=error_code,
+        message=message,
     )
 
 
@@ -414,6 +525,75 @@ def _decrypt_refresh_token(db: Session, *, mailbox_id: UUID) -> str:
         ) from exc
 
 
+def _decrypt_provider_secret(db: Session, *, mailbox: Mailbox) -> str:
+    provider = mailbox.provider.strip().lower()
+    if provider == "imap":
+        return _decrypt_imap_password(db, mailbox_id=mailbox.id)
+    return _decrypt_refresh_token(db, mailbox_id=mailbox.id)
+
+
+def _decrypt_imap_password(db: Session, *, mailbox_id: UUID) -> str:
+    credential = db.get(MailboxCredential, mailbox_id)
+    if credential is None or not credential.imap_password_encrypted:
+        raise EmailSyncError(
+            "MAILBOX_REAUTH_REQUIRED",
+            "IMAP authorization is required.",
+            401,
+        )
+
+    try:
+        return CredentialEncryptionService().decrypt(credential.imap_password_encrypted)
+    except Exception as exc:
+        raise EmailSyncError(
+            "MAILBOX_REAUTH_REQUIRED",
+            "IMAP authorization is required.",
+            401,
+        ) from exc
+
+
+def _configure_mailbox_provider(
+    db: Session,
+    *,
+    mailbox: Mailbox,
+    provider: object,
+) -> object:
+    if mailbox.provider.strip().lower() != "imap":
+        return provider
+    configure = getattr(provider, "with_mailbox_config", None)
+    if not callable(configure):
+        return provider
+    credential = db.get(MailboxCredential, mailbox.id)
+    config_json = credential.credentials_json if credential is not None else {}
+    try:
+        config = ImapMailboxConfig(
+            host=str(config_json.get("host") or ""),
+            port=int(config_json.get("port") or 993),
+            username=str(config_json.get("username") or mailbox.email_address),
+            folder=str(config_json.get("folder") or "INBOX"),
+            use_ssl=bool(config_json.get("use_ssl", True)),
+            uidvalidity=(
+                str(config_json["uidvalidity"])
+                if config_json.get("uidvalidity") is not None
+                else None
+            ),
+            account_email=mailbox.email_address,
+            mailbox_id=str(mailbox.id),
+        )
+    except (TypeError, ValueError) as exc:
+        raise EmailSyncError(
+            "INVALID_REQUEST",
+            "IMAP mailbox configuration is invalid.",
+            400,
+        ) from exc
+    if not config.host or not config.username:
+        raise EmailSyncError(
+            "INVALID_REQUEST",
+            "IMAP mailbox configuration is incomplete.",
+            400,
+        )
+    return configure(config)
+
+
 def _get_sync_context(
     db: Session,
     *,
@@ -429,8 +609,10 @@ def _get_sync_context(
     )
     if user is None or mailbox is None:
         raise EmailSyncError("INVALID_REQUEST", "Mailbox not found.", 404)
-    if mailbox.provider != "gmail":
-        raise EmailSyncError("INVALID_REQUEST", "Unsupported mailbox provider.")
+    try:
+        get_mailbox_provider(mailbox.provider)
+    except ProviderRegistryError as exc:
+        raise EmailSyncError(exc.code, exc.message, exc.status_code) from exc
     if mailbox.status != "active":
         raise EmailSyncError(
             "MAILBOX_REAUTH_REQUIRED",

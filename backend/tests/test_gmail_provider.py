@@ -6,8 +6,9 @@ from typing import Any
 import httpx
 import pytest
 
-from app.providers.base import ProviderError
+from app.providers.base import ProviderCapabilities, ProviderError
 from app.providers.gmail import GmailProvider
+from app.providers.registry import ProviderRegistryError, get_mailbox_provider
 
 
 class FakeResponse:
@@ -193,6 +194,38 @@ class TlsHttpClient:
 
     def get(self, *args, **kwargs):
         raise httpx.ConnectError("TLS handshake failed")
+
+
+def test_gmail_provider_exposes_capabilities() -> None:
+    provider = GmailProvider(client=FakeHttpClient())
+
+    assert provider.provider_key == "gmail"
+    assert provider.get_capabilities() == ProviderCapabilities(
+        can_mark_read=True,
+        can_mark_unread=True,
+        can_fetch_body=True,
+        can_fetch_thread=True,
+        can_archive=False,
+        can_label=False,
+        supports_oauth=True,
+        supports_password_auth=False,
+        supports_folders=False,
+    )
+
+
+def test_provider_registry_returns_gmail_provider() -> None:
+    provider = get_mailbox_provider("gmail")
+
+    assert isinstance(provider, GmailProvider)
+    assert provider.provider_key == "gmail"
+
+
+def test_provider_registry_rejects_unsupported_provider() -> None:
+    with pytest.raises(ProviderRegistryError) as exc_info:
+        get_mailbox_provider("unknown")
+
+    assert exc_info.value.code == "unsupported_mailbox_provider"
+    assert exc_info.value.status_code == 400
 
 
 def test_refresh_access_token_exchanges_refresh_token() -> None:

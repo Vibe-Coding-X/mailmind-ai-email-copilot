@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from uuid import UUID
 
 from app.db.models.email import Email
+from app.db.models.mailbox import Mailbox
 
 
 ALLOWED_ITEM_TYPES = {"email", "todo", "risk"}
@@ -85,6 +86,7 @@ CATEGORY_ALIASES = {
 }
 FIELD_ALIASES = {
     "email_id": ("emailId", "emailID"),
+    "mailbox_id": ("mailboxId", "mailboxID"),
     "item_type": ("type", "itemType"),
     "suggested_action": ("action", "suggestedAction"),
     "priority": ("priority_level", "priorityLevel"),
@@ -97,6 +99,7 @@ class DigestParseError(ValueError):
 
 @dataclass(slots=True)
 class ParsedDigestItem:
+    mailbox_id: UUID | None
     email_id: UUID | None
     item_type: str
     section: str
@@ -120,12 +123,20 @@ class ParsedDigestOutput:
 def parse_digest_output(
     raw_text: str,
     emails_by_external_id: Mapping[str, Email | UUID],
+    *,
+    default_mailbox_id: UUID | None = None,
+    allowed_mailboxes: Mapping[UUID, Mailbox] | None = None,
 ) -> ParsedDigestOutput:
     payload = _load_payload(raw_text, emails_by_external_id)
     if not isinstance(payload, dict):
         raise DigestParseError("Digest output must be a JSON object.")
 
-    overview = _parse_overview(payload.get("overview"), len(emails_by_external_id))
+    mailboxes_by_id = allowed_mailboxes or {}
+    overview = _parse_overview(
+        payload.get("overview"),
+        len(emails_by_external_id),
+        mailboxes_by_id=mailboxes_by_id,
+    )
     raw_items = payload.get("items", [])
     if raw_items is None:
         raw_items = []
@@ -133,7 +144,13 @@ def parse_digest_output(
         raise DigestParseError("Digest items must be an array.")
 
     items = [
-        _parse_item(index, item, emails_by_external_id)
+        _parse_item(
+            index,
+            item,
+            emails_by_external_id,
+            default_mailbox_id=default_mailbox_id,
+            allowed_mailboxes=mailboxes_by_id,
+        )
         for index, item in enumerate(raw_items)
     ]
     normalized_output = {
@@ -182,20 +199,44 @@ def _extract_json_text(raw_text: str) -> str | None:
     return text
 
 
-def _parse_overview(value: object, fallback_mail_count: int) -> dict[str, Any]:
+def _parse_overview(
+    value: object,
+    fallback_mail_count: int,
+    *,
+    mailboxes_by_id: Mapping[UUID, Mailbox],
+) -> dict[str, Any]:
     if not isinstance(value, dict):
-        return {"mail_count": fallback_mail_count, "summary": DEFAULT_SUMMARY}
+        return {
+            "mail_count": fallback_mail_count,
+            "summary": DEFAULT_SUMMARY,
+            "overall_summary": DEFAULT_SUMMARY,
+            "mailbox_summaries": [],
+        }
     mail_count = _nonnegative_int(value.get("mail_count"), fallback_mail_count)
     summary = value.get("summary")
     if not isinstance(summary, str) or not summary.strip():
         summary = DEFAULT_SUMMARY
-    return {"mail_count": mail_count, "summary": summary}
+    overall_summary = value.get("overall_summary")
+    if not isinstance(overall_summary, str) or not overall_summary.strip():
+        overall_summary = summary
+    return {
+        "mail_count": mail_count,
+        "summary": summary,
+        "overall_summary": overall_summary,
+        "mailbox_summaries": _parse_mailbox_summaries(
+            value.get("mailbox_summaries"),
+            mailboxes_by_id=mailboxes_by_id,
+        ),
+    }
 
 
 def _parse_item(
     index: int,
     value: object,
     emails_by_external_id: Mapping[str, Email | UUID],
+    *,
+    default_mailbox_id: UUID | None,
+    allowed_mailboxes: Mapping[UUID, Mailbox],
 ) -> ParsedDigestItem:
     if not isinstance(value, dict):
         raise DigestParseError(f"items[{index}] must be an object.")
@@ -236,7 +277,19 @@ def _parse_item(
         aliases=PRIORITY_ALIASES,
     )
     confidence = _confidence(value)
-    email_id = _resolve_email_id(raw_email_id, item_type, emails_by_external_id, index)
+    email_id, email_mailbox_id = _resolve_email_id(
+        raw_email_id,
+        item_type,
+        emails_by_external_id,
+        index,
+    )
+    mailbox_id = _resolve_mailbox_id(
+        raw_mailbox_id=_field_value(value, "mailbox_id"),
+        email_mailbox_id=email_mailbox_id,
+        default_mailbox_id=default_mailbox_id,
+        allowed_mailboxes=allowed_mailboxes,
+        index=index,
+    )
 
     category = _enum_value(
         value,
@@ -255,6 +308,7 @@ def _parse_item(
         aliases=ACTION_ALIASES,
     )
     return ParsedDigestItem(
+        mailbox_id=mailbox_id,
         email_id=email_id,
         item_type=item_type,
         section=section,
@@ -345,17 +399,98 @@ def _resolve_email_id(
     item_type: str,
     emails_by_external_id: Mapping[str, Email | UUID],
     index: int,
-) -> UUID | None:
+) -> tuple[UUID | None, UUID | None]:
     if external_id is None:
         if item_type == "email":
             raise DigestParseError(f"items[{index}].email_id is required for email items.")
-        return None
+        return None, None
     if not isinstance(external_id, str) or not external_id:
         raise DigestParseError(f"items[{index}].email_id must be a string or null.")
     email = emails_by_external_id.get(external_id)
     if email is None:
         raise DigestParseError(f"Unknown email_id: {external_id}")
-    return email.id if isinstance(email, Email) else email
+    if isinstance(email, Email):
+        return email.id, email.mailbox_id
+    return email, None
+
+
+def _resolve_mailbox_id(
+    *,
+    raw_mailbox_id: object,
+    email_mailbox_id: UUID | None,
+    default_mailbox_id: UUID | None,
+    allowed_mailboxes: Mapping[UUID, Mailbox],
+    index: int,
+) -> UUID | None:
+    if email_mailbox_id is not None:
+        return email_mailbox_id
+    if raw_mailbox_id is not None:
+        try:
+            mailbox_id = UUID(str(raw_mailbox_id))
+        except ValueError as exc:
+            raise DigestParseError(f"items[{index}].mailbox_id must be a UUID or null.") from exc
+        if allowed_mailboxes and mailbox_id not in allowed_mailboxes:
+            raise DigestParseError(f"items[{index}].mailbox_id was not provided as input.")
+        return mailbox_id
+    if default_mailbox_id is not None:
+        return default_mailbox_id
+    if not allowed_mailboxes:
+        return None
+    raise DigestParseError(f"items[{index}].mailbox_id is required for all-mailbox items.")
+
+
+def _parse_mailbox_summaries(
+    value: object,
+    *,
+    mailboxes_by_id: Mapping[UUID, Mailbox],
+) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    summaries: list[dict[str, Any]] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        raw_mailbox_id = _field_value(entry, "mailbox_id")
+        if not isinstance(raw_mailbox_id, str):
+            continue
+        try:
+            mailbox_id = UUID(raw_mailbox_id)
+        except ValueError:
+            continue
+        mailbox = mailboxes_by_id.get(mailbox_id)
+        provider = _optional_summary_text(entry.get("provider")) or (
+            mailbox.provider.strip().lower() if mailbox is not None else None
+        )
+        account_email = _optional_summary_text(entry.get("account_email")) or (
+            mailbox.email_address if mailbox is not None else None
+        )
+        title = _optional_summary_text(entry.get("title")) or (
+            mailbox.display_name or mailbox.email_address if mailbox is not None else None
+        )
+        summary = _optional_summary_text(entry.get("summary")) or DEFAULT_SUMMARY
+        highlights = entry.get("highlights")
+        normalized_highlights = [
+            highlight.strip()
+            for highlight in highlights
+            if isinstance(highlight, str) and highlight.strip()
+        ] if isinstance(highlights, list) else []
+        summaries.append(
+            {
+                "mailbox_id": str(mailbox_id),
+                "provider": provider,
+                "account_email": account_email,
+                "title": title,
+                "summary": summary,
+                "highlights": normalized_highlights,
+            }
+        )
+    return summaries
+
+
+def _optional_summary_text(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
 
 
 def _coerce_section_item_type(*, section: str, item_type: str) -> str:
@@ -401,6 +536,7 @@ def _first_nonblank(*values: object) -> str:
 
 def _item_to_output_json(item: ParsedDigestItem) -> dict[str, Any]:
     return {
+        "mailbox_id": str(item.mailbox_id) if item.mailbox_id else None,
         "email_id": str(item.email_id) if item.email_id else None,
         "item_type": item.item_type,
         "section": item.section,

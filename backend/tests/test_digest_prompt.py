@@ -5,13 +5,15 @@ from uuid import uuid4
 
 from app.ai.prompts.digest import build_digest_prompt
 from app.db.models.email import Email
+from app.db.models.mailbox import Mailbox
 
 
 def _email(body_text: str) -> Email:
+    mailbox_id = uuid4()
     return Email(
         id=uuid4(),
         user_id=uuid4(),
-        mailbox_id=uuid4(),
+        mailbox_id=mailbox_id,
         provider="gmail",
         external_id="gmail-safe-1",
         external_thread_id="thread-1",
@@ -29,16 +31,32 @@ def _email(body_text: str) -> Email:
     )
 
 
+def _mailbox(*, mailbox_id, email_address: str = "me@example.com") -> Mailbox:
+    return Mailbox(
+        id=mailbox_id,
+        user_id=uuid4(),
+        provider="gmail",
+        provider_account_id=f"acct-{mailbox_id}",
+        email_address=email_address,
+        display_name=f"Gmail - {email_address}",
+        permission_mode="write_enabled",
+        granted_scopes=[],
+        status="active",
+        sync_cursor={},
+    )
+
+
 def test_digest_prompt_uses_safe_email_fields_and_redacts_tokens() -> None:
+    email = _email(
+        "access_token=secret-token refresh_token=secret-refresh "
+        "api_key=secret-api-key sk-testsecret123"
+    )
     prompt = build_digest_prompt(
-        [
-            _email(
-                "access_token=secret-token refresh_token=secret-refresh "
-                "api_key=secret-api-key sk-testsecret123"
-            )
-        ],
+        [email],
         coverage_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
         coverage_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        scope_type="mailbox",
+        mailboxes=[_mailbox(mailbox_id=email.mailbox_id)],
     )
 
     assert "Quarterly planning" in prompt.text
@@ -51,10 +69,13 @@ def test_digest_prompt_uses_safe_email_fields_and_redacts_tokens() -> None:
 
 
 def test_digest_prompt_includes_digest_v1_schema_contract() -> None:
+    email = _email("Please review the plan.")
     prompt = build_digest_prompt(
-        [_email("Please review the plan.")],
+        [email],
         coverage_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
         coverage_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        scope_type="all",
+        mailboxes=[_mailbox(mailbox_id=email.mailbox_id)],
     )
 
     required_fragments = [
@@ -83,11 +104,14 @@ def test_digest_prompt_includes_digest_v1_schema_contract() -> None:
 
 def test_digest_prompt_truncates_email_body_before_llm_input() -> None:
     long_body = "A" * 3000
+    email = _email(long_body)
 
     prompt = build_digest_prompt(
-        [_email(long_body)],
+        [email],
         coverage_start=datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
         coverage_end=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        scope_type="mailbox",
+        mailboxes=[_mailbox(mailbox_id=email.mailbox_id)],
     )
 
     assert "A" * 1500 not in prompt.text

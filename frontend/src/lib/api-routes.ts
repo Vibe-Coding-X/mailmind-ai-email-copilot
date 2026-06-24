@@ -29,6 +29,11 @@ export const API_ROUTES = {
     disconnect: "/api/auth/gmail/disconnect",
   },
 
+  // Section 2b — IMAP mailbox auth API (/api/auth/imap)
+  imapAuth: {
+    connect: "/api/auth/imap/connect",
+  },
+
   // Section 3 — Digest API (/api/digest)
   digest: {
     today: "/api/digest/today",

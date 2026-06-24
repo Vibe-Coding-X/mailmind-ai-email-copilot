@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func, text
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,10 @@ class DailyDigest(Base):
         CheckConstraint(
             "status IN ('generating', 'fresh', 'stale', 'refreshing', 'failed')",
             name="daily_digests_status_check",
+        ),
+        CheckConstraint(
+            "scope_type IN ('all', 'mailbox')",
+            name="daily_digests_scope_type_check",
         ),
         CheckConstraint(
             "trigger_source IN ("
@@ -48,25 +52,54 @@ class DailyDigest(Base):
             "status NOT IN ('fresh', 'stale', 'refreshing') OR generated_at IS NOT NULL",
             name="daily_digests_generated_status_check",
         ),
-        UniqueConstraint(
-            "mailbox_id",
-            "digest_date",
-            "version",
-            name="daily_digests_mailbox_date_version_uq",
+        CheckConstraint(
+            "(scope_type = 'mailbox' AND mailbox_id IS NOT NULL) OR "
+            "(scope_type = 'all' AND mailbox_id IS NULL)",
+            name="daily_digests_scope_mailbox_check",
         ),
         Index(
-            "daily_digests_current_uq",
+            "daily_digests_mailbox_current_uq",
             "mailbox_id",
             "digest_date",
             unique=True,
-            postgresql_where=text("is_current = true"),
+            postgresql_where=text("scope_type = 'mailbox' AND is_current = true"),
         ),
-        Index("daily_digests_current_lookup_idx", "user_id", "digest_date", "is_current"),
+        Index(
+            "daily_digests_all_current_uq",
+            "user_id",
+            "digest_date",
+            unique=True,
+            postgresql_where=text("scope_type = 'all' AND is_current = true"),
+        ),
+        Index(
+            "daily_digests_mailbox_date_version_uq",
+            "mailbox_id",
+            "digest_date",
+            "version",
+            unique=True,
+            postgresql_where=text("scope_type = 'mailbox'"),
+        ),
+        Index(
+            "daily_digests_all_date_version_uq",
+            "user_id",
+            "digest_date",
+            "version",
+            unique=True,
+            postgresql_where=text("scope_type = 'all'"),
+        ),
+        Index(
+            "daily_digests_current_lookup_idx",
+            "user_id",
+            "digest_date",
+            "scope_type",
+            "is_current",
+        ),
         Index(
             "daily_digests_mailbox_date_idx",
             "mailbox_id",
             text("digest_date DESC"),
             text("version DESC"),
+            postgresql_where=text("scope_type = 'mailbox'"),
         ),
     )
 
@@ -76,8 +109,11 @@ class DailyDigest(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    mailbox_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("mailboxes.id", ondelete="CASCADE"), nullable=False
+    scope_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="mailbox", server_default="mailbox"
+    )
+    mailbox_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("mailboxes.id", ondelete="CASCADE"), nullable=True
     )
     digest_date: Mapped[date] = mapped_column(Date, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)

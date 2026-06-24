@@ -53,15 +53,38 @@ POST /api/auth/gmail/disconnect
 
 Implemented behavior:
 
-- `login` returns a Gmail authorization URL for the signed-in MailMind user.
-- `callback` exchanges the OAuth code, creates or updates the Gmail mailbox, stores encrypted credentials, and redirects to `/settings/mailboxes`.
-- `disconnect` disconnects the current user's Gmail mailbox and clears stored credentials.
+- `login` returns a Gmail authorization URL for the signed-in MailMind user and
+  requests Google account selection so users can add multiple Gmail mailbox
+  instances.
+- `callback` exchanges the OAuth code, creates or updates the matching Gmail
+  mailbox instance, stores encrypted credentials, and redirects to
+  `/settings/mailboxes`.
+- `disconnect` currently disconnects the current user's Gmail mailboxes and
+  clears stored credentials; per-mailbox disconnect is not yet exposed.
+
+## IMAP Auth
+
+```text
+POST /api/auth/imap/connect
+```
+
+Implemented behavior:
+
+- Validates IMAP host, port, username, password, folder, and SSL preference for
+  the signed-in MailMind user.
+- Checks the IMAP connection before storing mailbox state.
+- Creates or updates an `imap` mailbox and stores only encrypted IMAP password
+  plus non-secret connection config.
+- Uses `host + port + username` as the mailbox instance key. Different usernames
+  on the same host create different mailbox instances.
+- Returns the standard provider-aware mailbox payload.
 
 ## Mailboxes
 
 ```text
 GET  /api/mailboxes
 GET  /api/mailboxes/{mailbox_id}
+GET  /api/mailboxes/{mailbox_id}/capabilities
 GET  /api/mailboxes/{mailbox_id}/sync-status
 POST /api/mailboxes/{mailbox_id}/sync
 ```
@@ -69,8 +92,18 @@ POST /api/mailboxes/{mailbox_id}/sync
 Implemented behavior:
 
 - Lists and reads mailboxes owned by the current user.
+- Mailbox list and detail payloads return mailbox instances, not provider
+  catalog entries.
+- Payloads preserve v0.4 fields and add v0.5 provider fields:
+  `account_email`, `display_name`, `provider_preset`, `provider_config`,
+  `credential_status`, and `capabilities`.
+- IMAP mailbox payloads include non-secret `imap_config` fields for host, port,
+  username, folder, and SSL so the settings form can be restored after refresh.
+  Passwords and encrypted password fields are never returned.
+- `GET /api/mailboxes/{mailbox_id}/capabilities` returns a compact provider
+  capability payload for the selected mailbox.
 - Returns latest sync state based on `sync_jobs` and mailbox timestamps.
-- Manually syncs today's Gmail messages for the selected mailbox.
+- Manually syncs today's Gmail or IMAP messages for the selected mailbox.
 
 ### Async Sync Job
 
@@ -78,10 +111,25 @@ Implemented behavior:
 POST /api/mailboxes/{mailbox_id}/sync-jobs
 ```
 
-Creates an `email_sync` job with `queued` status. If the same user/mailbox
+Creates an `email_sync` job through a two-step DB-first dispatch model:
+
+- DB row is created as `pending_dispatch`
+- DB commit succeeds
+- Celery dispatch runs with `job.id`
+- `celery_task_id` is persisted
+- public job status becomes `queued`
+
+If Celery dispatch fails, the committed row becomes `dispatch_failed` with
+`error_code=celery_dispatch_failed`.
+
+If the same user/mailbox
 already has a queued or running email sync job, the endpoint returns that job
 instead of creating a duplicate. Does not replace the existing synchronous
 `POST /api/mailboxes/{mailbox_id}/sync`.
+
+Different mailboxes can each have their own active sync job. Stale queued jobs
+older than 5 minutes and stale running jobs older than 20 minutes can be marked
+failed and replaced on the next trigger.
 
 ## Emails
 
@@ -92,6 +140,16 @@ GET  /api/emails/{email_id}
 POST /api/emails/{email_id}/mark-read
 POST /api/emails/{email_id}/mark-unread
 ```
+
+Frontend behavior:
+
+- `/emails` defaults to a concrete mailbox when no mailbox query is present.
+- `/emails` can filter the loaded email list by mailbox id with
+  `mailbox=<mailbox_id>` in the query string.
+- All Mailboxes is optional; when used, each row must display its source
+  mailbox.
+- Read/unread controls use the selected email's mailbox capabilities and stay
+  disabled for unsupported providers.
 
 `GET /api/emails` accepts:
 
@@ -134,7 +192,7 @@ The implemented route prefix is singular:
 Routes:
 
 ```text
-GET  /api/digest/today
+GET  /api/digest/today?scope_type=all|mailbox&mailbox_id=<uuid optional>
 POST /api/digest/today/generate
 POST /api/digest/today/refresh
 GET  /api/digest/{digest_id}
@@ -142,11 +200,17 @@ GET  /api/digest/{digest_id}
 
 Implemented behavior:
 
-- Reads the current digest for the user's active Gmail mailbox and local date.
-- Generates or refreshes today's digest synchronously.
+- Reads the current digest for either:
+  - `scope_type=all`
+  - `scope_type=mailbox` with `mailbox_id`
+- Generates or refreshes today's digest synchronously for either scope.
 - Uses the configured v0.2 AI provider chain when `AI_PROVIDER_MODE=env`;
   otherwise falls back to the mock provider.
 - Creates `daily_digests`, `digest_items`, `ai_runs`, and related `sync_jobs`.
+- `scope_type=all` returns a priority queue across mailboxes plus grouped
+  `mailbox_summaries`.
+- digest item payloads include source mailbox metadata.
+- Does not implement cross-mailbox thread merging in v0.5.
 
 ### Async Digest Jobs
 
@@ -155,8 +219,21 @@ POST /api/digest/today/generate-jobs
 POST /api/digest/today/refresh-jobs
 ```
 
-Create `digest_generate` or `digest_refresh` jobs with `queued` status. If an
-active job of the same digest type already exists for the current mailbox and
+Create `digest_generate` or `digest_refresh` jobs with the same DB-first
+dispatch model used by sync jobs. Request bodies accept:
+
+```json
+{ "scope_type": "all" }
+```
+
+or:
+
+```json
+{ "scope_type": "mailbox", "mailbox_id": "<uuid>" }
+```
+
+If an
+active job of the same digest type already exists for the same digest scope and
 local date, the endpoint returns that active job. Do not replace the existing
 synchronous `POST /api/digest/today/generate` and
 `POST /api/digest/today/refresh`.
@@ -177,9 +254,15 @@ Implemented behavior:
 
 Public job types: `email_sync`, `digest_generate`, `digest_refresh`, `scheduled_email_sync`, `scheduled_digest`.
 
-Public job statuses: `queued`, `running`, `completed`, `failed`, `cancelled`.
+Public job statuses: `pending_dispatch`, `queued`, `running`, `completed`,
+`failed`, `dispatch_failed`, `cancelled`.
 
-Job responses include: `job_id`, `job_type`, `status`, `progress`, `created_at`, `started_at`, `finished_at`, `error_code`, `error_message` (redacted), `retry_count`, `max_retries`, `retry_of_job_id`, `related_resource_type`, `related_resource_id`, `result`.
+Job responses include: `job_id`, `job_type`, `status`, `progress`,
+`created_at`, `started_at`, `finished_at`, `mailbox_id`, `digest_id`,
+`scope_type`,
+`celery_task_id`, `error_code`, `error_message` (redacted), `retry_count`,
+`max_retries`, `retry_of_job_id`, `related_resource_type`,
+`related_resource_id`, `result`.
 
 Sync error codes used by v0.4.1 containment include `network_tls`,
 `network_timeout`, `gmail_rate_limited`, `gmail_quota_exceeded`,

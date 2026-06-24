@@ -37,6 +37,12 @@ export function requiresGmailReconnect(mailbox: Mailbox): boolean {
   );
 }
 
+function providerLabel(mailbox: Mailbox): string {
+  return mailbox.provider.toLowerCase() === "gmail"
+    ? "Gmail"
+    : mailbox.provider.toUpperCase();
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) {
     return "Never";
@@ -78,11 +84,11 @@ export function formatDateTimeWithRelative(
 
 export function mailboxStateMessage(mailbox: Mailbox): string {
   if (requiresGmailReconnect(mailbox)) {
-    return "Gmail authorization has expired. Reconnect Gmail before syncing.";
+    return `${providerLabel(mailbox)} authorization has expired. Reconnect before syncing.`;
   }
 
   if (mailbox.status === "connected") {
-    return "Gmail is connected and ready for manual sync.";
+    return `${providerLabel(mailbox)} is connected and ready for manual sync.`;
   }
 
   if (mailbox.status === "disconnected") {
@@ -90,7 +96,7 @@ export function mailboxStateMessage(mailbox: Mailbox): string {
   }
 
   if (mailbox.status === "error") {
-    return "Gmail connection needs attention.";
+    return `${providerLabel(mailbox)} connection needs attention.`;
   }
 
   return `Mailbox status: ${statusLabel(mailbox.status)}.`;

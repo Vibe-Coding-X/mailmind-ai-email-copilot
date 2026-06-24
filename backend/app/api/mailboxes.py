@@ -9,7 +9,7 @@ from app.db.models.mailbox import Mailbox
 from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.schemas.job import job_payload
-from app.schemas.mailbox import mailbox_payload
+from app.schemas.mailbox import mailbox_capabilities_payload, mailbox_payload
 from app.schemas.sync_job import sync_job_payload, sync_status_for_api
 from app.services import email_sync_service
 from app.services.email_sync_service import EmailSyncError
@@ -60,6 +60,24 @@ def get_mailbox(
     return {"data": {"mailbox": mailbox_payload(mailbox)}, "meta": {}}
 
 
+@router.get("/{mailbox_id}/capabilities")
+def get_mailbox_capabilities(
+    mailbox_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    mailbox = _get_owned_mailbox(db, user=current_user, mailbox_id=mailbox_id)
+    provider = mailbox.provider.strip().lower()
+    return {
+        "data": {
+            "mailbox_id": str(mailbox.id),
+            "provider": provider,
+            "capabilities": mailbox_capabilities_payload(provider),
+        },
+        "meta": {},
+    }
+
+
 @router.get("/{mailbox_id}/sync-status")
 def get_sync_status(
     mailbox_id: UUID,
@@ -72,6 +90,8 @@ def get_sync_status(
         .where(SyncJob.mailbox_id == mailbox.id, SyncJob.user_id == current_user.id)
         .order_by(SyncJob.created_at.desc())
     )
+    last_job = email_sync_service.recover_stale_email_sync_job(db, job=last_job)
+    db.commit()
     return {
         "data": {
             "mailbox_id": str(mailbox.id),
@@ -126,12 +146,12 @@ def trigger_async_sync(
             db,
             user_id=current_user.id,
             mailbox_id=mailbox.id,
+            dispatch=True,
         )
     except EmailSyncError as exc:
         raise HTTPException(
             status_code=exc.status_code,
             detail=error_response(exc.code, exc.message, retryable=False)["error"],
         ) from exc
-
     job = db.get(SyncJob, result.job_id)
     return {"data": {"job": job_payload(job)}, "meta": {}}

@@ -18,10 +18,13 @@ import {
   type ApiResult,
   type AuthUserResponse,
   type DigestItemActionResponse,
+  type DigestScopeRequest,
   type DigestResponse,
   type EmailMutationResponse,
   type EmailResponse,
   type GmailLoginResponse,
+  type ImapConnectRequest,
+  type ImapConnectResponse,
   type JobListQuery,
   type JobResponse,
   type JobsResponse,
@@ -183,33 +186,59 @@ export function disconnectGmail(): Promise<ApiResult> {
   });
 }
 
-export function getTodayDigest(): Promise<DigestResponse> {
-  return request<DigestResponse>(API_ROUTES.digest.today, {
-    method: "GET",
+export function connectImapMailbox(
+  payload: ImapConnectRequest,
+): Promise<ImapConnectResponse> {
+  return request<ImapConnectResponse>(API_ROUTES.imapAuth.connect, {
+    method: "POST",
+    body: payload,
   });
 }
 
-export function generateTodayDigest(): Promise<DigestResponse> {
+export function getTodayDigest(
+  input?: DigestScopeRequest,
+): Promise<DigestResponse> {
+  return request<DigestResponse>(
+    withQuery(API_ROUTES.digest.today, input),
+    {
+      method: "GET",
+    },
+  );
+}
+
+export function generateTodayDigest(
+  payload: DigestScopeRequest,
+): Promise<DigestResponse> {
   return request<DigestResponse>(API_ROUTES.digest.todayGenerate, {
     method: "POST",
+    body: payload,
   });
 }
 
-export function generateTodayDigestJob(): Promise<JobResponse> {
+export function generateTodayDigestJob(
+  payload: DigestScopeRequest,
+): Promise<JobResponse> {
   return request<JobResponse>(API_ROUTES.digest.todayGenerateJobs, {
     method: "POST",
+    body: payload,
   });
 }
 
-export function refreshTodayDigest(): Promise<DigestResponse> {
+export function refreshTodayDigest(
+  payload: DigestScopeRequest,
+): Promise<DigestResponse> {
   return request<DigestResponse>(API_ROUTES.digest.todayRefresh, {
     method: "POST",
+    body: payload,
   });
 }
 
-export function refreshTodayDigestJob(): Promise<JobResponse> {
+export function refreshTodayDigestJob(
+  payload: DigestScopeRequest,
+): Promise<JobResponse> {
   return request<JobResponse>(API_ROUTES.digest.todayRefreshJobs, {
     method: "POST",
+    body: payload,
   });
 }
 
@@ -373,6 +402,10 @@ export const apiClient = {
   gmailAuth: {
     startLogin: startGmailLogin,
     disconnect: disconnectGmail,
+  },
+
+  imapAuth: {
+    connect: connectImapMailbox,
   },
 
   jobs: {

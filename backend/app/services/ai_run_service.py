@@ -15,7 +15,7 @@ def create_ai_run(
     db: Session,
     *,
     user_id: UUID,
-    mailbox_id: UUID,
+    mailbox_id: UUID | None,
     digest_id: UUID | None,
     trigger_source: str,
     provider_id: str | None = None,

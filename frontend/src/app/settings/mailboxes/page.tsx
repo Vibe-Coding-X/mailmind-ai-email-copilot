@@ -1,25 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { StatusBanner } from "@/components/status-banner";
-import { PageFrame } from "@/components/page-frame";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { InlineFeedback } from "@/components/inline-feedback";
-import { SettingsSection } from "@/components/settings-section";
 import { EmptyState } from "@/components/empty-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { InlineFeedback } from "@/components/inline-feedback";
+import { useJobPolling } from "@/components/jobs/use-job-polling";
+import { useRecentJobs } from "@/components/jobs/use-recent-jobs";
 import {
   MailboxSyncCard,
   type MailboxSyncStatusView,
 } from "@/components/mailbox-sync-card";
-import { useJobPolling } from "@/components/jobs/use-job-polling";
-import { useRecentJobs } from "@/components/jobs/use-recent-jobs";
-import { useAuth } from "@/lib/auth";
+import { MailboxProviderBadge } from "@/components/mailbox-provider-badge";
+import { PageFrame } from "@/components/page-frame";
+import { SettingsSection } from "@/components/settings-section";
+import { StatusBanner } from "@/components/status-banner";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n, type TranslationKey } from "@/i18n/provider";
 import {
   ApiRequestError,
-  disconnectGmail,
+  connectImapMailbox,
   getMailboxSyncStatus,
   listMailboxes,
   startGmailLogin,
@@ -34,7 +42,6 @@ import {
   requiresGmailReconnect,
   syncResultMessage,
 } from "@/lib/mailboxes";
-import { useI18n, type TranslationKey } from "@/i18n/provider";
 
 type MailboxLoadState =
   | "loading"
@@ -43,9 +50,43 @@ type MailboxLoadState =
   | "backend_unavailable"
   | "error";
 
+interface ImapFormState {
+  accountEmail: string;
+  displayName: string;
+  host: string;
+  port: string;
+  username: string;
+  password: string;
+  folder: string;
+  useSsl: boolean;
+}
+
 const GMAIL_PROVIDER = "gmail";
+const IMAP_PROVIDER = "imap";
 const SYSTEM_AUTH_ERROR_CODE = "UNAUTHORIZED";
 const GMAIL_REAUTH_ERROR_CODE = "MAILBOX_REAUTH_REQUIRED";
+const STALE_QUEUED_SYNC_JOB_MS = 5 * 60 * 1000;
+const STALE_RUNNING_SYNC_JOB_MS = 20 * 60 * 1000;
+
+const initialImapForm: ImapFormState = {
+  accountEmail: "",
+  displayName: "",
+  host: "",
+  port: "993",
+  username: "",
+  password: "",
+  folder: "INBOX",
+  useSsl: true,
+};
+
+const imapPresets = [
+  { key: "qq", label: "QQ Mail", host: "imap.qq.com" },
+  { key: "163", label: "163 Mail", host: "imap.163.com" },
+  { key: "gmail_imap", label: "Gmail IMAP", host: "imap.gmail.com" },
+  { key: "custom", label: "Custom", host: "" },
+] as const;
+
+type TFunction = (key: TranslationKey) => string;
 
 function isSystemAuthError(error: ApiRequestError): boolean {
   return error.status === 401 && error.code === SYSTEM_AUTH_ERROR_CODE;
@@ -56,8 +97,6 @@ function isGmailReauthError(error: unknown): boolean {
     error instanceof ApiRequestError && error.code === GMAIL_REAUTH_ERROR_CODE
   );
 }
-
-type TFunction = (key: TranslationKey) => string;
 
 function toErrorMessage(error: unknown, t: TFunction): string {
   if (error instanceof ApiRequestError) {
@@ -89,14 +128,24 @@ function toMailboxLoadState(error: unknown, t: TFunction): {
     return { state: "error", message: error.message };
   }
 
-  return {
-    state: "error",
-    message: t("digest.genericError"),
-  };
+  return { state: "error", message: t("digest.genericError") };
 }
 
-function isGmailMailbox(mailbox: Mailbox): boolean {
-  return mailbox.provider.toLowerCase() === GMAIL_PROVIDER;
+function isStaleSyncJob(job: Job, nowMs = Date.now()): boolean {
+  const reference =
+    job.status === "running" && job.started_at ? job.started_at : job.created_at;
+  const referenceMs = new Date(reference).getTime();
+  if (Number.isNaN(referenceMs)) {
+    return false;
+  }
+  const ageMs = nowMs - referenceMs;
+  if (job.status === "queued") {
+    return ageMs > STALE_QUEUED_SYNC_JOB_MS;
+  }
+  if (job.status === "running") {
+    return ageMs > STALE_RUNNING_SYNC_JOB_MS;
+  }
+  return false;
 }
 
 function statusLabel(status: string): string {
@@ -119,44 +168,111 @@ function mailboxStatusTone(status: string): BadgeTone {
   }
 }
 
-function actionButtonStyle(disabled: boolean): React.CSSProperties {
+function actionButtonStyle(disabled: boolean): CSSProperties {
   return { cursor: disabled ? "not-allowed" : "pointer" };
 }
 
-function gmailOverview(
-  loadState: MailboxLoadState,
-  gmailMailbox: Mailbox | null,
-  t: TFunction,
-): { text: string; tone: BadgeTone } {
-  if (loadState === "loading") {
-    return { text: t("mailboxes.checkingGmail"), tone: "neutral" };
-  }
+function isGmailMailbox(mailbox: Mailbox): boolean {
+  return mailbox.provider.toLowerCase() === GMAIL_PROVIDER;
+}
 
-  if (loadState === "not_signed_in") {
-    return { text: t("account.notSignedIn"), tone: "neutral" };
-  }
+function isImapMailbox(mailbox: Mailbox): boolean {
+  return mailbox.provider.toLowerCase() === IMAP_PROVIDER;
+}
 
-  if (loadState === "backend_unavailable") {
-    return { text: t("account.backendUnavailable"), tone: "danger" };
-  }
+function mailboxTitle(mailbox: Mailbox): string {
+  return mailbox.display_name || mailbox.account_email || mailbox.email_address;
+}
 
-  if (loadState === "error") {
-    return { text: t("mailboxes.stateUnavailable"), tone: "danger" };
-  }
+function imapCredentialText(mailbox: Mailbox): string {
+  return mailbox.credential_status === "present" ? "Credential: saved" : "Credential: missing";
+}
 
-  if (gmailMailbox === null) {
-    return { text: t("mailboxes.notConnectedStatus"), tone: "neutral" };
+function imapConnectionText(mailbox: Mailbox): string | null {
+  const config = mailbox.provider_config ?? mailbox.imap_config;
+  if (!config?.host) {
+    return null;
   }
+  const port = config.port ?? 993;
+  const useSsl = config.use_ssl ? " SSL" : "";
+  return `Host: ${config.host}:${port}${useSsl}`;
+}
+
+function syncStatusViewFromJob(
+  job: Job,
+  current: MailboxSyncStatusView | undefined,
+): MailboxSyncStatusView {
+  const previousLoaded = current?.state === "loaded" ? current.data : null;
+  const mailboxId =
+    typeof job.related_resource_id === "string"
+      ? job.related_resource_id
+      : previousLoaded?.mailbox_id ?? "";
+  const lastSuccessfulSyncAt =
+    job.status === "completed"
+      ? job.finished_at ?? previousLoaded?.last_successful_sync_at ?? new Date().toISOString()
+      : previousLoaded?.last_successful_sync_at ?? null;
 
   return {
-    text: `Gmail ${statusLabel(gmailMailbox.status)}`,
-    tone: mailboxStatusTone(gmailMailbox.status),
+    state: "loaded",
+    data: {
+      mailbox_id: mailboxId,
+      status: job.status,
+      last_successful_sync_at: lastSuccessfulSyncAt,
+      last_job: {
+        id: job.job_id,
+        job_type: job.job_type,
+        status: job.status,
+        started_at: job.started_at,
+        finished_at: job.finished_at,
+        error_message: job.error_message,
+      },
+    },
   };
+}
+
+function PolledMailboxSyncCard({
+  mailbox,
+  syncStatus,
+  syncing,
+  activeJob,
+  onSync,
+  onJobCompleted,
+  onJobFailed,
+  onJobRetried,
+  onJobRetryError,
+}: {
+  mailbox: Mailbox;
+  syncStatus?: MailboxSyncStatusView;
+  syncing: boolean;
+  activeJob: Job | null;
+  onSync: (mailboxId: string) => void;
+  onJobCompleted: (job: Job) => void;
+  onJobFailed: (job: Job) => void;
+  onJobRetried: (job: Job) => void;
+  onJobRetryError: (message: string) => void;
+}) {
+  const polledSyncJob = useJobPolling({
+    job: activeJob,
+    enabled: activeJob !== null,
+    onCompleted: onJobCompleted,
+    onFailed: onJobFailed,
+  });
+
+  return (
+    <MailboxSyncCard
+      mailbox={mailbox}
+      syncStatus={syncStatus}
+      syncing={syncing}
+      activeJob={polledSyncJob.job}
+      onSync={onSync}
+      onJobRetried={onJobRetried}
+      onJobRetryError={onJobRetryError}
+    />
+  );
 }
 
 export default function MailboxSettingsPage() {
   const { t } = useI18n();
-  const { status: authStatus, refresh: refreshAuth } = useAuth();
   const [loadState, setLoadState] = useState<MailboxLoadState>("loading");
   const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
   const [syncStatuses, setSyncStatuses] = useState<
@@ -165,18 +281,26 @@ export default function MailboxSettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
+  const [connectingGmail, setConnectingGmail] = useState(false);
+  const [connectingImap, setConnectingImap] = useState(false);
+  const [showImapForm, setShowImapForm] = useState(false);
+  const [showImapPassword, setShowImapPassword] = useState(false);
+  const [imapForm, setImapForm] = useState<ImapFormState>(initialImapForm);
   const [syncingMailboxId, setSyncingMailboxId] = useState<string | null>(null);
-  const [activeSyncJob, setActiveSyncJob] = useState<Job | null>(null);
+  const [activeSyncJobsByMailboxId, setActiveSyncJobsByMailboxId] = useState<
+    Record<string, Job>
+  >({});
   const recentSyncJobsQuery = useMemo(
     () => ({ limit: 20, job_type: "email_sync" as const }),
     [],
   );
   const recentSyncJobs = useRecentJobs({
-    enabled: authStatus === "authenticated",
+    enabled: loadState === "loaded",
     query: recentSyncJobsQuery,
   });
+
+  const canAct = loadState === "loaded";
+  const busy = connectingGmail || connectingImap;
 
   const refreshSyncStatuses = useCallback(async (nextMailboxes: Mailbox[]) => {
     if (nextMailboxes.length === 0) {
@@ -233,87 +357,79 @@ export default function MailboxSettingsPage() {
     }
   }, [refreshSyncStatuses, t]);
 
-  const onSyncJobCompleted = useCallback(async () => {
-    setActionMessage(t("mailboxes.syncJobCompleted"));
-    await loadMailboxList();
-  }, [loadMailboxList, t]);
+  useEffect(() => {
+    void loadMailboxList();
+  }, [loadMailboxList]);
+
+  useEffect(() => {
+    const mailboxIds = new Set(mailboxes.map((mailbox) => mailbox.id));
+    setActiveSyncJobsByMailboxId((current) => {
+      const next = { ...current };
+      for (const job of recentSyncJobs.jobs) {
+        const mailboxId =
+          typeof job.related_resource_id === "string" ? job.related_resource_id : "";
+        if (
+          isActiveJob(job) &&
+          !isStaleSyncJob(job) &&
+          job.related_resource_type === "mailbox" &&
+          mailboxIds.has(mailboxId) &&
+          next[mailboxId] === undefined
+        ) {
+          next[mailboxId] = job;
+        }
+      }
+      return next;
+    });
+  }, [mailboxes, recentSyncJobs.jobs]);
+
+  const onSyncJobCompleted = useCallback(
+    async (job: Job) => {
+      if (job.related_resource_id) {
+        setActiveSyncJobsByMailboxId((current) => {
+          const next = { ...current };
+          delete next[job.related_resource_id as string];
+          return next;
+        });
+        setSyncStatuses((current) => ({
+          ...current,
+          [job.related_resource_id as string]: syncStatusViewFromJob(
+            job,
+            current[job.related_resource_id as string],
+          ),
+        }));
+      }
+      setActionMessage(t("mailboxes.syncJobCompleted"));
+      await Promise.all([loadMailboxList(), recentSyncJobs.refresh()]);
+    },
+    [loadMailboxList, recentSyncJobs, t],
+  );
 
   const onSyncJobFailed = useCallback(
-    (job: Job) => {
+    async (job: Job) => {
+      if (job.related_resource_id) {
+        setActiveSyncJobsByMailboxId((current) => {
+          const next = { ...current };
+          delete next[job.related_resource_id as string];
+          return next;
+        });
+        setSyncStatuses((current) => ({
+          ...current,
+          [job.related_resource_id as string]: syncStatusViewFromJob(
+            job,
+            current[job.related_resource_id as string],
+          ),
+        }));
+      }
       setActionError(job.error_message ?? t("mailboxes.syncJobFailed"));
+      await recentSyncJobs.refresh();
     },
-    [t],
+    [recentSyncJobs, t],
   );
 
-  const polledSyncJob = useJobPolling({
-    job: activeSyncJob,
-    enabled: activeSyncJob !== null,
-    onCompleted: onSyncJobCompleted,
-    onFailed: onSyncJobFailed,
-  });
-
-  useEffect(() => {
-    if (activeSyncJob !== null && isActiveJob(activeSyncJob)) {
-      return;
-    }
-    const restoredJob = recentSyncJobs.jobs.find(
-      (job) =>
-        isActiveJob(job) &&
-        job.related_resource_type === "mailbox" &&
-        mailboxes.some((mailbox) => mailbox.id === job.related_resource_id),
-    );
-    if (restoredJob) {
-      setActiveSyncJob(restoredJob);
-    }
-  }, [activeSyncJob, mailboxes, recentSyncJobs.jobs]);
-
-  useEffect(() => {
-    if (authStatus === "loading") {
-      setLoadState("loading");
-      return;
-    }
-
-    if (authStatus === "unauthenticated") {
-      setMailboxes([]);
-      setSyncStatuses({});
-      setLoadState("not_signed_in");
-      setLoadError(null);
-      return;
-    }
-
-    if (authStatus === "unavailable") {
-      setMailboxes([]);
-      setSyncStatuses({});
-      setLoadState("backend_unavailable");
-      setLoadError(t("digest.backendUnavailableMessage"));
-      return;
-    }
-
-    void loadMailboxList();
-  }, [authStatus, loadMailboxList, t]);
-
-  const gmailMailbox = useMemo(
-    () => mailboxes.find(isGmailMailbox) ?? null,
-    [mailboxes],
-  );
-
-  const gmailStatus = gmailMailbox?.status ?? "not_connected";
-  const gmailSummary = gmailOverview(loadState, gmailMailbox, t);
-  const canAct = authStatus === "authenticated";
-  const showConnect =
-    canAct &&
-    (gmailMailbox === null ||
-      gmailStatus === "disconnected" ||
-      gmailStatus === "reauthorization_required" ||
-      gmailStatus === "reauth_required" ||
-      gmailStatus === "error");
-  const showDisconnect =
-    canAct && gmailMailbox !== null && gmailStatus !== "disconnected";
-
-  async function onConnectGmail() {
+  async function onStartGmail() {
     setActionError(null);
     setActionMessage(null);
-    setConnecting(true);
+    setConnectingGmail(true);
 
     try {
       const response = await startGmailLogin();
@@ -323,47 +439,54 @@ export default function MailboxSettingsPage() {
 
       window.location.href = response.data.authorization_url;
     } catch (error) {
-      const resolved = toMailboxLoadState(error, t);
-      if (
-        resolved.state === "not_signed_in" ||
-        resolved.state === "backend_unavailable"
-      ) {
-        setLoadState(resolved.state);
-        setLoadError(resolved.message);
-      }
       setActionError(toErrorMessage(error, t));
-      setConnecting(false);
+      setConnectingGmail(false);
     }
   }
 
-  async function onDisconnectGmail() {
-    const confirmed = window.confirm(t("mailboxes.disconnectConfirm"));
-    if (!confirmed) {
-      return;
-    }
+  function updateImapForm<K extends keyof ImapFormState>(
+    key: K,
+    value: ImapFormState[K],
+  ) {
+    setImapForm((current) => ({ ...current, [key]: value }));
+  }
 
+  function applyPreset(host: string) {
+    setImapForm((current) => ({
+      ...current,
+      host,
+      port: "993",
+      useSsl: true,
+      folder: current.folder || "INBOX",
+    }));
+  }
+
+  async function onConnectImap(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setActionError(null);
     setActionMessage(null);
-    setDisconnecting(true);
+    setConnectingImap(true);
 
     try {
-      await disconnectGmail();
+      await connectImapMailbox({
+        account_email: imapForm.accountEmail,
+        display_name: imapForm.displayName || undefined,
+        host: imapForm.host,
+        port: Number(imapForm.port),
+        username: imapForm.username,
+        password: imapForm.password,
+        folder: imapForm.folder,
+        use_ssl: imapForm.useSsl,
+      });
+      setImapForm(initialImapForm);
       const refreshed = await loadMailboxList();
       if (refreshed) {
-        setActionMessage(t("mailboxes.disconnectedMessage"));
+        setActionMessage(t("mailboxes.imapConnected"));
       }
     } catch (error) {
-      const resolved = toMailboxLoadState(error, t);
-      if (
-        resolved.state === "not_signed_in" ||
-        resolved.state === "backend_unavailable"
-      ) {
-        setLoadState(resolved.state);
-        setLoadError(resolved.message);
-      }
       setActionError(toErrorMessage(error, t));
     } finally {
-      setDisconnecting(false);
+      setConnectingImap(false);
     }
   }
 
@@ -371,7 +494,11 @@ export default function MailboxSettingsPage() {
     setActionError(null);
     setActionMessage(null);
     setSyncingMailboxId(mailboxId);
-    setActiveSyncJob(null);
+    setActiveSyncJobsByMailboxId((current) => {
+      const next = { ...current };
+      delete next[mailboxId];
+      return next;
+    });
     setSyncStatuses((current) => ({
       ...current,
       [mailboxId]: { state: "loading" },
@@ -379,7 +506,10 @@ export default function MailboxSettingsPage() {
 
     try {
       const response = await triggerMailboxSyncJob(mailboxId);
-      setActiveSyncJob(response.data.job);
+      setActiveSyncJobsByMailboxId((current) => ({
+        ...current,
+        [mailboxId]: response.data.job,
+      }));
       setActionMessage(t("mailboxes.syncJobQueued"));
       await refreshSyncStatuses(mailboxes);
     } catch (error) {
@@ -389,14 +519,6 @@ export default function MailboxSettingsPage() {
         await loadMailboxList();
       } catch (fallbackError) {
         const message = toErrorMessage(fallbackError, t);
-        const resolved = toMailboxLoadState(fallbackError, t);
-        if (
-          resolved.state === "not_signed_in" ||
-          resolved.state === "backend_unavailable"
-        ) {
-          setLoadState(resolved.state);
-          setLoadError(resolved.message);
-        }
         setSyncStatuses((current) => ({
           ...current,
           [mailboxId]: { state: "error", message },
@@ -411,18 +533,6 @@ export default function MailboxSettingsPage() {
     } finally {
       setSyncingMailboxId(null);
     }
-  }
-
-  async function onRetry() {
-    setActionError(null);
-    setActionMessage(null);
-
-    if (authStatus === "authenticated") {
-      await loadMailboxList();
-      return;
-    }
-
-    await refreshAuth();
   }
 
   function renderMailboxList() {
@@ -440,36 +550,20 @@ export default function MailboxSettingsPage() {
       );
     }
 
-    if (loadState === "backend_unavailable") {
+    if (loadState === "backend_unavailable" || loadState === "error") {
       return (
         <EmptyState
-          title={t("account.backendUnavailable")}
-          hint={loadError ?? t("mailboxes.unableToReachFallback")}
-          action={
-            <button
-              type="button"
-              className="mm-btn"
-              onClick={onRetry}
-              style={actionButtonStyle(false)}
-            >
-              {t("common.retry")}
-            </button>
+          title={
+            loadState === "backend_unavailable"
+              ? t("account.backendUnavailable")
+              : t("mailboxes.errorTitle")
           }
-        />
-      );
-    }
-
-    if (loadState === "error") {
-      return (
-        <EmptyState
-          title={t("mailboxes.errorTitle")}
           hint={loadError ?? t("mailboxes.backendErrorFallback")}
           action={
             <button
               type="button"
               className="mm-btn"
-              onClick={onRetry}
-              style={actionButtonStyle(false)}
+              onClick={() => void loadMailboxList()}
             >
               {t("common.retry")}
             </button>
@@ -489,61 +583,119 @@ export default function MailboxSettingsPage() {
 
     return (
       <div className="mm-stack" style={{ gap: 0 }}>
-        {mailboxes.map((mailbox, index) => (
-          <div
-            key={mailbox.id}
-            style={{
-              borderTop: index === 0 ? 0 : "1px solid var(--mm-border)",
-              padding: index === 0 ? "0 0 16px" : "16px 0",
-            }}
-          >
-            <div className="mm-spread" style={{ alignItems: "flex-start" }}>
-              <div>
-                <h3 style={{ fontSize: 14 }}>{mailbox.email_address}</h3>
-                <p className="mm-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                  {mailbox.provider} account
-                </p>
-                <p className="mm-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                  {mailboxStateMessage(mailbox)}
-                </p>
-              </div>
-              <Badge tone={mailboxStatusTone(mailbox.status)} dot>
-                {statusLabel(mailbox.status)}
-              </Badge>
-            </div>
+        {mailboxes.map((mailbox, index) => {
+          const imapText = isImapMailbox(mailbox) ? imapConnectionText(mailbox) : null;
+          return (
+            <div
+              key={mailbox.id}
+              style={{
+                borderTop: index === 0 ? 0 : "1px solid var(--mm-border)",
+                padding: index === 0 ? "0 0 16px" : "16px 0",
+              }}
+            >
+              <div className="mm-spread" style={{ alignItems: "flex-start" }}>
+                <div>
+                  <h3 style={{ fontSize: 14 }}>{mailboxTitle(mailbox)}</h3>
+                  <div className="mm-row" style={{ gap: 8, marginTop: 6 }}>
+                    <MailboxProviderBadge provider={mailbox.provider} />
+                    <Badge tone={mailboxStatusTone(mailbox.status)} dot>
+                      {statusLabel(mailbox.status)}
+                    </Badge>
+                  </div>
+                  <p className="mm-muted" style={{ fontSize: 12, marginTop: 8 }}>
+                    {mailbox.email_address}
+                  </p>
+                  {imapText ? (
+                    <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                      {imapText}
+                    </p>
+                  ) : null}
+                  {isImapMailbox(mailbox) ? (
+                    <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                      {imapCredentialText(mailbox)}
+                    </p>
+                  ) : null}
+                  <p className="mm-muted" style={{ fontSize: 12, marginTop: 6 }}>
+                    {mailboxStateMessage(mailbox)}
+                  </p>
+                  <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                    Updated {formatDateTimeWithRelative(mailbox.updated_at)}
+                  </p>
+                </div>
 
-            <div style={{ marginTop: 14 }}>
-              <MailboxSyncCard
-                mailbox={mailbox}
-                syncStatus={syncStatuses[mailbox.id]}
-                syncing={syncingMailboxId === mailbox.id}
-                activeJob={
-                  activeSyncJob?.related_resource_id === mailbox.id
-                    ? polledSyncJob.job
-                    : null
-                }
-                onSync={(mailboxId) => void onSyncMailbox(mailboxId)}
-                onJobRetried={(job) => {
-                  setActionError(null);
-                  setActionMessage(t("mailboxes.syncJobQueued"));
-                  setActiveSyncJob(job);
-                }}
-                onJobRetryError={(message) => setActionError(message)}
-              />
+                <div className="mm-row" style={{ justifyContent: "flex-end" }}>
+                  {isGmailMailbox(mailbox) ? (
+                    <button
+                      type="button"
+                      className="mm-btn"
+                      onClick={() => void onStartGmail()}
+                      disabled={!canAct || busy}
+                      aria-disabled={!canAct || busy}
+                      style={actionButtonStyle(!canAct || busy)}
+                    >
+                      {requiresGmailReconnect(mailbox)
+                        ? t("mailboxes.reconnectGmail")
+                        : t("mailboxes.reconnect")}
+                    </button>
+                  ) : null}
+                  {isImapMailbox(mailbox) ? (
+                    <>
+                      <button
+                        type="button"
+                        className="mm-btn"
+                        disabled
+                        aria-disabled
+                        title={t("mailboxes.editUnavailable")}
+                        style={actionButtonStyle(true)}
+                      >
+                        {t("mailboxes.editSettings")}
+                      </button>
+                      <button
+                        type="button"
+                        className="mm-btn"
+                        disabled
+                        aria-disabled
+                        title={t("mailboxes.updatePasswordUnavailable")}
+                        style={actionButtonStyle(true)}
+                      >
+                        {t("mailboxes.updatePassword")}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <PolledMailboxSyncCard
+                  mailbox={mailbox}
+                  syncStatus={syncStatuses[mailbox.id]}
+                  syncing={syncingMailboxId === mailbox.id}
+                  activeJob={activeSyncJobsByMailboxId[mailbox.id] ?? null}
+                  onSync={(mailboxId) => void onSyncMailbox(mailboxId)}
+                  onJobCompleted={(job) => void onSyncJobCompleted(job)}
+                  onJobFailed={onSyncJobFailed}
+                  onJobRetried={(job) => {
+                    setActionError(null);
+                    setActionMessage(t("mailboxes.syncJobQueued"));
+                    if (job.related_resource_id) {
+                      setActiveSyncJobsByMailboxId((current) => ({
+                        ...current,
+                        [job.related_resource_id as string]: job,
+                      }));
+                    }
+                  }}
+                  onJobRetryError={(message) => setActionError(message)}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
 
-  const connectDisabled =
-    !canAct ||
-    connecting ||
-    disconnecting ||
-    loadState === "loading" ||
-    loadState === "backend_unavailable";
-  const disconnectDisabled = !canAct || connecting || disconnecting;
+  const addDisabled =
+    busy || loadState === "loading" || loadState === "backend_unavailable";
 
   return (
     <AppShell>
@@ -554,69 +706,10 @@ export default function MailboxSettingsPage() {
         description={t("mailboxes.pageDescription")}
       >
         <SettingsSection
-          title={t("mailboxes.title")}
-          description={t("mailboxes.description")}
+          title={t("mailboxes.connectedTitle")}
+          description={t("mailboxes.connectedDescription")}
         >
-          <div className="mm-spread" style={{ alignItems: "flex-start" }}>
-            <div className="mm-stack" style={{ gap: 8 }}>
-              <div>
-                <Badge tone={gmailSummary.tone} dot>
-                  {gmailSummary.text}
-                </Badge>
-              </div>
-              {gmailMailbox ? (
-                <div style={{ fontSize: 13 }}>
-                  <div>{gmailMailbox.email_address}</div>
-                  <div className="mm-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                    Updated {formatDateTimeWithRelative(gmailMailbox.updated_at)}
-                  </div>
-                  <p className="mm-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                    {mailboxStateMessage(gmailMailbox)}
-                  </p>
-                </div>
-              ) : (
-                <p className="mm-muted" style={{ fontSize: 13 }}>
-                  {loadState === "not_signed_in"
-                    ? t("mailboxes.signInBeforeGmail")
-                    : loadState === "backend_unavailable"
-                      ? t("mailboxes.stateBackendUnavailable")
-                      : t("mailboxes.noGmailReturned")}
-                </p>
-              )}
-            </div>
-
-            <div className="mm-row" style={{ justifyContent: "flex-end" }}>
-              {showConnect ? (
-                <button
-                  type="button"
-                  className="mm-btn mm-btn--primary"
-                  onClick={onConnectGmail}
-                  disabled={connectDisabled}
-                  aria-disabled={connectDisabled}
-                  style={actionButtonStyle(connectDisabled)}
-                >
-                  {connecting
-                    ? t("mailboxes.startingGmail")
-                    : gmailMailbox && requiresGmailReconnect(gmailMailbox)
-                      ? t("mailboxes.reconnectGmail")
-                      : t("mailboxes.connectGmail")}
-                </button>
-              ) : null}
-
-              {showDisconnect ? (
-                <button
-                  type="button"
-                  className="mm-btn"
-                  onClick={onDisconnectGmail}
-                  disabled={disconnectDisabled}
-                  aria-disabled={disconnectDisabled}
-                  style={actionButtonStyle(disconnectDisabled)}
-                >
-                  {disconnecting ? t("mailboxes.disconnecting") : t("mailboxes.disconnectGmail")}
-                </button>
-              ) : null}
-            </div>
-          </div>
+          {renderMailboxList()}
 
           {actionError ? (
             <div style={{ marginTop: 14 }}>
@@ -636,14 +729,247 @@ export default function MailboxSettingsPage() {
         </SettingsSection>
 
         <SettingsSection
-          title={t("mailboxes.listTitle")}
-          description={
-            mailboxes.length > 1
-              ? t("mailboxes.listMultiDescription")
-              : t("mailboxes.listDescription")
-          }
+          title={t("mailboxes.addTitle")}
+          description={t("mailboxes.addDescription")}
         >
-          {renderMailboxList()}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid var(--mm-border)",
+                borderRadius: 8,
+                padding: 16,
+              }}
+            >
+              <div className="mm-spread" style={{ alignItems: "flex-start" }}>
+                <div>
+                  <MailboxProviderBadge provider="gmail" />
+                  <p className="mm-muted" style={{ fontSize: 13, marginTop: 8 }}>
+                    {t("mailboxes.addGmailHint")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="mm-btn mm-btn--primary"
+                  onClick={() => void onStartGmail()}
+                  disabled={addDisabled}
+                  aria-disabled={addDisabled}
+                  style={actionButtonStyle(addDisabled)}
+                >
+                  {connectingGmail ? t("mailboxes.startingGmail") : t("mailboxes.addGmail")}
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid var(--mm-border)",
+                borderRadius: 8,
+                padding: 16,
+              }}
+            >
+              <div className="mm-spread" style={{ alignItems: "flex-start" }}>
+                <div>
+                  <MailboxProviderBadge provider="imap" />
+                  <p className="mm-muted" style={{ fontSize: 13, marginTop: 8 }}>
+                    {t("mailboxes.addImapHint")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="mm-btn mm-btn--primary"
+                  onClick={() => setShowImapForm((current) => !current)}
+                  disabled={addDisabled}
+                  aria-disabled={addDisabled}
+                  style={actionButtonStyle(addDisabled)}
+                >
+                  {t("mailboxes.addImap")}
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid var(--mm-border)",
+                borderRadius: 8,
+                padding: 16,
+              }}
+            >
+              <div className="mm-spread" style={{ alignItems: "flex-start" }}>
+                <div>
+                  <MailboxProviderBadge provider="outlook" />
+                  <p className="mm-muted" style={{ fontSize: 13, marginTop: 8 }}>
+                    {t("mailboxes.outlookComingSoon")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="mm-btn"
+                  disabled
+                  aria-disabled
+                  style={actionButtonStyle(true)}
+                >
+                  {t("mailboxes.unavailable")}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {showImapForm ? (
+            <form
+              className="mm-stack"
+              style={{ gap: 14, marginTop: 16 }}
+              onSubmit={onConnectImap}
+            >
+              <div className="mm-row" style={{ gap: 8 }}>
+                {imapPresets.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    className="mm-btn"
+                    onClick={() => applyPreset(preset.host)}
+                    disabled={connectingImap}
+                    aria-disabled={connectingImap}
+                    style={{ fontSize: 12, padding: "6px 12px" }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapAccountEmail")}</span>
+                  <input
+                    className="mm-input"
+                    type="email"
+                    value={imapForm.accountEmail}
+                    onChange={(event) => updateImapForm("accountEmail", event.target.value)}
+                    disabled={connectingImap}
+                    required
+                  />
+                </label>
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapDisplayName")}</span>
+                  <input
+                    className="mm-input"
+                    type="text"
+                    value={imapForm.displayName}
+                    onChange={(event) => updateImapForm("displayName", event.target.value)}
+                    disabled={connectingImap}
+                  />
+                </label>
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapHost")}</span>
+                  <input
+                    className="mm-input"
+                    type="text"
+                    value={imapForm.host}
+                    onChange={(event) => updateImapForm("host", event.target.value)}
+                    disabled={connectingImap}
+                    required
+                  />
+                </label>
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapPort")}</span>
+                  <input
+                    className="mm-input"
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={imapForm.port}
+                    onChange={(event) => updateImapForm("port", event.target.value)}
+                    disabled={connectingImap}
+                    required
+                  />
+                </label>
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapUsername")}</span>
+                  <input
+                    className="mm-input"
+                    type="text"
+                    value={imapForm.username}
+                    onChange={(event) => updateImapForm("username", event.target.value)}
+                    disabled={connectingImap}
+                    required
+                  />
+                </label>
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapPassword")}</span>
+                  <div className="mm-row" style={{ gap: 8, alignItems: "center" }}>
+                    <input
+                      className="mm-input"
+                      type={showImapPassword ? "text" : "password"}
+                      value={imapForm.password}
+                      onChange={(event) => updateImapForm("password", event.target.value)}
+                      disabled={connectingImap}
+                      required
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      className="mm-btn"
+                      onClick={() => setShowImapPassword((current) => !current)}
+                      disabled={connectingImap}
+                      aria-disabled={connectingImap}
+                      aria-pressed={showImapPassword}
+                      style={{ fontSize: 12, padding: "8px 12px", flexShrink: 0 }}
+                    >
+                      {showImapPassword
+                        ? t("mailboxes.hidePassword")
+                        : t("mailboxes.showPassword")}
+                    </button>
+                  </div>
+                </label>
+                <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
+                  <span>{t("mailboxes.imapFolder")}</span>
+                  <input
+                    className="mm-input"
+                    type="text"
+                    value={imapForm.folder}
+                    onChange={(event) => updateImapForm("folder", event.target.value)}
+                    disabled={connectingImap}
+                    required
+                  />
+                </label>
+                <label
+                  className="mm-row"
+                  style={{ alignItems: "center", gap: 8, fontSize: 13, paddingTop: 24 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={imapForm.useSsl}
+                    onChange={(event) => updateImapForm("useSsl", event.target.checked)}
+                    disabled={connectingImap}
+                  />
+                  <span>{t("mailboxes.imapUseSsl")}</span>
+                </label>
+              </div>
+
+              <div className="mm-row" style={{ justifyContent: "flex-end" }}>
+                <button
+                  type="submit"
+                  className="mm-btn mm-btn--primary"
+                  disabled={connectingImap}
+                  aria-disabled={connectingImap}
+                  style={actionButtonStyle(connectingImap)}
+                >
+                  {connectingImap ? t("mailboxes.connectingImap") : t("mailboxes.addImap")}
+                </button>
+              </div>
+            </form>
+          ) : null}
         </SettingsSection>
       </PageFrame>
     </AppShell>

@@ -253,14 +253,19 @@ def test_scheduled_digest_generation_worker_preserves_scheduled_trigger() -> Non
             dispatch=False,
             generate_time="08:00",
         )
-        digest = execute_queued_digest_job(
+        queued_job = db.get(SyncJob, result.job_ids[0])
+        assert queued_job is not None
+        queued_job.status = "queued"
+        queued_job.celery_task_id = f"manual-dispatch-{queued_job.id}"
+        db.flush()
+        result = execute_queued_digest_job(
             db,
             job_id=result.job_ids[0],
             llm_provider=MockLLMProvider(),
             now=now,
         )
         db.commit()
-        digest_id = digest.id
+        digest_id = result.digest_id
 
     with SessionLocal() as db:
         stored = db.get(DailyDigest, digest_id)

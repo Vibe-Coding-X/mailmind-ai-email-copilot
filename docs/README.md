@@ -30,6 +30,8 @@ MailMind 文档入口。
 | 前端设计 | [`frontend/FRONTEND_DESIGN.md`](frontend/FRONTEND_DESIGN.md) |
 | 核心数据流 | [`architecture/DATA_FLOWS.md`](architecture/DATA_FLOWS.md) |
 | 异步任务 | [`engineering/ASYNC_TASKS.md`](engineering/ASYNC_TASKS.md) |
+| Job 执行模型 | [`architecture/JOB_EXECUTION_MODEL.md`](architecture/JOB_EXECUTION_MODEL.md) |
+| Mailbox Provider 架构 | [`architecture/MAILBOX_PROVIDER_ARCHITECTURE.md`](architecture/MAILBOX_PROVIDER_ARCHITECTURE.md) |
 | 增量同步 | [`engineering/INCREMENTAL_SYNC.md`](engineering/INCREMENTAL_SYNC.md) |
 | 时区规则 | [`engineering/TIMEZONE_RULES.md`](engineering/TIMEZONE_RULES.md) |
 | 任务拆分 | [`engineering/TASK_BREAKDOWN.md`](engineering/TASK_BREAKDOWN.md) |

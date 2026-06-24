@@ -76,7 +76,35 @@ export interface AuthUserData {
 
 export type AuthUserResponse = ApiSuccess<AuthUserData>;
 
-export type MailboxProvider = "gmail" | string;
+export type MailboxProvider = "gmail" | "imap" | "outlook" | string;
+
+export interface MailboxCapabilities {
+  can_mark_read: boolean;
+  can_mark_unread: boolean;
+  can_fetch_body: boolean;
+  can_fetch_thread: boolean;
+  can_archive: boolean;
+  can_label: boolean;
+  supports_oauth: boolean;
+  supports_password_auth: boolean;
+  supports_folders: boolean;
+}
+
+export interface ImapMailboxConfig {
+  host: string;
+  port: number;
+  username: string;
+  folder: string;
+  use_ssl: boolean;
+}
+
+export interface MailboxProviderConfig {
+  host?: string;
+  port?: number;
+  username?: string;
+  default_folder?: string;
+  use_ssl?: boolean;
+}
 
 export type MailboxStatus =
   | "connected"
@@ -89,10 +117,19 @@ export type MailboxStatus =
 export interface Mailbox {
   id: string;
   provider: MailboxProvider;
+  provider_preset?: string;
   email_address: string;
+  account_email?: string;
+  display_name?: string | null;
   provider_account_id: string;
   status: MailboxStatus;
   last_successful_sync_at: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  credential_status?: "present" | "missing" | string;
+  provider_config?: MailboxProviderConfig;
+  capabilities?: MailboxCapabilities;
+  imap_config?: ImapMailboxConfig;
   sync_cursor: string | null;
   created_at: string;
   updated_at: string;
@@ -110,11 +147,30 @@ export interface MailboxData {
 
 export type MailboxResponse = ApiSuccess<MailboxData>;
 
+export interface ImapConnectRequest {
+  account_email: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  folder: string;
+  use_ssl: boolean;
+  display_name?: string;
+}
+
+export type ImapConnectResponse = ApiSuccess<{
+  provider: "imap" | string;
+  mailbox: Mailbox;
+}>;
+
 export type MailboxSyncState =
   | "not_started"
+  | "pending_dispatch"
+  | "queued"
   | "running"
   | "completed"
   | "failed"
+  | "dispatch_failed"
   | "unknown"
   | string;
 
@@ -148,10 +204,12 @@ export interface MailboxSyncData {
 export type MailboxSyncResponse = ApiSuccess<MailboxSyncData>;
 
 export type JobStatus =
+  | "pending_dispatch"
   | "queued"
   | "running"
   | "completed"
   | "failed"
+  | "dispatch_failed"
   | "cancelled";
 
 export type JobType =
@@ -164,11 +222,15 @@ export type JobType =
 export interface Job {
   job_id: string;
   job_type: JobType | string;
+  scope_type: "all" | "mailbox" | string | null;
   status: JobStatus | string;
   progress: number;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  mailbox_id: string | null;
+  digest_id: string | null;
+  celery_task_id: string | null;
   error_code: string | null;
   error_message: string | null;
   retry_count: number;
@@ -260,11 +322,30 @@ export type EmailMutationResponse = ApiSuccess<EmailMutationData>;
 export type DigestStatus = "fresh" | "stale" | "failed" | string;
 export type DigestTriggerSource = "manual" | "refresh" | "scheduled" | string;
 export type DigestItemPriority = "high" | "medium" | "low" | string;
+export type DigestScopeType = "all" | "mailbox";
+
+export interface DigestSourceMailbox {
+  id: string;
+  provider: string;
+  account_email: string;
+  display_name: string | null;
+  title: string;
+}
+
+export interface DigestMailboxSummary {
+  mailbox_id: string;
+  provider: string | null;
+  account_email: string | null;
+  title: string | null;
+  summary: string;
+  highlights: string[];
+}
 
 export interface DigestItem {
   id: string;
   digest_id: string;
-  email_id: string;
+  mailbox_id: string;
+  email_id: string | null;
   item_type: string;
   section: string | null;
   title: string | null;
@@ -276,11 +357,13 @@ export interface DigestItem {
   deadline: string | null;
   confidence: number;
   display_order: number;
+  source_mailbox: DigestSourceMailbox | null;
 }
 
 export interface Digest {
   id: string;
-  mailbox_id: string;
+  scope_type: DigestScopeType;
+  mailbox_id: string | null;
   digest_date: string;
   version: number;
   is_current: boolean;
@@ -293,6 +376,7 @@ export interface Digest {
   new_mail_count_after_digest: number;
   overview: Record<string, unknown>;
   summary: string | null;
+  mailbox_summaries: DigestMailboxSummary[];
   items: DigestItem[];
 }
 
@@ -301,6 +385,11 @@ export interface DigestData {
 }
 
 export type DigestResponse = ApiSuccess<DigestData>;
+
+export interface DigestScopeRequest {
+  scope_type?: DigestScopeType;
+  mailbox_id?: string;
+}
 
 export interface UserAction {
   id: string;

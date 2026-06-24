@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 
 from app.core.config import Settings, get_settings
-from app.providers.base import ProviderEmailMessage, ProviderError
+from app.providers.base import ProviderCapabilities, ProviderEmailMessage, ProviderError
 from app.utils.email_parser import parse_gmail_message
 
 
@@ -16,9 +16,24 @@ GMAIL_API_BASE_URL = "https://gmail.googleapis.com/gmail/v1/users/me"
 
 
 class GmailProvider:
+    provider_key = "gmail"
+
     def __init__(self, *, settings: Settings | None = None, client: Any | None = None) -> None:
         self.settings = settings or get_settings()
         self.client = client or httpx
+
+    def get_capabilities(self) -> ProviderCapabilities:
+        return ProviderCapabilities(
+            can_mark_read=True,
+            can_mark_unread=True,
+            can_fetch_body=True,
+            can_fetch_thread=True,
+            can_archive=False,
+            can_label=False,
+            supports_oauth=True,
+            supports_password_auth=False,
+            supports_folders=False,
+        )
 
     def refresh_access_token(self, refresh_token: str) -> str:
         try:

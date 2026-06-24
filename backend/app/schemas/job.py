@@ -15,10 +15,12 @@ PUBLIC_JOB_TYPE_BY_INTERNAL = {
     "check_new_emails_after_digest": "scheduled_email_sync",
 }
 PUBLIC_STATUS_BY_INTERNAL = {
+    "pending_dispatch": "pending_dispatch",
     "queued": "queued",
     "running": "running",
     "succeeded": "completed",
     "failed": "failed",
+    "dispatch_failed": "dispatch_failed",
     "cancelled": "cancelled",
 }
 
@@ -29,11 +31,15 @@ def job_payload(job: SyncJob) -> dict[str, Any]:
     return {
         "job_id": job.id,
         "job_type": public_job_type(job),
+        "scope_type": _scope_type(job),
         "status": status,
         "progress": _progress_for_status(status),
         "created_at": job.created_at,
         "started_at": job.started_at,
         "finished_at": job.finished_at,
+        "mailbox_id": job.mailbox_id,
+        "digest_id": job.digest_id,
+        "celery_task_id": job.celery_task_id,
         "error_code": job.error_code,
         "error_message": safe_error_message(job.error_message, max_length=500),
         "retry_count": job.retry_count,
@@ -59,6 +65,8 @@ def public_job_status(status: str) -> str:
 
 
 def _progress_for_status(status: str) -> int:
+    if status == "pending_dispatch":
+        return 0
     if status == "queued":
         return 0
     if status == "running":
@@ -72,6 +80,16 @@ def _related_resource(job: SyncJob) -> tuple[str | None, object | None]:
     if job.mailbox_id is not None:
         return "mailbox", job.mailbox_id
     return None, None
+
+
+def _scope_type(job: SyncJob) -> str | None:
+    if job.job_type not in {"generate_daily_digest", "refresh_daily_digest"}:
+        return None
+    payload = job.payload_json if isinstance(job.payload_json, dict) else {}
+    scope_type = payload.get("scope_type")
+    if scope_type in {"all", "mailbox"}:
+        return str(scope_type)
+    return "mailbox" if job.mailbox_id is not None else "all"
 
 
 def _safe_result(value: object) -> dict[str, object]:

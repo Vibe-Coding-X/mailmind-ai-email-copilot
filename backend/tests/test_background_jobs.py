@@ -1,6 +1,15 @@
 from app.core.config import Settings
-from app.jobs.celery_app import create_celery_app
-from app.jobs.tasks import health_check
+from app.jobs.celery_app import create_celery_app, default_worker_pool
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+from app.db.models.mailbox import Mailbox
+from app.db.models.sync_job import SyncJob
+from app.db.session import SessionLocal
+from app.jobs.tasks import health_check, run_digest_job, run_email_sync_job
+from app.services.auth_service import register_user
+from app.services.email_sync_service import EmailSyncError
+from app.services.digest_service import DigestServiceError
 
 
 def test_celery_app_uses_eager_mode_for_tests() -> None:
@@ -17,6 +26,16 @@ def test_celery_app_uses_eager_mode_for_tests() -> None:
     assert celery_app.conf.task_eager_propagates is True
 
 
+def test_windows_worker_pool_defaults_to_solo(monkeypatch) -> None:
+    monkeypatch.setattr("app.jobs.celery_app.os.name", "nt")
+
+    celery_app = create_celery_app(Settings())
+
+    assert default_worker_pool() == "solo"
+    assert celery_app.conf.worker_pool == "solo"
+    assert celery_app.conf.worker_prefetch_multiplier == 1
+
+
 def test_health_check_task_runs_in_eager_mode() -> None:
     health_check.app.conf.task_always_eager = True
     health_check.app.conf.task_eager_propagates = True
@@ -24,3 +43,155 @@ def test_health_check_task_runs_in_eager_mode() -> None:
     result = health_check.delay()
 
     assert result.get(timeout=1) == {"status": "ok", "worker": "mailmind"}
+
+
+def test_email_sync_task_returns_serializable_ignored_result_for_stale_job() -> None:
+    with SessionLocal() as db:
+        user = register_user(
+            db,
+            email=f"task-stale-{uuid4().hex}@example.com",
+            password="strong-password",
+            timezone="Asia/Shanghai",
+        )
+        mailbox = Mailbox(
+            user_id=user.id,
+            provider="gmail",
+            provider_account_id=f"task-stale-{uuid4().hex}",
+            email_address=f"task-stale-mailbox-{uuid4().hex}@example.com",
+            permission_mode="write_enabled",
+            granted_scopes=["https://www.googleapis.com/auth/gmail.modify"],
+            status="active",
+        )
+        db.add(mailbox)
+        db.flush()
+        job = SyncJob(
+            user_id=user.id,
+            mailbox_id=mailbox.id,
+            job_type="sync_today_emails",
+            trigger_source="manual",
+            target_date=datetime(2026, 6, 19, tzinfo=UTC).date(),
+            status="failed",
+            error_code="stale_sync_job",
+            error_message="Previous sync job did not complete and was replaced.",
+            created_at=datetime.now(UTC) - timedelta(minutes=10),
+            finished_at=datetime.now(UTC),
+            payload_json={},
+        )
+        db.add(job)
+        db.commit()
+        job_id = job.id
+        mailbox_id = mailbox.id
+
+    result = run_email_sync_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "mailbox_id": str(mailbox_id),
+        "status": "ignored",
+        "synced_count": 0,
+        "error_code": "stale_or_completed_sync_task",
+        "message": "Sync task ignored because the database job is no longer dispatchable.",
+    }
+
+
+def test_email_sync_task_returns_serializable_result_for_orphaned_job() -> None:
+    job_id = uuid4()
+
+    result = run_email_sync_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "mailbox_id": None,
+        "status": "ignored",
+        "synced_count": 0,
+        "error_code": "orphaned_sync_task",
+        "message": "Sync task ignored because the database job no longer exists.",
+    }
+
+
+def test_email_sync_task_catches_non_retryable_sync_error(monkeypatch) -> None:
+    job_id = uuid4()
+
+    def fake_execute(*args, **kwargs):
+        raise EmailSyncError("INVALID_REQUEST", "Sync job not found.", 404)
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.execute_queued_sync_job",
+        fake_execute,
+    )
+
+    result = run_email_sync_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "mailbox_id": None,
+        "status": "failed",
+        "synced_count": 0,
+        "error_code": "INVALID_REQUEST",
+        "message": "Sync job not found.",
+    }
+
+
+def test_email_sync_task_serializes_retryable_sync_error_without_retrying(
+    monkeypatch,
+) -> None:
+    job_id = uuid4()
+
+    def fake_execute(*args, **kwargs):
+        raise EmailSyncError("PROVIDER_SYNC_FAILED", "Gmail request failed.", 502)
+
+    monkeypatch.setattr(
+        "app.services.email_sync_service.execute_queued_sync_job",
+        fake_execute,
+    )
+
+    result = run_email_sync_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "mailbox_id": None,
+        "status": "failed",
+        "synced_count": 0,
+        "error_code": "PROVIDER_SYNC_FAILED",
+        "message": "Gmail request failed.",
+    }
+
+
+def test_digest_task_returns_serializable_result_for_orphaned_job() -> None:
+    job_id = uuid4()
+
+    result = run_digest_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "digest_id": None,
+        "mailbox_id": None,
+        "status": "ignored",
+        "mail_count": 0,
+        "error_code": "orphaned_digest_task",
+        "message": "Digest task ignored because the database job no longer exists.",
+    }
+
+
+def test_digest_task_catches_non_retryable_digest_error(monkeypatch) -> None:
+    job_id = uuid4()
+
+    def fake_execute(*args, **kwargs):
+        raise DigestServiceError("INVALID_REQUEST", "Digest job not found.", 404)
+
+    monkeypatch.setattr(
+        "app.services.digest_service.execute_queued_digest_job",
+        fake_execute,
+    )
+
+    result = run_digest_job.run(str(job_id))
+
+    assert result == {
+        "job_id": str(job_id),
+        "digest_id": None,
+        "mailbox_id": None,
+        "status": "failed",
+        "mail_count": 0,
+        "error_code": "INVALID_REQUEST",
+        "message": "Digest job not found.",
+    }

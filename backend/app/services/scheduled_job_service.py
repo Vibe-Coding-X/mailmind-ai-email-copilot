@@ -15,6 +15,7 @@ from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.services.digest_service import dispatch_digest_job
 from app.services.email_sync_service import enqueue_sync_today_job, find_active_email_sync_job
+from app.services.job_dispatch_service import dispatch_pending_job
 
 
 @dataclass(slots=True)
@@ -34,7 +35,7 @@ def enqueue_due_scheduled_email_sync_jobs(
     created: list[UUID] = []
     skipped = 0
 
-    for user, mailbox in _active_gmail_mailboxes(db):
+    for user, mailbox in _active_mailboxes(db):
         target_date = _local_date(user.timezone, resolved_now)
         job_key = f"scheduled_email_sync:{mailbox.id}:{target_date}"
         if _job_key_exists(db, job_key) or find_active_email_sync_job(
@@ -81,7 +82,7 @@ def enqueue_due_scheduled_digest_jobs(
     created: list[UUID] = []
     skipped = 0
 
-    for user, mailbox in _active_gmail_mailboxes(db):
+    for user, mailbox in _active_mailboxes(db):
         local_now = resolved_now.astimezone(_user_zone(user.timezone))
         target_date = local_now.date()
         if local_now.time().replace(second=0, microsecond=0) < scheduled_time:
@@ -106,8 +107,12 @@ def enqueue_due_scheduled_digest_jobs(
             now=resolved_now,
         )
         if dispatch:
-            job.celery_task_id = dispatch_digest_job(job.id)
-            db.flush()
+            dispatch_pending_job(
+                db,
+                job_id=job.id,
+                dispatcher=dispatch_digest_job,
+                now=resolved_now,
+            )
         created.append(job.id)
 
     return ScheduledJobEnqueueResult(
@@ -117,14 +122,13 @@ def enqueue_due_scheduled_digest_jobs(
     )
 
 
-def _active_gmail_mailboxes(db: Session) -> list[tuple[User, Mailbox]]:
+def _active_mailboxes(db: Session) -> list[tuple[User, Mailbox]]:
     return list(
         db.execute(
             select(User, Mailbox)
             .join(Mailbox, Mailbox.user_id == User.id)
             .where(
                 User.status == "active",
-                Mailbox.provider == "gmail",
                 Mailbox.status == "active",
             )
             .order_by(User.created_at.asc(), Mailbox.created_at.asc())
@@ -149,7 +153,7 @@ def _create_scheduled_job(
         trigger_source="scheduled",
         job_key=job_key,
         target_date=target_date,
-        status="queued",
+        status="pending_dispatch",
         retry_count=0,
         payload_json={},
         created_at=now,

@@ -116,11 +116,24 @@ export function filterEmailsByQuery(
   );
 }
 
+export function filterEmailsByMailbox(
+  emails: EmailSummary[],
+  mailboxId: string,
+): EmailSummary[] {
+  if (!mailboxId) {
+    return emails;
+  }
+
+  return emails.filter((email) => email.mailbox_id === mailboxId);
+}
+
 export function buildEmailListHref({
   filter,
+  mailboxId,
   query,
 }: {
   filter?: string | null;
+  mailboxId?: string | null;
   query?: string | null;
 }): string {
   const params = new URLSearchParams();
@@ -133,6 +146,10 @@ export function buildEmailListHref({
 
   if (trimmedQuery.length > 0) {
     params.set("q", trimmedQuery);
+  }
+
+  if (mailboxId) {
+    params.set("mailbox", mailboxId);
   }
 
   const search = params.toString();

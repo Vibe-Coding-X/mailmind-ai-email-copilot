@@ -52,6 +52,8 @@ def test_gmail_login_returns_authorization_url_with_state() -> None:
     authorization_url = body["data"]["authorization_url"]
     assert authorization_url.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
     assert _extract_state(authorization_url)
+    params = parse_qs(urlparse(authorization_url).query)
+    assert params["prompt"] == ["consent select_account"]
 
 
 def test_gmail_callback_rejects_invalid_state() -> None:
@@ -196,6 +198,71 @@ def test_gmail_callback_updates_existing_mailbox(monkeypatch) -> None:
             CredentialEncryptionService().decrypt(credential.refresh_token_encrypted or "")
             == "second-refresh-token"
         )
+
+
+def test_gmail_callback_creates_distinct_mailboxes_for_distinct_google_accounts(
+    monkeypatch,
+) -> None:
+    client, user_id = _register_client()
+    first_state = _extract_state(
+        client.get("/api/auth/gmail/login").json()["data"]["authorization_url"]
+    )
+    second_state = _extract_state(
+        client.get("/api/auth/gmail/login").json()["data"]["authorization_url"]
+    )
+    accounts = iter(
+        [
+            {
+                "sub": "google-sub-main",
+                "email": "main@example.com",
+                "name": "Main Gmail",
+            },
+            {
+                "sub": "google-sub-work",
+                "email": "work@example.com",
+                "name": "Work Gmail",
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        "app.services.gmail_oauth_service.exchange_code_for_tokens",
+        lambda *, code: {
+            "access_token": f"fake-access-token-{code}",
+            "refresh_token": f"fake-refresh-token-{code}",
+            "scope": "https://www.googleapis.com/auth/gmail.modify openid email profile",
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.gmail_oauth_service.fetch_google_userinfo",
+        lambda *, access_token: next(accounts),
+    )
+
+    first = client.get(
+        f"/api/auth/gmail/callback?code=first&state={first_state}",
+        follow_redirects=False,
+    )
+    second = client.get(
+        f"/api/auth/gmail/callback?code=second&state={second_state}",
+        follow_redirects=False,
+    )
+
+    assert first.status_code == 303
+    assert second.status_code == 303
+    with SessionLocal() as db:
+        mailboxes = db.scalars(
+            select(Mailbox)
+            .where(Mailbox.user_id == user_id, Mailbox.provider == "gmail")
+            .order_by(Mailbox.email_address.asc())
+        ).all()
+        assert [mailbox.email_address for mailbox in mailboxes] == [
+            "main@example.com",
+            "work@example.com",
+        ]
+        assert [mailbox.provider_account_id for mailbox in mailboxes] == [
+            "google-sub-main",
+            "google-sub-work",
+        ]
 
 
 def test_gmail_disconnect_marks_current_user_mailbox_disconnected(monkeypatch) -> None:
