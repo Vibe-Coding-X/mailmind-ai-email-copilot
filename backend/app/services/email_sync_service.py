@@ -37,10 +37,12 @@ class EmailSyncError(Exception):
 
 @dataclass(slots=True)
 class SyncTodayResult:
-    mailbox_id: UUID
+    mailbox_id: UUID | None
     status: str
     synced_count: int
     job_id: UUID
+    error_code: str | None = None
+    message: str | None = None
 
 
 @dataclass(slots=True)
@@ -189,11 +191,22 @@ def execute_queued_sync_job(
     now: datetime | None = None,
 ) -> SyncTodayResult:
     resolved_now = _ensure_utc(now or datetime.now(UTC))
-    job = db.get(SyncJob, _as_uuid(job_id))
+    resolved_job_id = _as_uuid(job_id)
+    job = db.get(SyncJob, resolved_job_id)
     if job is None:
-        raise EmailSyncError("INVALID_REQUEST", "Sync job not found.", 404)
+        return ignored_sync_task_result(
+            job_id=resolved_job_id,
+            mailbox_id=None,
+            error_code="orphaned_sync_task",
+            message="Sync task ignored because the database job no longer exists.",
+        )
     if job.status != "queued":
-        raise EmailSyncError("INVALID_REQUEST", "Sync job is not queued.")
+        return ignored_sync_task_result(
+            job_id=job.id,
+            mailbox_id=job.mailbox_id,
+            error_code="stale_or_completed_sync_task",
+            message="Sync task ignored because the database job is no longer queued.",
+        )
     if job.mailbox_id is None:
         raise EmailSyncError("INVALID_REQUEST", "Sync job is missing mailbox.")
     user, mailbox = _get_sync_context(
@@ -369,6 +382,23 @@ def _execute_sync_today(
         status="completed",
         synced_count=synced_count,
         job_id=job.id,
+    )
+
+
+def ignored_sync_task_result(
+    *,
+    job_id: UUID,
+    mailbox_id: UUID | None,
+    error_code: str,
+    message: str,
+) -> SyncTodayResult:
+    return SyncTodayResult(
+        mailbox_id=mailbox_id,
+        status="ignored",
+        synced_count=0,
+        job_id=job_id,
+        error_code=error_code,
+        message=message,
     )
 
 

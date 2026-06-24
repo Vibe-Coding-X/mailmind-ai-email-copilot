@@ -45,9 +45,15 @@ def run_email_sync_job(self, job_id: str) -> dict[str, object]:
             db.commit()
             return {
                 "job_id": str(result.job_id),
-                "mailbox_id": str(result.mailbox_id),
+                "mailbox_id": str(result.mailbox_id) if result.mailbox_id else None,
                 "status": result.status,
                 "synced_count": result.synced_count,
+                **(
+                    {"error_code": result.error_code}
+                    if result.error_code is not None
+                    else {}
+                ),
+                **({"message": result.message} if result.message is not None else {}),
             }
         except EmailSyncError as exc:
             should_retry = (
@@ -63,11 +69,18 @@ def run_email_sync_job(self, job_id: str) -> dict[str, object]:
                     job.retry_count = self.request.retries + 1
                 db.commit()
                 raise self.retry(
-                    exc=exc,
+                    exc=Exception(f"{exc.code}: {exc.message}"),
                     countdown=_retry_countdown(exc.code, self.request.retries),
                 )
             db.commit()
-            raise
+            return {
+                "job_id": job_id,
+                "mailbox_id": None,
+                "status": "failed",
+                "synced_count": 0,
+                "error_code": exc.code,
+                "message": exc.message,
+            }
         except Exception:
             db.rollback()
             raise
