@@ -30,6 +30,7 @@ import {
 import type {
   ApiResult,
   DigestItemActionResponse,
+  DigestMailboxRequest,
   DigestResponse,
   EmailMutationResponse,
   EmailResponse,
@@ -183,17 +184,32 @@ type ConnectImapParameters = Assert<
 type ConnectImapSignature = Assert<
   Equal<ReturnType<typeof connectImapMailbox>, Promise<ImapConnectResponse>>
 >;
+type GetTodayDigestParameters = Assert<
+  Equal<Parameters<typeof getTodayDigest>, [mailboxId: string]>
+>;
 type GetTodayDigestSignature = Assert<
   Equal<ReturnType<typeof getTodayDigest>, Promise<DigestResponse>>
+>;
+type GenerateTodayDigestParameters = Assert<
+  Equal<Parameters<typeof generateTodayDigest>, [payload: DigestMailboxRequest]>
 >;
 type GenerateTodayDigestSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigest>, Promise<DigestResponse>>
 >;
+type GenerateTodayDigestJobParameters = Assert<
+  Equal<Parameters<typeof generateTodayDigestJob>, [payload: DigestMailboxRequest]>
+>;
 type GenerateTodayDigestJobSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigestJob>, Promise<JobResponse>>
 >;
+type RefreshTodayDigestParameters = Assert<
+  Equal<Parameters<typeof refreshTodayDigest>, [payload: DigestMailboxRequest]>
+>;
 type RefreshTodayDigestSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigest>, Promise<DigestResponse>>
+>;
+type RefreshTodayDigestJobParameters = Assert<
+  Equal<Parameters<typeof refreshTodayDigestJob>, [payload: DigestMailboxRequest]>
 >;
 type RefreshTodayDigestJobSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigestJob>, Promise<JobResponse>>
@@ -288,10 +304,15 @@ type ContractAssertions = [
   DisconnectGmailSignature,
   ConnectImapParameters,
   ConnectImapSignature,
+  GetTodayDigestParameters,
   GetTodayDigestSignature,
+  GenerateTodayDigestParameters,
   GenerateTodayDigestSignature,
+  GenerateTodayDigestJobParameters,
   GenerateTodayDigestJobSignature,
+  RefreshTodayDigestParameters,
   RefreshTodayDigestSignature,
+  RefreshTodayDigestJobParameters,
   RefreshTodayDigestJobSignature,
   GetDigestParameters,
   GetDigestSignature,
@@ -320,6 +341,11 @@ type ContractAssertions = [
 ];
 
 const contractAssertions: ContractAssertions = [
+  true,
+  true,
+  true,
+  true,
+  true,
   true,
   true,
   true,

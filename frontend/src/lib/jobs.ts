@@ -1,8 +1,13 @@
 import type { BadgeTone } from "@/components/ui/badge";
 import type { Job } from "./api-types";
 
-const ACTIVE_JOB_STATUSES = new Set(["queued", "running"]);
-const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const ACTIVE_JOB_STATUSES = new Set(["pending_dispatch", "queued", "running"]);
+const TERMINAL_JOB_STATUSES = new Set([
+  "completed",
+  "failed",
+  "dispatch_failed",
+  "cancelled",
+]);
 
 export function isActiveJob(job: Job): boolean {
   return ACTIVE_JOB_STATUSES.has(job.status);
@@ -14,6 +19,8 @@ export function isTerminalJob(job: Job): boolean {
 
 export function jobStatusTone(job: Job): BadgeTone {
   switch (job.status) {
+    case "pending_dispatch":
+      return "neutral";
     case "queued":
       return "neutral";
     case "running":
@@ -21,6 +28,7 @@ export function jobStatusTone(job: Job): BadgeTone {
     case "completed":
       return "ok";
     case "failed":
+    case "dispatch_failed":
       return "danger";
     case "cancelled":
       return "warn";
@@ -76,7 +84,10 @@ export function formatJobDuration(job: Job): string | null {
 }
 
 export function canRetryJob(job: Job): boolean {
-  return job.status === "failed" && job.retry_count < job.max_retries;
+  return (
+    (job.status === "failed" || job.status === "dispatch_failed") &&
+    job.retry_count < job.max_retries
+  );
 }
 
 export function digestIdFromJob(job: Job): string | null {

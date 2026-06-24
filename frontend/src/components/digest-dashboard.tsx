@@ -16,12 +16,13 @@ import {
   generateTodayDigestJob,
   getDigest,
   getTodayDigest,
+  listMailboxes,
   markDigestItemDone,
   refreshTodayDigest,
   refreshTodayDigestJob,
   snoozeDigestItem,
 } from "@/lib/api-client";
-import type { Digest, DigestItem, Job } from "@/lib/api-types";
+import type { Digest, DigestItem, Job, Mailbox } from "@/lib/api-types";
 import { digestIdFromJob, isActiveJob } from "@/lib/jobs";
 import { useI18n, type TranslationKey } from "@/i18n/provider";
 
@@ -199,6 +200,8 @@ export function DigestDashboard() {
   const [pageState, setPageState] = useState<DigestPageState>("loading");
   const [digest, setDigest] = useState<Digest | null>(null);
   const [pageError, setPageError] = useState<DigestErrorView | null>(null);
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [selectedMailboxId, setSelectedMailboxId] = useState<string>("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<"generate" | "refresh" | null>(
@@ -223,12 +226,22 @@ export function DigestDashboard() {
   const snoozeOptions = useMemo(() => buildSnoozeOptions(t), [t]);
 
   const loadDigest = useCallback(async (): Promise<boolean> => {
+    if (!selectedMailboxId) {
+      setDigest(null);
+      setPageError({
+        state: "empty",
+        title: t("digest.noDigestTitle"),
+        message: "Select a mailbox to load a digest.",
+      });
+      setPageState("empty");
+      return false;
+    }
     setPageState("loading");
     setPageError(null);
     setActionError(null);
 
     try {
-      const response = await getTodayDigest();
+      const response = await getTodayDigest(selectedMailboxId);
       setDigest(response.data.digest);
       setPageState("loaded");
       return true;
@@ -239,7 +252,7 @@ export function DigestDashboard() {
       setPageState(view.state);
       return false;
     }
-  }, [t]);
+  }, [selectedMailboxId, t]);
 
   const loadDigestAfterJob = useCallback(
     async (job: Job): Promise<boolean> => {
@@ -247,7 +260,7 @@ export function DigestDashboard() {
       try {
         const response = digestId
           ? await getDigest(digestId)
-          : await getTodayDigest();
+          : await getTodayDigest(selectedMailboxId);
         setDigest(response.data.digest);
         setPageState("loaded");
         setPageError(null);
@@ -256,7 +269,7 @@ export function DigestDashboard() {
         return loadDigest();
       }
     },
-    [loadDigest],
+    [loadDigest, selectedMailboxId],
   );
 
   const onDigestJobCompleted = useCallback(
@@ -288,6 +301,7 @@ export function DigestDashboard() {
     const restoredJob = recentDigestJobs.jobs.find(
       (job) =>
         isActiveJob(job) &&
+        (selectedMailboxId.length === 0 || job.mailbox_id === selectedMailboxId) &&
         (job.job_type === "digest_generate" ||
           job.job_type === "digest_refresh" ||
           job.job_type === "scheduled_digest"),
@@ -295,7 +309,7 @@ export function DigestDashboard() {
     if (restoredJob) {
       setActiveDigestJob(restoredJob);
     }
-  }, [activeDigestJob, recentDigestJobs.jobs]);
+  }, [activeDigestJob, recentDigestJobs.jobs, selectedMailboxId]);
 
   useEffect(() => {
     if (authStatus === "loading") {
@@ -325,8 +339,34 @@ export function DigestDashboard() {
       return;
     }
 
-    void loadDigest();
-  }, [authStatus, loadDigest, t]);
+    void (async () => {
+      try {
+        const response = await listMailboxes();
+        const activeMailboxes = response.data.mailboxes.filter(
+          (mailbox) => mailbox.status === "active",
+        );
+        setMailboxes(activeMailboxes);
+        setSelectedMailboxId((current) => {
+          if (current && activeMailboxes.some((mailbox) => mailbox.id === current)) {
+            return current;
+          }
+          return activeMailboxes[0]?.id ?? "";
+        });
+      } catch (error) {
+        const view = digestErrorView(error, t);
+        setMailboxes([]);
+        setDigest(null);
+        setPageError(view);
+        setPageState(view.state);
+      }
+    })();
+  }, [authStatus, t]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      void loadDigest();
+    }
+  }, [authStatus, loadDigest]);
 
   async function onGenerate() {
     setActionError(null);
@@ -335,12 +375,19 @@ export function DigestDashboard() {
     setBusyAction("generate");
 
     try {
-      const response = await generateTodayDigestJob();
+      if (!selectedMailboxId) {
+        setActionError("Select a mailbox before generating a digest.");
+        return;
+      }
+      const response = await generateTodayDigestJob({ mailbox_id: selectedMailboxId });
       setActiveDigestJob(response.data.job);
       setActionMessage(t("digest.jobQueuedMessage"));
     } catch (error) {
       try {
-        const response = await generateTodayDigest();
+        if (!selectedMailboxId) {
+          throw error;
+        }
+        const response = await generateTodayDigest({ mailbox_id: selectedMailboxId });
         setDigest(response.data.digest);
         setPageState("loaded");
         setPageError(null);
@@ -365,12 +412,19 @@ export function DigestDashboard() {
     setBusyAction("refresh");
 
     try {
-      const response = await refreshTodayDigestJob();
+      if (!selectedMailboxId) {
+        setActionError("Select a mailbox before refreshing a digest.");
+        return;
+      }
+      const response = await refreshTodayDigestJob({ mailbox_id: selectedMailboxId });
       setActiveDigestJob(response.data.job);
       setActionMessage(t("digest.jobQueuedMessage"));
     } catch (error) {
       try {
-        const response = await refreshTodayDigest();
+        if (!selectedMailboxId) {
+          throw error;
+        }
+        const response = await refreshTodayDigest({ mailbox_id: selectedMailboxId });
         setDigest(response.data.digest);
         setPageState("loaded");
         setPageError(null);
@@ -470,6 +524,22 @@ export function DigestDashboard() {
       <section className="mm-card">
         <div className="mm-spread" style={{ alignItems: "flex-start" }}>
           <div className="mm-stack" style={{ gap: 8 }}>
+            <label className="mm-muted" style={{ fontSize: 12 }}>
+              Mailbox
+            </label>
+            <select
+              className="mm-input"
+              value={selectedMailboxId}
+              onChange={(event) => setSelectedMailboxId(event.target.value)}
+              style={{ minWidth: 260, maxWidth: "100%" }}
+            >
+              {mailboxes.length === 0 ? <option value="">No active mailboxes</option> : null}
+              {mailboxes.map((mailbox) => (
+                <option key={mailbox.id} value={mailbox.id}>
+                  {mailbox.email_address} ({mailbox.provider})
+                </option>
+              ))}
+            </select>
             <div className="mm-row">
               <Badge
                 tone={digest ? digestStatusTone(digest.status) : "neutral"}
@@ -495,8 +565,8 @@ export function DigestDashboard() {
               type="button"
               className="mm-btn mm-btn--primary"
               onClick={() => void onGenerate()}
-              disabled={!canGenerate || busy}
-              aria-disabled={!canGenerate || busy}
+              disabled={!canGenerate || busy || !selectedMailboxId}
+              aria-disabled={!canGenerate || busy || !selectedMailboxId}
             >
               {busyAction === "generate" ? t("digest.generating") : t("digest.generate")}
             </button>
@@ -504,8 +574,8 @@ export function DigestDashboard() {
               type="button"
               className="mm-btn"
               onClick={() => void onRefreshDigest()}
-              disabled={!canRefresh || busy}
-              aria-disabled={!canRefresh || busy}
+              disabled={!canRefresh || busy || !selectedMailboxId}
+              aria-disabled={!canRefresh || busy || !selectedMailboxId}
             >
               {busyAction === "refresh" ? t("digest.refreshing") : t("digest.refresh")}
             </button>

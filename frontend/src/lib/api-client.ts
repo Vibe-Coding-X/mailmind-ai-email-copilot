@@ -18,6 +18,7 @@ import {
   type ApiResult,
   type AuthUserResponse,
   type DigestItemActionResponse,
+  type DigestMailboxRequest,
   type DigestResponse,
   type EmailMutationResponse,
   type EmailResponse,
@@ -194,33 +195,48 @@ export function connectImapMailbox(
   });
 }
 
-export function getTodayDigest(): Promise<DigestResponse> {
-  return request<DigestResponse>(API_ROUTES.digest.today, {
-    method: "GET",
-  });
+export function getTodayDigest(mailboxId: string): Promise<DigestResponse> {
+  return request<DigestResponse>(
+    `${API_ROUTES.digest.today}?mailbox_id=${encodeURIComponent(mailboxId)}`,
+    {
+      method: "GET",
+    },
+  );
 }
 
-export function generateTodayDigest(): Promise<DigestResponse> {
+export function generateTodayDigest(
+  payload: DigestMailboxRequest,
+): Promise<DigestResponse> {
   return request<DigestResponse>(API_ROUTES.digest.todayGenerate, {
     method: "POST",
+    body: payload,
   });
 }
 
-export function generateTodayDigestJob(): Promise<JobResponse> {
+export function generateTodayDigestJob(
+  payload: DigestMailboxRequest,
+): Promise<JobResponse> {
   return request<JobResponse>(API_ROUTES.digest.todayGenerateJobs, {
     method: "POST",
+    body: payload,
   });
 }
 
-export function refreshTodayDigest(): Promise<DigestResponse> {
+export function refreshTodayDigest(
+  payload: DigestMailboxRequest,
+): Promise<DigestResponse> {
   return request<DigestResponse>(API_ROUTES.digest.todayRefresh, {
     method: "POST",
+    body: payload,
   });
 }
 
-export function refreshTodayDigestJob(): Promise<JobResponse> {
+export function refreshTodayDigestJob(
+  payload: DigestMailboxRequest,
+): Promise<JobResponse> {
   return request<JobResponse>(API_ROUTES.digest.todayRefreshJobs, {
     method: "POST",
+    body: payload,
   });
 }
 
