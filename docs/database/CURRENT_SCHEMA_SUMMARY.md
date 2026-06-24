@@ -6,18 +6,17 @@ the v0.5 provider mailbox foundation candidate.
 Current Alembic migration line:
 
 ```text
-20260618_0001 -> 20260619_0002 -> 20260619_0003 -> 20260619_0004 -> 20260619_0005 -> 20260619_0006 -> 20260620_0007
+20260618_0001 -> 20260619_0002 -> 20260619_0003 -> 20260619_0004 -> 20260619_0005 -> 20260619_0006 -> 20260620_0007 -> 20260624_0008
 ```
 
 Expected Alembic head:
 
 ```text
-20260620_0007
+20260624_0008
 ```
 
-No new migrations were added in v0.5. Existing mailbox tables already support
-`gmail`, `imap`, and `outlook` provider keys plus encrypted IMAP password
-storage.
+Migration `20260624_0008` expands sync job statuses for reliable Celery
+dispatch: `pending_dispatch` and `dispatch_failed`.
 
 ## Tables
 
@@ -67,7 +66,8 @@ sender, received time, snippet, and labels are not identity fields.
 
 Tracks sync and digest job attempts. In v0.3, this table is used by both synchronous service calls and Celery background workers. Supports `retry_count`, `error_code`, `error_message` (redacted), `payload_json` (safe structured result), `trigger_source` (`manual` or `scheduled`), `started_at`, and `finished_at`. `digest_id` has a foreign key to `daily_digests.id` with `ON DELETE SET NULL`.
 
-`sync_jobs_active_job_key_uq` prevents duplicate queued/running keyed jobs.
+`sync_jobs_active_job_key_uq` prevents duplicate pending/queued/running keyed
+jobs.
 Manual mailbox sync also performs service-level active job reuse scoped by
 `user_id + mailbox_id + job_type + queued/running`. Different mailbox instances
 can have independent active sync jobs.
@@ -93,10 +93,13 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 
 ## Migration Notes
 
-- There is a linear migration history through `20260620_0007`.
+- There is a linear migration history through `20260624_0008`.
 - Migration `20260619_0004` removes the early `sync_jobs.digest_id` digest scope.
 - Migration `20260619_0005` creates `daily_digests`, `digest_items`, and `ai_runs`, then re-adds `sync_jobs.digest_id` with a foreign key to `daily_digests`.
 - Migration `20260620_0007` adds `ai_runs.provider_id` and `ai_runs.provider_type`.
+- Migration `20260624_0008` adds `pending_dispatch` and `dispatch_failed` to
+  `sync_jobs.status` and widens the active job-key index to include
+  `pending_dispatch`.
 - This resolves the half-built digest schema concern in the current head.
 - `sync_jobs.digest_id`, when present at head, points to `daily_digests.id`.
 

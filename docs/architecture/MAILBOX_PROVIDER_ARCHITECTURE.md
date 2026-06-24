@@ -135,6 +135,12 @@ query parameter is present, using the most recently synced/updated mailbox. All
 Inboxes can exist as an explicit optional view, but mixed lists must show the
 source mailbox for each email.
 
+## Digest Scope
+
+Digest is mailbox-scoped in v0.5. Every digest read, generate, refresh, and
+async digest job request must identify one mailbox. The backend must not
+silently default to Gmail.
+
 ## Future Route
 
 v0.5 creates the provider and mailbox foundation needed for later provider

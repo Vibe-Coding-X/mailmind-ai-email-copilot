@@ -153,6 +153,10 @@ Outlook errors:
 
 ## Digest Boundary
 
-v0.5 does not implement cross-mailbox Digest or Multi Mailbox Digest. Digest
-services continue to operate on the current active Gmail mailbox unless a later
-version explicitly changes that contract.
+v0.5 does not implement cross-mailbox Digest or Multi Mailbox Digest.
+
+- Digest scope is one selected mailbox.
+- `mailbox_id` is required for today-digest reads, generate, refresh, and async
+  digest job creation.
+- Gmail and IMAP mailboxes are both valid digest scopes.
+- The backend must not silently default to Gmail when multiple mailboxes exist.

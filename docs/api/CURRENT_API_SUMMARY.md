@@ -111,7 +111,18 @@ Implemented behavior:
 POST /api/mailboxes/{mailbox_id}/sync-jobs
 ```
 
-Creates an `email_sync` job with `queued` status. If the same user/mailbox
+Creates an `email_sync` job through a two-step DB-first dispatch model:
+
+- DB row is created as `pending_dispatch`
+- DB commit succeeds
+- Celery dispatch runs with `job.id`
+- `celery_task_id` is persisted
+- public job status becomes `queued`
+
+If Celery dispatch fails, the committed row becomes `dispatch_failed` with
+`error_code=celery_dispatch_failed`.
+
+If the same user/mailbox
 already has a queued or running email sync job, the endpoint returns that job
 instead of creating a duplicate. Does not replace the existing synchronous
 `POST /api/mailboxes/{mailbox_id}/sync`.
@@ -181,7 +192,7 @@ The implemented route prefix is singular:
 Routes:
 
 ```text
-GET  /api/digest/today
+GET  /api/digest/today?mailbox_id=<uuid>
 POST /api/digest/today/generate
 POST /api/digest/today/refresh
 GET  /api/digest/{digest_id}
@@ -189,11 +200,12 @@ GET  /api/digest/{digest_id}
 
 Implemented behavior:
 
-- Reads the current digest for the user's active Gmail mailbox and local date.
-- Generates or refreshes today's digest synchronously.
+- Reads the current digest for one selected mailbox and the user's local date.
+- Generates or refreshes today's digest synchronously for one selected mailbox.
 - Uses the configured v0.2 AI provider chain when `AI_PROVIDER_MODE=env`;
   otherwise falls back to the mock provider.
 - Creates `daily_digests`, `digest_items`, `ai_runs`, and related `sync_jobs`.
+- Does not support cross-mailbox digest aggregation in v0.5.
 
 ### Async Digest Jobs
 
@@ -202,7 +214,10 @@ POST /api/digest/today/generate-jobs
 POST /api/digest/today/refresh-jobs
 ```
 
-Create `digest_generate` or `digest_refresh` jobs with `queued` status. If an
+Create `digest_generate` or `digest_refresh` jobs with the same DB-first
+dispatch model used by sync jobs. Request bodies must include `mailbox_id`.
+
+If an
 active job of the same digest type already exists for the current mailbox and
 local date, the endpoint returns that active job. Do not replace the existing
 synchronous `POST /api/digest/today/generate` and
@@ -224,9 +239,14 @@ Implemented behavior:
 
 Public job types: `email_sync`, `digest_generate`, `digest_refresh`, `scheduled_email_sync`, `scheduled_digest`.
 
-Public job statuses: `queued`, `running`, `completed`, `failed`, `cancelled`.
+Public job statuses: `pending_dispatch`, `queued`, `running`, `completed`,
+`failed`, `dispatch_failed`, `cancelled`.
 
-Job responses include: `job_id`, `job_type`, `status`, `progress`, `created_at`, `started_at`, `finished_at`, `error_code`, `error_message` (redacted), `retry_count`, `max_retries`, `retry_of_job_id`, `related_resource_type`, `related_resource_id`, `result`.
+Job responses include: `job_id`, `job_type`, `status`, `progress`,
+`created_at`, `started_at`, `finished_at`, `mailbox_id`, `digest_id`,
+`celery_task_id`, `error_code`, `error_message` (redacted), `retry_count`,
+`max_retries`, `retry_of_job_id`, `related_resource_type`,
+`related_resource_id`, `result`.
 
 Sync error codes used by v0.4.1 containment include `network_tls`,
 `network_timeout`, `gmail_rate_limited`, `gmail_quota_exceeded`,
