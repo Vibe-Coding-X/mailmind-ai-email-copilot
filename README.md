@@ -16,7 +16,7 @@ It is not another inbox client. It is an **AI decision layer** for your email.
 ![Redis](https://img.shields.io/badge/Redis-celery%20broker-DC382D)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
-![Release](https://img.shields.io/badge/release-v0.4.1--config--sync--containment-orange)
+![Release](https://img.shields.io/badge/release-v0.5.0--provider--mailbox--foundation-orange)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 <br />
@@ -58,7 +58,7 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 - Email list with search, read-state filters, date filters, and pagination
 - Email detail with read/unread writeback to Gmail
 
-**Provider Mailbox Foundation (v0.5 candidate)**
+**Provider Mailbox Foundation (v0.5)**
 - Provider-aware mailbox contract with `gmail`, `imap`, and `outlook` keys
 - Mailbox capabilities returned by mailbox list/detail APIs
 - Gmail migrated behind the `MailboxProvider` abstraction
@@ -298,12 +298,13 @@ npm run build
 | v0.3 Async Redesign | Celery workers, job API, scheduled tasks, theme redesign, i18n |
 | v0.4 Job Experience | Frontend job UI, async sync/digest experience, retry, recent jobs |
 | v0.4.1 Config Sync Containment | Local config hardening, duplicate job prevention, retry backoff, frontend trigger hardening |
+| v0.5 Provider Mailbox Foundation | Multi-mailbox support, IMAP provider MVP, Celery reliability, digest scope |
 
 ### 🧭 Next
 
 | Version | Scope |
 |---------|-------|
-| v0.5 Open Source Ready | CI, Docker polish, public docs review |
+| v0.6 Open Source Ready | CI, Docker polish, public docs review |
 | v1.0 Personal Productivity | Stable daily driver for personal email management |
 
 ---
@@ -336,6 +337,7 @@ npm run build
 | v0.3 Release Notes | `docs/release-notes/v0.3.0-async-redesign.md` |
 | v0.4 Release Notes | `docs/release-notes/v0.4.0-job-experience.md` |
 | v0.4.1 Release Notes | `docs/release-notes/v0.4.1-config-sync-containment.md` |
+| v0.5 Release Notes | `docs/release-notes/v0.5.0-provider-mailbox-foundation.md` |
 
 ---
 
@@ -347,8 +349,8 @@ Apache-2.0
 
 <div align="center">
 
-**v0.4.1-config-sync-containment** · Local MVP · Not a production SaaS
+**v0.5.0-provider-mailbox-foundation** · Local MVP · Not a production SaaS
 
-[Release Notes](docs/release-notes/v0.4.1-config-sync-containment.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
+[Release Notes](docs/release-notes/v0.5.0-provider-mailbox-foundation.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
 
 </div>

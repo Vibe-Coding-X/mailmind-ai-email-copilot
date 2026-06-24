@@ -1,7 +1,7 @@
 # Current Schema Summary
 
 This document summarizes the SQLAlchemy models and Alembic migrations present in
-the v0.5 provider mailbox foundation candidate.
+`v0.5.0-provider-mailbox-foundation`.
 
 Current Alembic migration line:
 

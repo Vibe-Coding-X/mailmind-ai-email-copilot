@@ -1,6 +1,6 @@
 # MailMind Roadmap
 
-This roadmap describes planned product direction after `v0.4.1-config-sync-containment`. It is not a commitment that later items are implemented today.
+This roadmap describes planned product direction after `v0.5.0-provider-mailbox-foundation`. It is not a commitment that later items are implemented today.
 
 ## v0.1 Local MVP
 
@@ -76,7 +76,7 @@ Status: completed.
 
 ## v0.5 Provider Mailbox Foundation
 
-Status: candidate branch.
+Status: completed.
 
 - Provider-aware mailbox architecture and contract.
 - `MailboxProvider` interface with Gmail, IMAP, and Outlook registry entries.
@@ -93,6 +93,10 @@ Status: candidate branch.
   encrypted and are never returned.
 - Frontend shows provider badges and defaults `/emails` to a selected mailbox,
   with All Mailboxes available only as an explicit mixed view.
+- Celery reliability stabilization: PostgreSQL as job source of truth,
+  commit-then-dispatch model, `pending_dispatch` and `dispatch_failed` states,
+  `celery_task_id` tracking, orphan/stale task safety.
+- Digest scope supports `all` (multi-mailbox) and `mailbox` (single-mailbox).
 - Cross-mailbox Digest, Multi Mailbox Digest, AI Settings, email sending, and
   Celery Beat remain out of scope.
 

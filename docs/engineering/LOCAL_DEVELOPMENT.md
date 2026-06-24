@@ -1,8 +1,6 @@
 # Local Development
 
-This document records the current local setup through the v0.5 provider mailbox
-foundation candidate. It reflects the implemented repository, not future
-full-stack deployment plans.
+This document records the current local setup through `v0.5.0-provider-mailbox-foundation`. It reflects the implemented repository, not future full-stack deployment plans.
 
 ## Prerequisites
 
