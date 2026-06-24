@@ -60,5 +60,22 @@ job first.
 
 ## Digest Scope
 
-v0.5 digest scope is one selected mailbox per request. Cross-mailbox digest and
-All Mailboxes digest are out of scope.
+v0.5 digest scope now supports two request shapes:
+
+- `scope_type=all`: digest across all connected active mailboxes for the user
+- `scope_type=mailbox`: digest only for the selected mailbox
+
+For `scope_type=all`:
+
+- PostgreSQL stores the digest row with `daily_digests.scope_type='all'`
+- `daily_digests.mailbox_id` is `NULL`
+- the digest still uses the same DB-first Celery dispatch model
+- digest items keep their source `mailbox_id`
+- overview payloads can include `mailbox_summaries` so the frontend can render
+  `Priority Queue + By Mailbox`
+
+For `scope_type=mailbox`:
+
+- `daily_digests.scope_type='mailbox'`
+- `daily_digests.mailbox_id=<selected mailbox id>`
+- digest items and summaries stay mailbox-local

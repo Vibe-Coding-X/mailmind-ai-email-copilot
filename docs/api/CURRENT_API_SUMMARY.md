@@ -192,7 +192,7 @@ The implemented route prefix is singular:
 Routes:
 
 ```text
-GET  /api/digest/today?mailbox_id=<uuid>
+GET  /api/digest/today?scope_type=all|mailbox&mailbox_id=<uuid optional>
 POST /api/digest/today/generate
 POST /api/digest/today/refresh
 GET  /api/digest/{digest_id}
@@ -200,12 +200,17 @@ GET  /api/digest/{digest_id}
 
 Implemented behavior:
 
-- Reads the current digest for one selected mailbox and the user's local date.
-- Generates or refreshes today's digest synchronously for one selected mailbox.
+- Reads the current digest for either:
+  - `scope_type=all`
+  - `scope_type=mailbox` with `mailbox_id`
+- Generates or refreshes today's digest synchronously for either scope.
 - Uses the configured v0.2 AI provider chain when `AI_PROVIDER_MODE=env`;
   otherwise falls back to the mock provider.
 - Creates `daily_digests`, `digest_items`, `ai_runs`, and related `sync_jobs`.
-- Does not support cross-mailbox digest aggregation in v0.5.
+- `scope_type=all` returns a priority queue across mailboxes plus grouped
+  `mailbox_summaries`.
+- digest item payloads include source mailbox metadata.
+- Does not implement cross-mailbox thread merging in v0.5.
 
 ### Async Digest Jobs
 
@@ -215,10 +220,20 @@ POST /api/digest/today/refresh-jobs
 ```
 
 Create `digest_generate` or `digest_refresh` jobs with the same DB-first
-dispatch model used by sync jobs. Request bodies must include `mailbox_id`.
+dispatch model used by sync jobs. Request bodies accept:
+
+```json
+{ "scope_type": "all" }
+```
+
+or:
+
+```json
+{ "scope_type": "mailbox", "mailbox_id": "<uuid>" }
+```
 
 If an
-active job of the same digest type already exists for the current mailbox and
+active job of the same digest type already exists for the same digest scope and
 local date, the endpoint returns that active job. Do not replace the existing
 synchronous `POST /api/digest/today/generate` and
 `POST /api/digest/today/refresh`.
@@ -244,6 +259,7 @@ Public job statuses: `pending_dispatch`, `queued`, `running`, `completed`,
 
 Job responses include: `job_id`, `job_type`, `status`, `progress`,
 `created_at`, `started_at`, `finished_at`, `mailbox_id`, `digest_id`,
+`scope_type`,
 `celery_task_id`, `error_code`, `error_message` (redacted), `retry_count`,
 `max_retries`, `retry_of_job_id`, `related_resource_type`,
 `related_resource_id`, `result`.

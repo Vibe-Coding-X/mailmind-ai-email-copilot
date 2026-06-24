@@ -153,10 +153,21 @@ Outlook errors:
 
 ## Digest Boundary
 
-v0.5 does not implement cross-mailbox Digest or Multi Mailbox Digest.
+v0.5 digest supports two scopes:
 
-- Digest scope is one selected mailbox.
-- `mailbox_id` is required for today-digest reads, generate, refresh, and async
-  digest job creation.
-- Gmail and IMAP mailboxes are both valid digest scopes.
-- The backend must not silently default to Gmail when multiple mailboxes exist.
+- `scope_type=all`
+- `scope_type=mailbox`
+
+Contract rules:
+
+- `scope_type=mailbox` requires `mailbox_id`
+- `scope_type=all` must not require `mailbox_id`
+- Gmail and IMAP mailboxes are both valid single-mailbox scopes
+- `scope_type=all` must query all connected active mailbox instances for the
+  current user
+- the backend must not silently default to Gmail when multiple mailboxes exist
+- all-mailbox digest items must keep source mailbox identity
+- all-mailbox digest responses must expose grouped mailbox summaries
+
+This is still not a full cross-mailbox thread merge system. v0.5 stops at
+`Priority Queue + By Mailbox`.

@@ -31,6 +31,7 @@ def job_payload(job: SyncJob) -> dict[str, Any]:
     return {
         "job_id": job.id,
         "job_type": public_job_type(job),
+        "scope_type": _scope_type(job),
         "status": status,
         "progress": _progress_for_status(status),
         "created_at": job.created_at,
@@ -79,6 +80,16 @@ def _related_resource(job: SyncJob) -> tuple[str | None, object | None]:
     if job.mailbox_id is not None:
         return "mailbox", job.mailbox_id
     return None, None
+
+
+def _scope_type(job: SyncJob) -> str | None:
+    if job.job_type not in {"generate_daily_digest", "refresh_daily_digest"}:
+        return None
+    payload = job.payload_json if isinstance(job.payload_json, dict) else {}
+    scope_type = payload.get("scope_type")
+    if scope_type in {"all", "mailbox"}:
+        return str(scope_type)
+    return "mailbox" if job.mailbox_id is not None else "all"
 
 
 def _safe_result(value: object) -> dict[str, object]:

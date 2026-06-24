@@ -6,13 +6,13 @@ the v0.5 provider mailbox foundation candidate.
 Current Alembic migration line:
 
 ```text
-20260618_0001 -> 20260619_0002 -> 20260619_0003 -> 20260619_0004 -> 20260619_0005 -> 20260619_0006 -> 20260620_0007 -> 20260624_0008
+20260618_0001 -> 20260619_0002 -> 20260619_0003 -> 20260619_0004 -> 20260619_0005 -> 20260619_0006 -> 20260620_0007 -> 20260624_0008 -> 20260624_0009
 ```
 
 Expected Alembic head:
 
 ```text
-20260624_0008
+20260624_0009
 ```
 
 Migration `20260624_0008` expands sync job statuses for reliable Celery
@@ -74,15 +74,25 @@ can have independent active sync jobs.
 
 ### `daily_digests`
 
-Versioned daily digest snapshots per mailbox and local date. Tracks current version, status, trigger source, coverage window, mail count, new-mail count, and overview JSON.
+Versioned daily digest snapshots per scope and local date. Tracks current
+version, status, trigger source, coverage window, mail count, new-mail count,
+overview JSON, and `scope_type`.
+
+- `scope_type='mailbox'` -> `mailbox_id` is required
+- `scope_type='all'` -> `mailbox_id` is `NULL`
 
 ### `digest_items`
 
-Structured digest rows generated from AI output. Stores email/todo/risk item type, section, linked email, title, summary, category, suggested action, priority, reason, deadline, confidence, and display order.
+Structured digest rows generated from AI output. Stores email/todo/risk item
+type, section, linked email, source `mailbox_id`, title, summary, category,
+suggested action, priority, reason, deadline, confidence, and display order.
 
 ### `ai_runs`
 
-AI execution audit table. Stores run type, provider/model metadata, prompt/schema versions, input hash and summary, structured output JSON, status, errors, token counts, and timing.
+AI execution audit table. Stores run type, provider/model metadata,
+prompt/schema versions, input hash and summary, structured output JSON,
+status, errors, token counts, and timing. `mailbox_id` is nullable so an
+all-mailboxes digest can still create one audit row.
 
 v0.2 adds nullable `provider_id` and `provider_type` columns so digest AI runs
 record which configured provider profile handled the run.
@@ -93,13 +103,16 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 
 ## Migration Notes
 
-- There is a linear migration history through `20260624_0008`.
+- There is a linear migration history through `20260624_0009`.
 - Migration `20260619_0004` removes the early `sync_jobs.digest_id` digest scope.
 - Migration `20260619_0005` creates `daily_digests`, `digest_items`, and `ai_runs`, then re-adds `sync_jobs.digest_id` with a foreign key to `daily_digests`.
 - Migration `20260620_0007` adds `ai_runs.provider_id` and `ai_runs.provider_type`.
 - Migration `20260624_0008` adds `pending_dispatch` and `dispatch_failed` to
   `sync_jobs.status` and widens the active job-key index to include
   `pending_dispatch`.
+- Migration `20260624_0009` adds digest `scope_type`, makes
+  `daily_digests.mailbox_id` nullable for `scope_type='all'`, and makes
+  `ai_runs.mailbox_id` nullable for all-mailboxes digest audit rows.
 - This resolves the half-built digest schema concern in the current head.
 - `sync_jobs.digest_id`, when present at head, points to `daily_digests.id`.
 
@@ -107,8 +120,8 @@ User operation audit table. Stores actions against mailboxes, digests, digest it
 
 - The database has digest and AI audit tables with v0.2 provider metadata. Real provider values must come from environment configuration outside Git; the mock provider remains available as fallback.
 - `sync_jobs` records both synchronous service work and Celery background job work in v0.3.
-- No new tables or migrations were added in v0.5; provider foundation reuses the
-  existing mailbox, credential, email, and sync job schema.
+- v0.5 digest scope stabilization adds one new migration but does not introduce
+  new business tables.
 - The schema is local-MVP oriented and has not been hardened for production multi-tenant SaaS operation.
 - v0.4.1 did not add a migration because the email uniqueness and active
   job-key index already exist at current head.

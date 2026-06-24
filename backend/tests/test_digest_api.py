@@ -139,6 +139,97 @@ def test_generate_today_digest_api_returns_current_digest(monkeypatch) -> None:
     assert today.json()["data"]["digest"]["id"] == digest["id"]
 
 
+def test_generate_today_digest_api_supports_all_mailboxes_scope(monkeypatch) -> None:
+    client, user_id = _register_client("digest-api-all")
+    gmail_mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api-all-gmail")
+    imap_mailbox_id = _create_mailbox_and_email(user_id, prefix="digest-api-all-imap")
+
+    class AllScopeProvider:
+        provider_name = "mock"
+        model_name = "mock-digest-v1"
+
+        def generate_digest(self, prompt: str) -> LLMResponse:
+            return LLMResponse(
+                text=json.dumps(
+                    {
+                        "overview": {
+                            "mail_count": 2,
+                            "summary": "Two mailboxes contributed to the digest.",
+                            "mailbox_summaries": [
+                                {
+                                    "mailbox_id": str(gmail_mailbox_id),
+                                    "provider": "gmail",
+                                    "account_email": "gmail@example.com",
+                                    "title": "Gmail",
+                                    "summary": "One Gmail message.",
+                                    "highlights": ["Gmail highlight"],
+                                },
+                                {
+                                    "mailbox_id": str(imap_mailbox_id),
+                                    "provider": "imap",
+                                    "account_email": "imap@example.com",
+                                    "title": "IMAP",
+                                    "summary": "One IMAP message.",
+                                    "highlights": ["IMAP highlight"],
+                                },
+                            ],
+                        },
+                        "items": [
+                            {
+                                "email_id": "digest-api-all-gmail-gmail-1",
+                                "item_type": "email",
+                                "section": "review",
+                                "title": "Gmail message",
+                                "summary": "Review Gmail.",
+                                "category": "work",
+                                "suggested_action": "review_today",
+                                "priority": "medium",
+                                "reason": "Gmail reason.",
+                                "deadline": None,
+                                "confidence": 0.8,
+                            },
+                            {
+                                "email_id": "digest-api-all-imap-gmail-1",
+                                "item_type": "email",
+                                "section": "urgent",
+                                "title": "IMAP message",
+                                "summary": "Review IMAP.",
+                                "category": "work",
+                                "suggested_action": "review_today",
+                                "priority": "high",
+                                "reason": "IMAP reason.",
+                                "deadline": None,
+                                "confidence": 0.85,
+                            },
+                        ],
+                    }
+                ),
+                model_provider="mock",
+                model_name="mock-digest-v1",
+            )
+
+    monkeypatch.setattr("app.services.digest_service.get_llm_provider", lambda: AllScopeProvider())
+
+    response = client.post("/api/digest/today/generate", json={"scope_type": "all"})
+
+    assert response.status_code == 200
+    digest = response.json()["data"]["digest"]
+    assert digest["scope_type"] == "all"
+    assert digest["mailbox_id"] is None
+    assert len(digest["mailbox_summaries"]) == 2
+
+
+def test_generate_today_digest_job_requires_mailbox_id_for_mailbox_scope() -> None:
+    client, _ = _register_client("digest-missing-mailbox-scope")
+
+    response = client.post(
+        "/api/digest/today/generate-jobs",
+        json={"scope_type": "mailbox"},
+    )
+
+    assert response.status_code in {400, 422}
+
+
 def test_get_digest_blocks_other_users_digest(monkeypatch) -> None:
     owner_client, owner_id = _register_client("digest-owner")
     other_client, _ = _register_client("digest-other")
@@ -282,9 +373,12 @@ def test_generate_today_digest_api_hides_provider_error_details(monkeypatch) -> 
     assert "sk-real-looking-secret" not in serialized
 
 
-def test_generate_today_digest_job_requires_mailbox_id() -> None:
+def test_generate_today_digest_job_rejects_mailbox_scope_without_mailbox_id() -> None:
     client, _ = _register_client("digest-missing-mailbox")
 
-    response = client.post("/api/digest/today/generate-jobs", json={})
+    response = client.post(
+        "/api/digest/today/generate-jobs",
+        json={"scope_type": "mailbox"},
+    )
 
     assert response.status_code == 422

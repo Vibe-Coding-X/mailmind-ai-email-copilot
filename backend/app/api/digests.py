@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -33,8 +33,9 @@ class SnoozeDigestItemRequest(BaseModel):
     snoozed_until: str
 
 
-class DigestMailboxRequest(BaseModel):
-    mailbox_id: UUID
+class DigestScopeRequest(BaseModel):
+    scope_type: str | None = None
+    mailbox_id: UUID | None = None
 
 
 def _raise_digest_error(error: DigestServiceError) -> None:
@@ -57,12 +58,18 @@ def _raise_action_error(error: UserActionServiceError) -> None:
 
 @router.get("/today")
 def read_today_digest(
-    mailbox_id: UUID,
+    scope_type: str | None = Query(default=None),
+    mailbox_id: UUID | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        digest = get_today_digest(db, user_id=current_user.id, mailbox_id=mailbox_id)
+        digest = get_today_digest(
+            db,
+            user_id=current_user.id,
+            scope_type=scope_type,
+            mailbox_id=mailbox_id,
+        )
     except DigestServiceError as exc:
         _raise_digest_error(exc)
     return {"data": {"digest": digest_payload(digest)}, "meta": {}}
@@ -70,7 +77,7 @@ def read_today_digest(
 
 @router.post("/today/generate")
 def generate_digest(
-    request: DigestMailboxRequest,
+    request: DigestScopeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
@@ -78,6 +85,7 @@ def generate_digest(
         digest = generate_today_digest(
             db,
             user_id=current_user.id,
+            scope_type=request.scope_type,
             mailbox_id=request.mailbox_id,
         )
     except DigestServiceError as exc:
@@ -88,7 +96,7 @@ def generate_digest(
 
 @router.post("/today/generate-jobs")
 def generate_digest_job(
-    request: DigestMailboxRequest,
+    request: DigestScopeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
@@ -96,6 +104,7 @@ def generate_digest_job(
         result = enqueue_generate_today_digest_job(
             db,
             user_id=current_user.id,
+            scope_type=request.scope_type,
             mailbox_id=request.mailbox_id,
             dispatch=True,
         )
@@ -109,7 +118,7 @@ def generate_digest_job(
 
 @router.post("/today/refresh")
 def refresh_digest(
-    request: DigestMailboxRequest,
+    request: DigestScopeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
@@ -117,6 +126,7 @@ def refresh_digest(
         digest = refresh_today_digest(
             db,
             user_id=current_user.id,
+            scope_type=request.scope_type,
             mailbox_id=request.mailbox_id,
         )
     except DigestServiceError as exc:
@@ -127,7 +137,7 @@ def refresh_digest(
 
 @router.post("/today/refresh-jobs")
 def refresh_digest_job(
-    request: DigestMailboxRequest,
+    request: DigestScopeRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
@@ -135,6 +145,7 @@ def refresh_digest_job(
         result = enqueue_refresh_today_digest_job(
             db,
             user_id=current_user.id,
+            scope_type=request.scope_type,
             mailbox_id=request.mailbox_id,
             dispatch=True,
         )

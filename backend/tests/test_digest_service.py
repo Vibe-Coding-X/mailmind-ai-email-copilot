@@ -334,6 +334,77 @@ def test_generate_today_digest_supports_selected_imap_mailbox_scope() -> None:
         assert gmail_email_id not in {item.email_id for item in items}
 
 
+def test_generate_today_digest_supports_all_mailboxes_scope() -> None:
+    user_id, gmail_mailbox_id, gmail_email_id = _create_user_mailbox_and_email(
+        prefix="digest-all-mailboxes"
+    )
+    imap_mailbox_id, imap_email_id = _create_additional_active_mailbox_email(
+        user_id=user_id,
+        provider="imap",
+        prefix="digest-all-mailboxes-imap",
+    )
+    output = json.dumps(
+        {
+            "overview": {
+                "mail_count": 2,
+                "summary": "Two mailboxes contributed digest items.",
+                "overall_summary": "Two inboxes need attention today.",
+                "mailbox_summaries": [
+                    {
+                        "mailbox_id": str(gmail_mailbox_id),
+                        "provider": "gmail",
+                        "account_email": "gmail@example.com",
+                        "title": "Gmail",
+                        "summary": "One Gmail message needs review.",
+                        "highlights": ["Gmail follow-up"],
+                    },
+                    {
+                        "mailbox_id": str(imap_mailbox_id),
+                        "provider": "imap",
+                        "account_email": "imap@example.com",
+                        "title": "IMAP",
+                        "summary": "One IMAP message needs review.",
+                        "highlights": ["IMAP follow-up"],
+                    },
+                ],
+            },
+            "items": [
+                {
+                    "email_id": "digest-all-mailboxes-gmail-1",
+                    "summary": "Gmail email.",
+                },
+                {
+                    "email_id": "digest-all-mailboxes-imap-email-1",
+                    "summary": "IMAP email.",
+                },
+            ],
+        }
+    )
+
+    with SessionLocal() as db:
+        digest = generate_today_digest(
+            db,
+            user_id=user_id,
+            scope_type="all",
+            llm_provider=RawOutputProvider(output),
+            now=datetime(2026, 6, 19, 10, 0, tzinfo=UTC),
+        )
+        db.commit()
+        digest_id = digest.id
+
+    with SessionLocal() as db:
+        stored = db.get(DailyDigest, digest_id)
+        items = db.scalars(
+            select(DigestItem).where(DigestItem.digest_id == digest_id).order_by(DigestItem.id.asc())
+        ).all()
+        assert stored is not None
+        assert stored.scope_type == "all"
+        assert stored.mailbox_id is None
+        assert stored.mail_count == 2
+        assert {item.email_id for item in items} == {gmail_email_id, imap_email_id}
+        assert {item.mailbox_id for item in items} == {gmail_mailbox_id, imap_mailbox_id}
+
+
 def test_refresh_today_digest_replaces_current_version_only_after_success() -> None:
     user_id, mailbox_id, _ = _create_user_mailbox_and_email(prefix="digest-refresh")
     now = datetime(2026, 6, 19, 10, 0, tzinfo=UTC)

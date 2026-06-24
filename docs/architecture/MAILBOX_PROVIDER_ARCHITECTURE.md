@@ -3,7 +3,8 @@
 MailMind v0.5 moves mailbox integration from Gmail-only service calls to a
 provider-aware mailbox architecture. The scope is intentionally foundational:
 providers can describe capabilities, normalize message identity, and expose a
-shared interface, while digest generation remains single-mailbox.
+shared interface, while digest generation now supports both all-mailbox and
+single-mailbox scope.
 
 ## Goals
 
@@ -137,9 +138,21 @@ source mailbox for each email.
 
 ## Digest Scope
 
-Digest is mailbox-scoped in v0.5. Every digest read, generate, refresh, and
-async digest job request must identify one mailbox. The backend must not
-silently default to Gmail.
+Digest scope in v0.5 has two modes:
+
+- `all`: aggregate all connected active mailboxes for the current user
+- `mailbox`: only the selected mailbox
+
+Selector data comes from `GET /api/mailboxes`, not from active jobs. The
+frontend default is `All Mailboxes`. The backend must not silently default to
+Gmail.
+
+All-mailbox digest is still intentionally lightweight:
+
+- no cross-mailbox thread merging
+- no provider-specific inbox fusion
+- priority queue items must keep source mailbox identity
+- per-mailbox summaries remain grouped by mailbox instance
 
 ## Future Route
 

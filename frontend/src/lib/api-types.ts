@@ -222,6 +222,7 @@ export type JobType =
 export interface Job {
   job_id: string;
   job_type: JobType | string;
+  scope_type: "all" | "mailbox" | string | null;
   status: JobStatus | string;
   progress: number;
   created_at: string;
@@ -321,11 +322,30 @@ export type EmailMutationResponse = ApiSuccess<EmailMutationData>;
 export type DigestStatus = "fresh" | "stale" | "failed" | string;
 export type DigestTriggerSource = "manual" | "refresh" | "scheduled" | string;
 export type DigestItemPriority = "high" | "medium" | "low" | string;
+export type DigestScopeType = "all" | "mailbox";
+
+export interface DigestSourceMailbox {
+  id: string;
+  provider: string;
+  account_email: string;
+  display_name: string | null;
+  title: string;
+}
+
+export interface DigestMailboxSummary {
+  mailbox_id: string;
+  provider: string | null;
+  account_email: string | null;
+  title: string | null;
+  summary: string;
+  highlights: string[];
+}
 
 export interface DigestItem {
   id: string;
   digest_id: string;
-  email_id: string;
+  mailbox_id: string;
+  email_id: string | null;
   item_type: string;
   section: string | null;
   title: string | null;
@@ -337,11 +357,13 @@ export interface DigestItem {
   deadline: string | null;
   confidence: number;
   display_order: number;
+  source_mailbox: DigestSourceMailbox | null;
 }
 
 export interface Digest {
   id: string;
-  mailbox_id: string;
+  scope_type: DigestScopeType;
+  mailbox_id: string | null;
   digest_date: string;
   version: number;
   is_current: boolean;
@@ -354,6 +376,7 @@ export interface Digest {
   new_mail_count_after_digest: number;
   overview: Record<string, unknown>;
   summary: string | null;
+  mailbox_summaries: DigestMailboxSummary[];
   items: DigestItem[];
 }
 
@@ -363,8 +386,9 @@ export interface DigestData {
 
 export type DigestResponse = ApiSuccess<DigestData>;
 
-export interface DigestMailboxRequest {
-  mailbox_id: string;
+export interface DigestScopeRequest {
+  scope_type?: DigestScopeType;
+  mailbox_id?: string;
 }
 
 export interface UserAction {

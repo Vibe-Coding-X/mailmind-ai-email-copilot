@@ -30,7 +30,7 @@ import {
 import type {
   ApiResult,
   DigestItemActionResponse,
-  DigestMailboxRequest,
+  DigestScopeRequest,
   DigestResponse,
   EmailMutationResponse,
   EmailResponse,
@@ -185,31 +185,34 @@ type ConnectImapSignature = Assert<
   Equal<ReturnType<typeof connectImapMailbox>, Promise<ImapConnectResponse>>
 >;
 type GetTodayDigestParameters = Assert<
-  Equal<Parameters<typeof getTodayDigest>, [mailboxId: string]>
+  Equal<
+    Parameters<typeof getTodayDigest>,
+    [input?: { scope_type?: "all" | "mailbox"; mailbox_id?: string }]
+  >
 >;
 type GetTodayDigestSignature = Assert<
   Equal<ReturnType<typeof getTodayDigest>, Promise<DigestResponse>>
 >;
 type GenerateTodayDigestParameters = Assert<
-  Equal<Parameters<typeof generateTodayDigest>, [payload: DigestMailboxRequest]>
+  Equal<Parameters<typeof generateTodayDigest>, [payload: DigestScopeRequest]>
 >;
 type GenerateTodayDigestSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigest>, Promise<DigestResponse>>
 >;
 type GenerateTodayDigestJobParameters = Assert<
-  Equal<Parameters<typeof generateTodayDigestJob>, [payload: DigestMailboxRequest]>
+  Equal<Parameters<typeof generateTodayDigestJob>, [payload: DigestScopeRequest]>
 >;
 type GenerateTodayDigestJobSignature = Assert<
   Equal<ReturnType<typeof generateTodayDigestJob>, Promise<JobResponse>>
 >;
 type RefreshTodayDigestParameters = Assert<
-  Equal<Parameters<typeof refreshTodayDigest>, [payload: DigestMailboxRequest]>
+  Equal<Parameters<typeof refreshTodayDigest>, [payload: DigestScopeRequest]>
 >;
 type RefreshTodayDigestSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigest>, Promise<DigestResponse>>
 >;
 type RefreshTodayDigestJobParameters = Assert<
-  Equal<Parameters<typeof refreshTodayDigestJob>, [payload: DigestMailboxRequest]>
+  Equal<Parameters<typeof refreshTodayDigestJob>, [payload: DigestScopeRequest]>
 >;
 type RefreshTodayDigestJobSignature = Assert<
   Equal<ReturnType<typeof refreshTodayDigestJob>, Promise<JobResponse>>

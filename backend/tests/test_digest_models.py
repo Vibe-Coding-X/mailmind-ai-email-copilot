@@ -33,6 +33,7 @@ def test_daily_digests_columns_and_constraints_match_database_design() -> None:
     assert set(daily_digests.c.keys()) == {
         "id",
         "user_id",
+        "scope_type",
         "mailbox_id",
         "digest_date",
         "version",
@@ -56,12 +57,21 @@ def test_daily_digests_columns_and_constraints_match_database_design() -> None:
         "mailboxes.id"
     }
     assert any(
-        {column.name for column in constraint.columns}
-        == {"mailbox_id", "digest_date", "version"}
-        for constraint in daily_digests.constraints
-        if constraint.__class__.__name__ == "UniqueConstraint"
+        index.name == "daily_digests_mailbox_date_version_uq"
+        for index in daily_digests.indexes
     )
-    assert any(index.name == "daily_digests_current_uq" for index in daily_digests.indexes)
+    assert any(
+        index.name == "daily_digests_all_date_version_uq"
+        for index in daily_digests.indexes
+    )
+    assert any(
+        index.name == "daily_digests_mailbox_current_uq"
+        for index in daily_digests.indexes
+    )
+    assert any(
+        index.name == "daily_digests_all_current_uq"
+        for index in daily_digests.indexes
+    )
 
 
 def test_digest_items_columns_and_constraints_match_database_design() -> None:

@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Sequence
 
 from app.db.models.email import Email
+from app.db.models.mailbox import Mailbox
 
 
 PROMPT_VERSION = "digest_prompt.v1"
@@ -18,11 +19,23 @@ Required top-level shape:
 {
   "overview": {
     "mail_count": <number>,
-    "summary": <string>
+    "summary": <string>,
+    "overall_summary": <string or null>,
+    "mailbox_summaries": [
+      {
+        "mailbox_id": <one of the provided mailbox_id values>,
+        "provider": <string>,
+        "account_email": <string>,
+        "title": <string>,
+        "summary": <string>,
+        "highlights": [<string>, ...]
+      }
+    ]
   },
   "items": [
     {
       "email_id": <one of the provided email_id values or null>,
+      "mailbox_id": <one of the provided mailbox_id values or null>,
       "item_type": "email" | "todo" | "risk",
       "section": "urgent" | "review" | "ignore" | "todo" | "risk",
       "title": <string>,
@@ -39,8 +52,11 @@ Required top-level shape:
 
 Rules:
 - Use provided email_id exactly.
+- Use provided mailbox_id exactly when you include mailbox_id.
 - Do not invent email_id.
 - Use null email_id only for todo or risk items not tied to a specific email.
+- For scope_type="all", every mailbox with useful content should appear in overview.mailbox_summaries.
+- For scope_type="all", todo or risk items not tied to an email must still include mailbox_id.
 - If no item is useful, return "items": [].
 - Do not include raw credentials, tokens, secrets, or raw provider payloads.
 
@@ -50,6 +66,7 @@ Minimal example:
   "items": [
     {
       "email_id": "provided-email-id",
+      "mailbox_id": "provided-mailbox-id",
       "item_type": "email",
       "section": "review",
       "title": "Review requested",
@@ -84,7 +101,19 @@ def build_digest_prompt(
     *,
     coverage_start: datetime,
     coverage_end: datetime,
+    scope_type: str,
+    mailboxes: Sequence[Mailbox],
 ) -> DigestPrompt:
+    mailbox_inputs = [
+        {
+            "mailbox_id": str(mailbox.id),
+            "provider": mailbox.provider.strip().lower(),
+            "account_email": mailbox.email_address,
+            "display_name": mailbox.display_name,
+            "title": mailbox.display_name or mailbox.email_address,
+        }
+        for mailbox in mailboxes
+    ]
     email_inputs: list[dict[str, Any]] = []
     truncated_body_count = 0
     for email in emails:
@@ -95,6 +124,7 @@ def build_digest_prompt(
         email_inputs.append(
             {
                 "email_id": email.external_id,
+                "mailbox_id": str(email.mailbox_id),
                 "subject": _redact_sensitive_text(email.subject or ""),
                 "sender": _redact_sensitive_text(email.from_address or ""),
                 "recipients": email.to_addresses,
@@ -107,8 +137,10 @@ def build_digest_prompt(
         )
 
     payload = {
+        "scope_type": scope_type,
         "coverage_start": coverage_start.isoformat(),
         "coverage_end": coverage_end.isoformat(),
+        "mailboxes": mailbox_inputs,
         "emails": email_inputs,
     }
     text = (
@@ -120,6 +152,8 @@ def build_digest_prompt(
     return DigestPrompt(
         text=text,
         input_summary={
+            "scope_type": scope_type,
+            "mailbox_count": len(mailboxes),
             "mail_count": len(emails),
             "truncated_body_count": truncated_body_count,
             "coverage_start": coverage_start.isoformat(),

@@ -37,7 +37,12 @@ def test_parse_digest_output_maps_known_email_external_id() -> None:
 
     parsed = parse_digest_output(_valid_output("gmail-1"), {"gmail-1": email_id})
 
-    assert parsed.overview == {"mail_count": 1, "summary": "One important email."}
+    assert parsed.overview == {
+        "mail_count": 1,
+        "summary": "One important email.",
+        "overall_summary": "One important email.",
+        "mailbox_summaries": [],
+    }
     assert len(parsed.items) == 1
     assert parsed.items[0].email_id == email_id
     assert parsed.items[0].deadline == date(2026, 6, 19)
@@ -70,6 +75,8 @@ def test_parse_digest_output_falls_back_for_empty_output() -> None:
     assert parsed.overview == {
         "mail_count": 2,
         "summary": "No digest items were returned.",
+        "overall_summary": "No digest items were returned.",
+        "mailbox_summaries": [],
     }
     assert parsed.items == []
 
@@ -180,6 +187,8 @@ def test_parse_digest_output_falls_back_for_missing_overview() -> None:
     assert parsed.overview == {
         "mail_count": 0,
         "summary": "No digest items were returned.",
+        "overall_summary": "No digest items were returned.",
+        "mailbox_summaries": [],
     }
     assert parsed.items == []
 
