@@ -210,6 +210,8 @@
   "mailboxes.imapPort": "Port",
   "mailboxes.imapUsername": "Username",
   "mailboxes.imapPassword": "Password",
+  "mailboxes.showPassword": "Show",
+  "mailboxes.hidePassword": "Hide",
   "mailboxes.imapFolder": "Folder",
   "mailboxes.imapUseSsl": "Use SSL",
   "mailboxes.actionError": "Mailbox action error",

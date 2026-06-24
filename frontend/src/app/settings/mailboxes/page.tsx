@@ -252,6 +252,7 @@ export default function MailboxSettingsPage() {
   const [connectingGmail, setConnectingGmail] = useState(false);
   const [connectingImap, setConnectingImap] = useState(false);
   const [showImapForm, setShowImapForm] = useState(false);
+  const [showImapPassword, setShowImapPassword] = useState(false);
   const [imapForm, setImapForm] = useState<ImapFormState>(initialImapForm);
   const [syncingMailboxId, setSyncingMailboxId] = useState<string | null>(null);
   const [activeSyncJobsByMailboxId, setActiveSyncJobsByMailboxId] = useState<
@@ -859,14 +860,30 @@ export default function MailboxSettingsPage() {
                 </label>
                 <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
                   <span>{t("mailboxes.imapPassword")}</span>
-                  <input
-                    className="mm-input"
-                    type="password"
-                    value={imapForm.password}
-                    onChange={(event) => updateImapForm("password", event.target.value)}
-                    disabled={connectingImap}
-                    required
-                  />
+                  <div className="mm-row" style={{ gap: 8, alignItems: "center" }}>
+                    <input
+                      className="mm-input"
+                      type={showImapPassword ? "text" : "password"}
+                      value={imapForm.password}
+                      onChange={(event) => updateImapForm("password", event.target.value)}
+                      disabled={connectingImap}
+                      required
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      className="mm-btn"
+                      onClick={() => setShowImapPassword((current) => !current)}
+                      disabled={connectingImap}
+                      aria-disabled={connectingImap}
+                      aria-pressed={showImapPassword}
+                      style={{ fontSize: 12, padding: "8px 12px", flexShrink: 0 }}
+                    >
+                      {showImapPassword
+                        ? t("mailboxes.hidePassword")
+                        : t("mailboxes.showPassword")}
+                    </button>
+                  </div>
                 </label>
                 <label className="mm-stack" style={{ gap: 6, fontSize: 13 }}>
                   <span>{t("mailboxes.imapFolder")}</span>

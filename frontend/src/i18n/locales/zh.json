@@ -210,6 +210,8 @@
   "mailboxes.imapPort": "端口",
   "mailboxes.imapUsername": "用户名",
   "mailboxes.imapPassword": "密码",
+  "mailboxes.showPassword": "显示",
+  "mailboxes.hidePassword": "隐藏",
   "mailboxes.imapFolder": "文件夹",
   "mailboxes.imapUseSsl": "使用 SSL",
   "mailboxes.actionError": "邮箱操作错误",
