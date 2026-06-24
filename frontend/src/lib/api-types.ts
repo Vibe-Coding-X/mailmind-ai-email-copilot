@@ -165,9 +165,12 @@ export type ImapConnectResponse = ApiSuccess<{
 
 export type MailboxSyncState =
   | "not_started"
+  | "pending_dispatch"
+  | "queued"
   | "running"
   | "completed"
   | "failed"
+  | "dispatch_failed"
   | "unknown"
   | string;
 
@@ -201,10 +204,12 @@ export interface MailboxSyncData {
 export type MailboxSyncResponse = ApiSuccess<MailboxSyncData>;
 
 export type JobStatus =
+  | "pending_dispatch"
   | "queued"
   | "running"
   | "completed"
   | "failed"
+  | "dispatch_failed"
   | "cancelled";
 
 export type JobType =
@@ -222,6 +227,9 @@ export interface Job {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  mailbox_id: string | null;
+  digest_id: string | null;
+  celery_task_id: string | null;
   error_code: string | null;
   error_message: string | null;
   retry_count: number;
@@ -354,6 +362,10 @@ export interface DigestData {
 }
 
 export type DigestResponse = ApiSuccess<DigestData>;
+
+export interface DigestMailboxRequest {
+  mailbox_id: string;
+}
 
 export interface UserAction {
   id: string;

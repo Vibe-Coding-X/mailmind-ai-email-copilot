@@ -198,6 +198,38 @@ function imapConnectionText(mailbox: Mailbox): string | null {
   return `Host: ${config.host}:${port}${useSsl}`;
 }
 
+function syncStatusViewFromJob(
+  job: Job,
+  current: MailboxSyncStatusView | undefined,
+): MailboxSyncStatusView {
+  const previousLoaded = current?.state === "loaded" ? current.data : null;
+  const mailboxId =
+    typeof job.related_resource_id === "string"
+      ? job.related_resource_id
+      : previousLoaded?.mailbox_id ?? "";
+  const lastSuccessfulSyncAt =
+    job.status === "completed"
+      ? job.finished_at ?? previousLoaded?.last_successful_sync_at ?? new Date().toISOString()
+      : previousLoaded?.last_successful_sync_at ?? null;
+
+  return {
+    state: "loaded",
+    data: {
+      mailbox_id: mailboxId,
+      status: job.status,
+      last_successful_sync_at: lastSuccessfulSyncAt,
+      last_job: {
+        id: job.job_id,
+        job_type: job.job_type,
+        status: job.status,
+        started_at: job.started_at,
+        finished_at: job.finished_at,
+        error_message: job.error_message,
+      },
+    },
+  };
+}
+
 function PolledMailboxSyncCard({
   mailbox,
   syncStatus,
@@ -358,25 +390,40 @@ export default function MailboxSettingsPage() {
           delete next[job.related_resource_id as string];
           return next;
         });
+        setSyncStatuses((current) => ({
+          ...current,
+          [job.related_resource_id as string]: syncStatusViewFromJob(
+            job,
+            current[job.related_resource_id as string],
+          ),
+        }));
       }
       setActionMessage(t("mailboxes.syncJobCompleted"));
-      await loadMailboxList();
+      await Promise.all([loadMailboxList(), recentSyncJobs.refresh()]);
     },
-    [loadMailboxList, t],
+    [loadMailboxList, recentSyncJobs, t],
   );
 
   const onSyncJobFailed = useCallback(
-    (job: Job) => {
+    async (job: Job) => {
       if (job.related_resource_id) {
         setActiveSyncJobsByMailboxId((current) => {
           const next = { ...current };
           delete next[job.related_resource_id as string];
           return next;
         });
+        setSyncStatuses((current) => ({
+          ...current,
+          [job.related_resource_id as string]: syncStatusViewFromJob(
+            job,
+            current[job.related_resource_id as string],
+          ),
+        }));
       }
       setActionError(job.error_message ?? t("mailboxes.syncJobFailed"));
+      await recentSyncJobs.refresh();
     },
-    [t],
+    [recentSyncJobs, t],
   );
 
   async function onStartGmail() {
