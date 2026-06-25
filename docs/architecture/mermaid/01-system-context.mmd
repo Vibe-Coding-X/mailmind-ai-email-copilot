@@ -4,40 +4,38 @@ description: "High-level view of MailMind and its external dependencies"
 ---
 
 graph TB
-    subgraph Users
-        Browser["Browser / Next.js Frontend<br/><i>Next.js 15 · React 19 · TypeScript</i>"]
-    end
+    Browser["🌐 Browser<br/><b>Next.js 15 · React 19 · TypeScript</b><br/><i>App Router · CSS Custom Properties</i>"]
 
-    subgraph MailMind_System["MailMind System"]
-        API["FastAPI Backend<br/><i>Python 3.11+ · SQLAlchemy 2.0</i>"]
-        Worker["Celery Worker<br/><i>Async job execution</i>"]
+    subgraph MailMind["MailMind System"]
+        API["⚡ FastAPI Backend<br/><b>Python 3.11+ · SQLAlchemy 2.0</b><br/><i>Auth · Mailbox · Digest · Email · Jobs</i>"]
+        Worker["⚙️ Celery Worker<br/><b>Async Job Execution</b><br/><i>Email Sync · Digest Generation</i>"]
     end
 
     subgraph Data_Stores["Data Stores"]
-        PostgreSQL[("PostgreSQL<br/><i>Primary data store</i>")]
-        Redis[("Redis<br/><i>Broker · Result backend · Locks</i>")]
+        PostgreSQL[("🐘 PostgreSQL 15<br/><b>Primary Data Store</b><br/><i>11 Tables · 9 Migrations</i>")]
+        Redis[("🔴 Redis 7<br/><b>Broker · Result Backend</b><br/><i>Task Queue · Distributed Locks</i>")]
     end
 
     subgraph External_Services["External Services"]
-        Gmail["Gmail API<br/><i>OAuth2 · REST</i>"]
-        IMAP["IMAP Servers<br/><i>Any standard IMAP</i>"]
-        AI["AI Provider Chain<br/><i>OpenAI-compatible LLM</i>"]
+        Gmail["📧 Gmail API<br/><b>OAuth 2.0 · REST</b><br/><i>Full Email Access</i>"]
+        IMAP["📬 IMAP Servers<br/><b>Standard IMAP Protocol</b><br/><i>QQ · 163 · Custom</i>"]
+        AI["🤖 AI Provider Chain<br/><b>OpenAI-Compatible LLM</b><br/><i>Mock · Primary · Backup</i>"]
     end
 
-    Browser -->|"HTTP / REST"| API
-    API -->|"Dispatch jobs"| Redis
-    Worker -->|"Consume tasks"| Redis
+    Browser -->|"HTTP / REST<br/>Session Cookie"| API
+    API -->|"Dispatch Tasks"| Redis
+    Worker -->|"Consume Tasks"| Redis
     Worker -->|"Read / Write"| PostgreSQL
     API -->|"Read / Write"| PostgreSQL
-    Worker -->|"Fetch emails"| Gmail
-    Worker -->|"Fetch emails"| IMAP
-    Worker -->|"Generate digest"| AI
-    API -->|"Token refresh"| Gmail
+    Worker -->|"Fetch Emails"| Gmail
+    Worker -->|"Fetch Emails"| IMAP
+    Worker -->|"Generate Digest"| AI
+    API -->|"Token Refresh"| Gmail
 
-    classDef frontend fill:#3b82f6,stroke:#2563eb,color:#fff
-    classDef backend fill:#10b981,stroke:#059669,color:#fff
-    classDef data fill:#f59e0b,stroke:#d97706,color:#fff
-    classDef external fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    classDef frontend fill:#4f46e5,stroke:#3730a3,color:#fff,font-weight:bold
+    classDef backend fill:#059669,stroke:#047857,color:#fff,font-weight:bold
+    classDef data fill:#d97706,stroke:#b45309,color:#fff,font-weight:bold
+    classDef external fill:#7c3aed,stroke:#6d28d9,color:#fff,font-weight:bold
 
     class Browser frontend
     class API,Worker backend

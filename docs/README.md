@@ -10,7 +10,7 @@ MailMind documentation hub.
 
 1. [`product/PRD.md`](product/PRD.md) — Product goals, MVP scope, and user flows.
 2. [`architecture/SYSTEM_DESIGN.md`](architecture/SYSTEM_DESIGN.md) — System-level goals, overall architecture, core principles.
-3. [`architecture/DIAGRAMS.md`](architecture/DIAGRAMS.md) — **Architecture diagrams index** with 5 Mermaid source files.
+3. [`architecture/DIAGRAMS.md`](architecture/DIAGRAMS.md) — **Architecture diagrams index** with 6 Mermaid diagrams and rendered SVGs.
 4. [`architecture/DATA_FLOWS.md`](architecture/DATA_FLOWS.md) — Registration, Gmail auth, sync, digest generation, and refresh flows.
 5. [`database/DATABASE_DESIGN.md`](database/DATABASE_DESIGN.md) — Table structure, fields, enums, constraints, and migration strategy.
 6. [`api/API_DESIGN.md`](api/API_DESIGN.md) — API routes, auth preconditions, and interaction rules.
@@ -50,6 +50,7 @@ All architecture diagrams are available as `.mmd` source files in [`architecture
 | 03 | [`03-celery-job-dispatch-sequence.mmd`](architecture/mermaid/03-celery-job-dispatch-sequence.mmd) | Sequence | Commit-then-dispatch job lifecycle |
 | 04 | [`04-digest-scope-flow.mmd`](architecture/mermaid/04-digest-scope-flow.mmd) | Flowchart | All Mailboxes vs Single Mailbox digest scope |
 | 05 | [`05-data-model-erd.mmd`](architecture/mermaid/05-data-model-erd.mmd) | ER | Full PostgreSQL data model with all core tables |
+| 06 | [`06-frontend-architecture.mmd`](architecture/mermaid/06-frontend-architecture.mmd) | Graph | Next.js App Router pages, providers, components, hooks |
 
 ## Demo & Portfolio
 

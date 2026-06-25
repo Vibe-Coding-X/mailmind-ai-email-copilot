@@ -161,7 +161,7 @@ flowchart LR
     SVC --> AI
 ```
 
-> **Detailed diagrams:** See [`docs/architecture/DIAGRAMS.md`](docs/architecture/DIAGRAMS.md) for 5 Mermaid source files covering system context, provider/mailbox architecture, Celery job dispatch sequence, digest scope flow, and data model ERD.
+> **Detailed diagrams:** See [`docs/architecture/DIAGRAMS.md`](docs/architecture/DIAGRAMS.md) for 6 rendered architecture diagrams covering system context, provider/mailbox architecture, Celery job dispatch sequence, digest scope flow, data model ERD, and frontend architecture.
 
 ---
 
@@ -341,7 +341,7 @@ npm run build
 |----------|------|
 | Product Requirements | [`docs/product/PRD.md`](docs/product/PRD.md) |
 | System Design | [`docs/architecture/SYSTEM_DESIGN.md`](docs/architecture/SYSTEM_DESIGN.md) |
-| Architecture Diagrams | [`docs/architecture/DIAGRAMS.md`](docs/architecture/DIAGRAMS.md) |
+| Architecture Diagrams | [`docs/architecture/DIAGRAMS.md`](docs/architecture/DIAGRAMS.md) — 6 rendered SVGs |
 | Data Model ERD | [`docs/architecture/mermaid/05-data-model-erd.mmd`](docs/architecture/mermaid/05-data-model-erd.mmd) |
 | Database Design | [`docs/database/DATABASE_DESIGN.md`](docs/database/DATABASE_DESIGN.md) |
 | API Design | [`docs/api/API_DESIGN.md`](docs/api/API_DESIGN.md) |

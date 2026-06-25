@@ -12,13 +12,13 @@ erDiagram
     User ||--o{ Email : "owns"
     User ||--o{ DailyDigest : "owns"
     DailyDigest ||--o{ DigestItem : "contains"
-    DailyDigest }o--o| Mailbox : "scoped to (nullable)"
-    DigestItem }o--o| Email : "references (nullable)"
-    SyncJob }o--o| Mailbox : "targets (nullable)"
-    SyncJob }o--o| DailyDigest : "produces (nullable)"
+    DailyDigest }o--o| Mailbox : "scoped to"
+    DigestItem }o--o| Email : "references"
+    SyncJob }o--o| Mailbox : "targets"
+    SyncJob }o--o| DailyDigest : "produces"
 
     MailboxProvider {
-        string provider_key "gmail | imap | outlook"
+        string provider_key PK
         boolean supports_oauth
         boolean supports_password_auth
         boolean can_mark_read
@@ -28,26 +28,26 @@ erDiagram
     Mailbox {
         uuid id PK
         uuid user_id FK
-        string provider "gmail | outlook | imap"
+        string provider
         string email_address
-        string status "active | reauth_required | disconnected | error"
-        string permission_mode "readonly | write_enabled"
+        string status
+        string permission_mode
         datetime last_sync_at
     }
 
     MailboxCredential {
-        uuid mailbox_id PK_FK
-        string credential_type "oauth2 | imap_password"
+        uuid mailbox_id FK
+        string credential_type
         text refresh_token_encrypted
         text imap_password_encrypted
-        jsonb credentials_json "IMAP config: host, port, folder, uidvalidity"
+        jsonb credentials_json
     }
 
     Email {
         uuid id PK
         uuid mailbox_id FK
         uuid user_id FK
-        string external_id "Gmail msg ID or folder:uidvalidity:uid"
+        string external_id
         string subject
         string from_address
         text body_text
@@ -58,29 +58,39 @@ erDiagram
     DailyDigest {
         uuid id PK
         uuid user_id FK
-        uuid mailbox_id FK "null when scope_type=all"
-        string scope_type "all | mailbox"
+        uuid mailbox_id FK
+        string scope_type
         date digest_date
         int version
         boolean is_current
-        string status "generating | fresh | stale | refreshing | failed"
+        string status
     }
 
     DigestItem {
         uuid id PK
         uuid digest_id FK
-        uuid email_id FK "null for todo/risk items"
-        string item_type "email | todo | risk"
-        string section "urgent | review | ignore | todo | risk"
-        string priority "high | medium | low"
-        numeric confidence "0-1"
+        uuid email_id FK
+        string item_type
+        string section
+        string priority
+        numeric confidence
     }
 
     SyncJob {
         uuid id PK
-        uuid mailbox_id FK "null for all-mailbox jobs"
+        uuid mailbox_id FK
         uuid digest_id FK
-        string job_type "sync_today_emails | generate_daily_digest | ..."
-        string status "pending_dispatch | queued | running | succeeded | failed"
-        string job_key "idempotency key"
+        string job_type
+        string status
+        string job_key
     }
+
+    classDef identity fill:#4f46e5,stroke:#3730a3,color:#fff
+    classDef mailbox fill:#059669,stroke:#047857,color:#fff
+    classDef digest fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef job fill:#d97706,stroke:#b45309,color:#fff
+
+    class User identity
+    class MailboxProvider,Mailbox,MailboxCredential,Email mailbox
+    class DailyDigest,DigestItem digest
+    class SyncJob job

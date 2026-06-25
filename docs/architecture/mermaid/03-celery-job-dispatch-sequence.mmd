@@ -5,28 +5,30 @@ description: "Commit-then-dispatch reliability model for background jobs"
 
 sequenceDiagram
     autonumber
-    participant API as FastAPI API
-    participant DB as PostgreSQL
-    participant Redis as Redis Broker
-    participant Worker as Celery Worker
-    participant Provider as Email Provider / LLM
+    participant API as ⚡ FastAPI API
+    participant DB as 🐘 PostgreSQL
+    participant Redis as 🔴 Redis Broker
+    participant Worker as ⚙️ Celery Worker
+    participant Provider as 📧 Email Provider / 🤖 LLM
 
-    Note over API,Provider: Phase 1: Job Creation & Dispatch
+    rect rgb(220, 245, 220)
+        Note over API,Provider: Phase 1 · Job Creation & Dispatch
+    end
 
     API->>DB: Create SyncJob (status=pending_dispatch)
     DB-->>API: Job committed to database
 
-    rect rgb(200, 230, 200)
-        Note right of API: Commit-then-dispatch<br/>Job is visible to workers BEFORE task is sent
-    end
+    Note over API: Commit-then-dispatch<br/>Job is visible to workers BEFORE task is sent
 
     API->>DB: Re-read job, validate pending_dispatch
-    API->>Redis: dispatch Celery task
+    API->>Redis: Dispatch Celery task
     Redis-->>API: celery_task_id returned
     API->>DB: Update job (status=queued, celery_task_id)
     DB-->>API: Queued state committed
 
-    Note over API,Worker: Phase 2: Worker Execution
+    rect rgb(220, 235, 255)
+        Note over API,Provider: Phase 2 · Worker Execution
+    end
 
     Worker->>Redis: Consume task from queue
     Worker->>DB: Re-read job, validate status=queued
@@ -52,13 +54,11 @@ sequenceDiagram
         Worker->>DB: Update job (status=failed, error=lock_held)
     end
 
-    Note over API,Worker: Phase 3: Edge Cases
-
-    rect rgb(255, 230, 230)
-        Note right of Worker: Stale/Orphan Task Handling
+    rect rgb(255, 235, 235)
+        Note over API,Provider: Phase 3 · Edge Cases
     end
 
-    Note over Worker: If task arrives but job is already<br/>succeeded/failed/cancelled:<br/>→ Worker skips execution safely
+    Note over Worker: If task arrives but job is already<br/>succeeded / failed / cancelled:<br/>→ Worker skips execution safely
 
     Note over API: If dispatch fails after DB commit:<br/>→ Job stays pending_dispatch<br/>→ Can be recovered by retry sweep
 
