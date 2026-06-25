@@ -5,10 +5,8 @@ import { AccountMenu } from "@/components/account-menu";
 import { useI18n } from "@/i18n/provider";
 
 /**
- * AppShell — product layout frame for MailMind (design preview).
- *
- * Product layout frame. Authentication status is live via GET /api/auth/me;
- * Gmail, Digest, and AI areas remain design previews until their own tasks.
+ * AppShell — product layout frame for MailMind.
+ * Enhanced with dramatic visual effects per theme.
  */
 
 interface NavLink {
@@ -21,8 +19,6 @@ interface NavLink {
   icon: "dashboard" | "emails" | "actions" | "mailboxes";
 }
 
-// Routes reflect docs/frontend/FRONTEND_DESIGN.md section 2 page structure.
-// Product direction is dashboard-first, so Dashboard leads (not the inbox).
 const PRIMARY_NAV: NavLink[] = [
   { href: "/dashboard", labelKey: "nav.dashboard", icon: "dashboard" },
   { href: "/emails", labelKey: "nav.emails", icon: "emails" },
@@ -39,19 +35,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="mm-shell">
       <aside className="mm-sidebar">
+        {/* Brand */}
         <div>
           <div className="mm-brand-name">MailMind</div>
           <div className="mm-brand-sub">{t("app.subtitle")}</div>
         </div>
 
+        {/* Navigation */}
         <NavSection title={t("nav.workspace")} links={PRIMARY_NAV} />
         <NavSection title={t("nav.settings")} links={SETTINGS_NAV} />
 
+        {/* Account at bottom */}
         <div style={{ marginTop: "auto" }}>
           <AccountMenu />
         </div>
       </aside>
 
+      {/* Main content with page-level animation */}
       <main className="mm-main">{children}</main>
     </div>
   );

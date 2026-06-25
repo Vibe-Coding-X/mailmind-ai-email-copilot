@@ -1,22 +1,25 @@
 /**
- * Theme model for MailMind (frontend theme system).
+ * Theme model for MailMind (frontend theme system v2).
  *
  * A theme is two orthogonal axes:
  *   - preset: the visual personality (color language, density, elevation)
  *   - mode:   light / dark
  *
+ * v2 brings dramatic visual effects: neon-cyber as default, glass-aurora,
+ * gradient-flow, soft-clay, plus preserved noir-pulse and dense-minimal.
+ *
  * This module is pure data + helpers — NO React, NO DOM side effects beyond the
- * small reader/writer helpers, and it persists ONLY the theme preference. It
- * never reads or writes any user, session, token, or mailbox data, and never
- * touches cookies. The persisted value is a plain string key in localStorage.
+ * small reader/writer helpers, and it persists ONLY the theme preference.
  */
 
 export type ThemeMode = "light" | "dark";
 
 export type ThemePreset =
-  | "amber-focus"
+  | "neon-cyber"
+  | "glass-aurora"
+  | "gradient-flow"
+  | "soft-clay"
   | "noir-pulse"
-  | "paper-calm"
   | "dense-minimal";
 
 export interface ThemeChoice {
@@ -24,16 +27,18 @@ export interface ThemeChoice {
   mode: ThemeMode;
 }
 
-/** Amber Focus is the product's default productivity theme. */
+/** Neon Cyber is now the DEFAULT theme for maximum visual impact. */
 export const DEFAULT_THEME: ThemeChoice = {
-  preset: "amber-focus",
-  mode: "light",
+  preset: "neon-cyber",
+  mode: "dark",
 };
 
 export const THEME_PRESETS: ThemePreset[] = [
-  "amber-focus",
+  "neon-cyber",
+  "glass-aurora",
+  "gradient-flow",
+  "soft-clay",
   "noir-pulse",
-  "paper-calm",
   "dense-minimal",
 ];
 
@@ -44,21 +49,29 @@ export const PRESET_META: Record<
   ThemePreset,
   { label: string; hint: string }
 > = {
-  "amber-focus": {
-    label: "Amber Focus",
-    hint: "Warm canvas, amber emphasis, balanced spacing",
+  "neon-cyber": {
+    label: "Neon Cyber",
+    hint: "Cyberpunk neon glow, deep black, cyan/magenta accents",
+  },
+  "glass-aurora": {
+    label: "Glass Aurora",
+    hint: "Frosted glass, soft gradients, aurora-like colors",
+  },
+  "gradient-flow": {
+    label: "Gradient Flow",
+    hint: "Modern SaaS gradients, purple-blue flow",
+  },
+  "soft-clay": {
+    label: "Soft Clay",
+    hint: "Neumorphic clay, soft shadows, organic shapes",
   },
   "noir-pulse": {
     label: "Noir Pulse",
-    hint: "Dark contrast, saturated signal color, faster motion",
-  },
-  "paper-calm": {
-    label: "Paper Calm",
-    hint: "Reading-first paper surfaces, quiet borders",
+    hint: "Dark contrast, amber signal, sharp edges",
   },
   "dense-minimal": {
     label: "Dense Minimal",
-    hint: "Compact, flat, low decoration for fast scanning",
+    hint: "Compact, flat, minimal decoration",
   },
 };
 
@@ -92,6 +105,15 @@ export function parseThemeChoice(raw: string | null): ThemeChoice | null {
     return { preset, mode };
   }
 
+  // Legacy preset migration
+  const legacyMap: Record<string, ThemePreset> = {
+    "amber-focus": "neon-cyber",
+    "paper-calm": "glass-aurora",
+  };
+  if (preset && legacyMap[preset]) {
+    return { preset: legacyMap[preset], mode: isThemeMode(mode) ? mode : "dark" };
+  }
+
   return null;
 }
 
@@ -103,7 +125,6 @@ export function serializeThemeChoice(choice: ThemeChoice): string {
 /**
  * Resolve the initial theme without throwing in any environment:
  *   stored preference > prefers-color-scheme (mode only) > DEFAULT_THEME.
- * The preset always falls back to the default; only the mode follows the OS.
  */
 export function resolveInitialTheme(): ThemeChoice {
   if (typeof window === "undefined") {
@@ -118,7 +139,7 @@ export function resolveInitialTheme(): ThemeChoice {
       return stored;
     }
   } catch {
-    // localStorage may be unavailable (privacy mode / SSR mismatch) — ignore.
+    // localStorage may be unavailable — ignore.
   }
 
   const prefersDark =
@@ -136,11 +157,11 @@ export function persistThemeChoice(choice: ThemeChoice): void {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, serializeThemeChoice(choice));
   } catch {
-    // Ignore storage failures — theme still applies for the session.
+    // Ignore storage failures.
   }
 }
 
-/** Apply the choice to <html> data attributes (the CSS theming hook). */
+/** Apply the choice to <html> data attributes. */
 export function applyThemeToDocument(choice: ThemeChoice): void {
   if (typeof document === "undefined") {
     return;

@@ -1,12 +1,7 @@
 "use client";
 
 /**
- * AuthForm — real, functional sign-in / sign-up form (auth integration round).
- *
- * Submits to the backend via the auth context (register/login). It does NOT
- * store passwords, does NOT touch localStorage, and does NOT read cookies. On
- * success the auth context updates from the server response and the page
- * redirects to /dashboard. Errors from the backend are shown verbatim.
+ * AuthForm — sign-in / sign-up form with enhanced styling.
  */
 
 import { useState, type FormEvent } from "react";
@@ -77,6 +72,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           onChange={(e) => setEmail(e.target.value)}
           disabled={submitting}
           required
+          style={{ fontSize: 15 }}
         />
       </div>
 
@@ -95,6 +91,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           disabled={submitting}
           minLength={isRegister ? 8 : undefined}
           required
+          style={{ fontSize: 15 }}
         />
       </div>
 
@@ -111,12 +108,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             disabled={submitting}
+            style={{ fontSize: 15 }}
           />
         </div>
       ) : null}
 
       {error ? (
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 14 }}>
           <InlineFeedback tone="danger" title={t("auth.signInError")}>
             {error}
           </InlineFeedback>
@@ -128,7 +126,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
         className="mm-btn mm-btn--primary"
         disabled={submitting}
         aria-disabled={submitting}
-        style={{ cursor: submitting ? "wait" : "pointer", width: "100%" }}
+        style={{
+          cursor: submitting ? "wait" : "pointer",
+          width: "100%",
+          padding: "12px 20px",
+          fontSize: 15,
+          fontWeight: 600,
+        }}
       >
         {submitting
           ? isRegister

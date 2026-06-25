@@ -7,8 +7,8 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { useI18n } from "@/i18n/provider";
 
 /**
- * /register — system account registration. Registration creates a system
- * account, not a Gmail connection, and only calls POST /api/auth/register.
+ * /register — system account registration.
+ * Styled for dramatic visual impact with the new theme system.
  */
 export default function RegisterPage() {
   const { t } = useI18n();
@@ -20,19 +20,60 @@ export default function RegisterPage() {
         display: "grid",
         placeItems: "center",
         padding: "40px 20px",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
-      <div style={{ width: "100%", maxWidth: 380 }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div className="mm-brand-name" style={{ fontSize: 22 }}>
+      {/* Animated background gradient */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: `
+            radial-gradient(ellipse at 30% 30%, rgba(0, 255, 255, 0.08) 0%, transparent 50%),
+            radial-gradient(ellipse at 70% 70%, rgba(255, 0, 255, 0.06) 0%, transparent 50%),
+            radial-gradient(ellipse at 50% 50%, rgba(0, 255, 136, 0.04) 0%, transparent 60%)
+          `,
+          pointerEvents: "none",
+          animation: "pulseGlow 8s ease-in-out infinite",
+        }}
+      />
+
+      <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
+        {/* Brand header with glow */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div
+            className="mm-brand-name"
+            style={{
+              fontSize: 32,
+              fontWeight: 900,
+              letterSpacing: "-0.02em",
+            }}
+          >
             MailMind
           </div>
-          <div className="mm-brand-sub">{t("app.subtitle")}</div>
+          <div
+            className="mm-brand-sub"
+            style={{
+              fontSize: 13,
+              marginTop: 8,
+              letterSpacing: "0.04em",
+            }}
+          >
+            {t("app.subtitle")}
+          </div>
         </div>
 
-        <section className="mm-card" style={{ padding: "24px 24px 22px" }}>
-          <div className="mm-spread" style={{ marginBottom: 16 }}>
-            <h1 style={{ fontSize: 18 }}>{t("register.title")}</h1>
+        {/* Auth card */}
+        <section
+          className="mm-card"
+          style={{
+            padding: "28px 28px 26px",
+            position: "relative",
+          }}
+        >
+          <div className="mm-spread" style={{ marginBottom: 20 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700 }}>{t("register.title")}</h1>
             <Badge tone="ok" dot>
               Auth API
             </Badge>
@@ -40,19 +81,29 @@ export default function RegisterPage() {
 
           <AuthForm mode="register" />
 
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 18 }}>
             <AuthStatus />
           </div>
 
-          <hr className="mm-divider" style={{ margin: "16px 0" }} />
+          <hr className="mm-divider" style={{ margin: "20px 0" }} />
 
           <div className="mm-spread">
             <p className="mm-muted" style={{ fontSize: 13 }}>
-              {t("register.hasAccount")} <a href="/login">{t("account.signIn")}</a>
+              {t("register.hasAccount")}{" "}
+              <a href="/login" style={{ fontWeight: 500 }}>
+                {t("account.signIn")}
+              </a>
             </p>
             <ThemeSwitcher compact />
           </div>
         </section>
+
+        {/* Footer hint */}
+        <div style={{ textAlign: "center", marginTop: 20 }}>
+          <p className="mm-muted" style={{ fontSize: 11 }}>
+            {t("register.secureConnection")}
+          </p>
+        </div>
       </div>
     </main>
   );
