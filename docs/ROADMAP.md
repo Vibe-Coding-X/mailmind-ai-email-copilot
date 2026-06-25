@@ -1,12 +1,10 @@
 # MailMind Roadmap
 
-This roadmap describes planned product direction after `v0.5.0-provider-mailbox-foundation`. It is not a commitment that later items are implemented today.
+This roadmap describes MailMind's product direction. It is not a commitment that later items are implemented today.
 
 ## v0.1 Local MVP
 
-Status: completed.
-
-Scope:
+Status: ✅ completed.
 
 - Local MailMind account registration, login, logout, and session cookie auth.
 - Gmail OAuth connection and disconnect.
@@ -20,7 +18,7 @@ Scope:
 
 ## v0.2 Digest AI
 
-Status: completed.
+Status: ✅ completed.
 
 - Wire the dashboard to `GET /api/digest/today`.
 - Add frontend generate and refresh actions.
@@ -34,7 +32,7 @@ Status: completed.
 
 ## v0.3 Background Jobs / Scheduled Sync
 
-Status: completed.
+Status: ✅ completed.
 
 - Celery worker and Redis broker/result backend.
 - Background jobs foundation with `app.jobs.worker:app` entrypoint.
@@ -50,7 +48,7 @@ Status: completed.
 
 ## v0.4 Job Experience
 
-Status: completed.
+Status: ✅ completed.
 
 - Frontend Job API client with typed routes and polling hooks.
 - Real-time job status, progress, error, and retry UI components.
@@ -64,7 +62,7 @@ Status: completed.
 
 ## v0.4.1 Config Sync Containment
 
-Status: completed.
+Status: ✅ completed.
 
 - Local config loading from `backend/.env.local` and `frontend/.env.local`.
 - Shared Settings object between FastAPI and Celery worker.
@@ -76,7 +74,7 @@ Status: completed.
 
 ## v0.5 Provider Mailbox Foundation
 
-Status: completed.
+Status: ✅ completed.
 
 - Provider-aware mailbox architecture and contract.
 - `MailboxProvider` interface with Gmail, IMAP, and Outlook registry entries.
@@ -100,15 +98,49 @@ Status: completed.
 - Cross-mailbox Digest, Multi Mailbox Digest, AI Settings, email sending, and
   Celery Beat remain out of scope.
 
+## v0.5.1 UI/UX Polish
+
+Status: ✅ completed.
+
+- 6 theme presets with full light/dark mode support: Neon Cyber, Glass Aurora, Gradient Flow, Soft Clay, Noir Pulse, Dense Minimal.
+- Legacy theme migration: `amber-focus` → `neon-cyber`, `paper-calm` → `glass-aurora`.
+- Pre-hydration theme application — no flash of unstyled content (FOUC).
+- CSS custom properties architecture with 50+ variables per theme.
+- Keyframe animations: fadeSlideUp, scaleIn, pulseGlow, neonFlicker, scanLine, shimmer, bounce.
+- Responsive design with sidebar collapse at 780px breakpoint.
+- `prefers-reduced-motion` support.
+- Playwright-verified screenshots across all 12 theme/mode combinations.
+- Theme switcher UI with compact mode (auth pages) and full mode (settings).
+
+## v0.5.2 Demo Readiness
+
+Status: ✅ completed.
+
+- 5 Mermaid architecture diagrams: system context, provider/mailbox, Celery job dispatch, digest scope flow, data model ERD.
+- Portfolio-grade README with real dashboard screenshot, updated capabilities, and documentation index.
+- Demo script (5–8 min) covering dashboard, themes, multi-mailbox, sync, emails, actions, and architecture highlights.
+- Project walkthrough for interviews covering problem, architecture decisions, trade-offs, and lessons learned.
+- Architecture diagrams index with instructions for generating SVG/PNG from Mermaid source.
+- Documentation hub updated with links to all new docs.
+
 ## v0.6 Open Source Ready / CI / Docker Polish
+
+Status: 🧭 planned.
 
 - Add CI for backend tests, frontend typecheck/lint/build, and migration checks.
 - Improve Docker Compose for full-stack local runs.
 - Add example data or fixtures without secrets.
 - Review docs for public setup clarity.
+- Full Outlook OAuth provider implementation.
+- IMAP mark_read/unread implementation.
+- In-app AI provider settings UI.
 
 ## v1.0 Personal Productivity Ready
+
+Status: 🧭 planned.
 
 - Stabilize the Daily Digest workflow.
 - Harden security and operational behavior for personal daily use.
 - Complete provider, scheduling, recovery, and UX polish needed beyond a local MVP.
+- Celery Beat for automated scheduling.
+- Production deployment and Google OAuth verification.

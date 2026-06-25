@@ -1,0 +1,236 @@
+---
+title: "MailMind Data Model"
+description: "Core entity-relationship diagram for MailMind's PostgreSQL schema"
+---
+
+erDiagram
+    users ||--o{ sessions : "has"
+    users ||--o{ auth_accounts : "has"
+    users ||--o{ mailboxes : "owns"
+    users ||--o{ emails : "owns"
+    users ||--o{ sync_jobs : "owns"
+    users ||--o{ daily_digests : "owns"
+    users ||--o{ user_actions : "owns"
+
+    mailboxes ||--|| mailbox_credentials : "has"
+    mailboxes ||--o{ emails : "contains"
+    mailboxes ||--o{ sync_jobs : "targets"
+    mailboxes ||--o{ daily_digests : "scoped to"
+
+    daily_digests ||--o{ digest_items : "contains"
+    daily_digests ||--o{ ai_runs : "tracked by"
+    daily_digests ||--o{ sync_jobs : "produced by"
+
+    emails ||--o{ digest_items : "referenced by"
+    emails ||--o{ user_actions : "acted on"
+
+    digest_items ||--o{ user_actions : "acted on"
+
+    users {
+        uuid id PK
+        string email UK
+        string display_name
+        text password_hash
+        string status
+        string timezone
+        datetime created_at
+        datetime updated_at
+    }
+
+    sessions {
+        uuid id PK
+        uuid user_id FK
+        text session_token_hash UK
+        datetime expires_at
+        datetime last_used_at
+        inet ip_address
+        text user_agent
+        datetime revoked_at
+        datetime created_at
+    }
+
+    auth_accounts {
+        uuid id PK
+        uuid user_id FK
+        string provider
+        string provider_user_id
+        string provider_email
+        datetime created_at
+    }
+
+    mailboxes {
+        uuid id PK
+        uuid user_id FK
+        string provider
+        string provider_account_id
+        string email_address
+        string display_name
+        string permission_mode
+        text[] granted_scopes
+        string status
+        datetime last_sync_at
+        datetime last_successful_sync_at
+        string last_history_id
+        jsonb sync_cursor
+        datetime created_at
+        datetime updated_at
+    }
+
+    mailbox_credentials {
+        uuid mailbox_id FK
+        string credential_type
+        text refresh_token_encrypted
+        text imap_password_encrypted
+        text[] scopes_snapshot
+        jsonb credentials_json
+        string encryption_key_version
+        datetime created_at
+        datetime updated_at
+    }
+
+    emails {
+        uuid id PK
+        uuid user_id FK
+        uuid mailbox_id FK
+        string provider
+        string external_id
+        string external_thread_id
+        string internet_message_id
+        text subject
+        string from_name
+        string from_address
+        jsonb to_addresses
+        jsonb cc_addresses
+        text snippet
+        text body_text
+        boolean body_text_truncated
+        datetime received_at
+        boolean is_read
+        text[] provider_labels
+        string gmail_history_id
+        datetime first_synced_at
+        datetime last_synced_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    sync_jobs {
+        uuid id PK
+        uuid user_id FK
+        uuid mailbox_id FK
+        uuid digest_id FK
+        string celery_task_id UK
+        string job_type
+        string trigger_source
+        string job_key
+        date target_date
+        string status
+        int retry_count
+        jsonb payload_json
+        string error_code
+        text error_message
+        datetime created_at
+        datetime started_at
+        datetime finished_at
+    }
+
+    daily_digests {
+        uuid id PK
+        uuid user_id FK
+        string scope_type
+        uuid mailbox_id FK
+        date digest_date
+        int version
+        boolean is_current
+        string status
+        string trigger_source
+        datetime generation_started_at
+        datetime generated_at
+        datetime coverage_start
+        datetime coverage_end
+        int mail_count
+        int new_mail_count_after_digest
+        jsonb overview_json
+        datetime created_at
+        datetime updated_at
+    }
+
+    digest_items {
+        uuid id PK
+        uuid digest_id FK
+        uuid user_id FK
+        uuid mailbox_id FK
+        uuid email_id FK
+        string item_type
+        string section
+        text title
+        text summary
+        string category
+        string suggested_action
+        string priority
+        text reason
+        date deadline
+        numeric confidence
+        int display_order
+        datetime created_at
+        datetime updated_at
+    }
+
+    ai_runs {
+        uuid id PK
+        uuid user_id FK
+        uuid mailbox_id FK
+        uuid digest_id FK
+        string run_type
+        string trigger_source
+        string model_provider
+        string model_name
+        string prompt_version
+        string output_schema_version
+        char input_hash
+        jsonb input_summary_json
+        jsonb output_json
+        string status
+        string error_code
+        text error_message
+        int prompt_tokens
+        int completion_tokens
+        int total_tokens
+        int latency_ms
+        datetime created_at
+        datetime started_at
+        datetime finished_at
+    }
+
+    user_actions {
+        uuid id PK
+        uuid user_id FK
+        uuid mailbox_id FK
+        uuid digest_id FK
+        uuid digest_item_id FK
+        uuid email_id FK
+        string action_type
+        string action_status
+        string source
+        string provider_effect
+        jsonb before_state
+        jsonb after_state
+        string error_code
+        text error_message
+        datetime created_at
+        datetime executed_at
+    }
+
+    classDef identity fill:#4f46e5,stroke:#3730a3,color:#fff
+    classDef mailbox fill:#059669,stroke:#047857,color:#fff
+    classDef email fill:#0891b2,stroke:#0e7490,color:#fff
+    classDef digest fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef job fill:#d97706,stroke:#b45309,color:#fff
+    classDef action fill:#e11d48,stroke:#be123c,color:#fff
+
+    class users,sessions,auth_accounts identity
+    class mailboxes,mailbox_credentials mailbox
+    class emails email
+    class daily_digests,digest_items,ai_runs digest
+    class sync_jobs job
+    class user_actions action

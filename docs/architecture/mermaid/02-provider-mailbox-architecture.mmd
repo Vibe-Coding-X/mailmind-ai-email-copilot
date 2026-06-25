@@ -1,0 +1,96 @@
+---
+title: "Provider & Mailbox Architecture"
+description: "How providers, mailboxes, credentials, and emails relate"
+---
+
+erDiagram
+    MailboxProvider ||--o{ Mailbox : "implements provider"
+    Mailbox ||--|| MailboxCredential : "has credential"
+    Mailbox ||--o{ Email : "contains"
+    Mailbox ||--o{ SyncJob : "runs jobs"
+    User ||--o{ Mailbox : "owns"
+    User ||--o{ Email : "owns"
+    User ||--o{ DailyDigest : "owns"
+    DailyDigest ||--o{ DigestItem : "contains"
+    DailyDigest }o--o| Mailbox : "scoped to"
+    DigestItem }o--o| Email : "references"
+    SyncJob }o--o| Mailbox : "targets"
+    SyncJob }o--o| DailyDigest : "produces"
+
+    MailboxProvider {
+        string provider_key PK
+        boolean supports_oauth
+        boolean supports_password_auth
+        boolean can_mark_read
+        boolean can_fetch_body
+    }
+
+    Mailbox {
+        uuid id PK
+        uuid user_id FK
+        string provider
+        string email_address
+        string status
+        string permission_mode
+        datetime last_sync_at
+    }
+
+    MailboxCredential {
+        uuid mailbox_id FK
+        string credential_type
+        text refresh_token_encrypted
+        text imap_password_encrypted
+        jsonb credentials_json
+    }
+
+    Email {
+        uuid id PK
+        uuid mailbox_id FK
+        uuid user_id FK
+        string external_id
+        string subject
+        string from_address
+        text body_text
+        datetime received_at
+        boolean is_read
+    }
+
+    DailyDigest {
+        uuid id PK
+        uuid user_id FK
+        uuid mailbox_id FK
+        string scope_type
+        date digest_date
+        int version
+        boolean is_current
+        string status
+    }
+
+    DigestItem {
+        uuid id PK
+        uuid digest_id FK
+        uuid email_id FK
+        string item_type
+        string section
+        string priority
+        numeric confidence
+    }
+
+    SyncJob {
+        uuid id PK
+        uuid mailbox_id FK
+        uuid digest_id FK
+        string job_type
+        string status
+        string job_key
+    }
+
+    classDef identity fill:#4f46e5,stroke:#3730a3,color:#fff
+    classDef mailbox fill:#059669,stroke:#047857,color:#fff
+    classDef digest fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef job fill:#d97706,stroke:#b45309,color:#fff
+
+    class User identity
+    class MailboxProvider,Mailbox,MailboxCredential,Email mailbox
+    class DailyDigest,DigestItem digest
+    class SyncJob job

@@ -4,9 +4,8 @@
 
 **Your inbox, distilled into decisions.**
 
-MailMind is a local-first AI email copilot that turns multi-mailbox overload into an actionable Daily Digest.
-
-It is not another inbox client. It is an **AI decision layer** for your email.
+MailMind is a local-first, multi-mailbox AI email copilot for Gmail and IMAP.
+It turns inbox overload into an actionable Daily Digest — prioritized by urgency, scored by confidence, and ready for decisions.
 
 <br />
 
@@ -16,15 +15,16 @@ It is not another inbox client. It is an **AI decision layer** for your email.
 ![Redis](https://img.shields.io/badge/Redis-celery%20broker-DC382D)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
-![Release](https://img.shields.io/badge/release-v0.5.0--provider--mailbox--foundation-orange)
+![Release](https://img.shields.io/badge/release-v0.5.2--demo--readiness-orange)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 <br />
 
-<!-- TODO: Replace with real screenshot -->
-<!-- <img src="docs/assets/mailmind-dashboard-preview.png" alt="MailMind dashboard preview" width="900" /> -->
+<img src="docs/ui/screenshots/v051/final/dashboard-neon-cyber-1440x900.png" alt="MailMind Dashboard — Neon Cyber theme" width="900" />
 
-> Dashboard preview screenshot coming soon.
+<br />
+
+<sub>Dashboard · 6 themes with light/dark mode · Neon Cyber shown</sub>
 
 </div>
 
@@ -34,7 +34,7 @@ It is not another inbox client. It is an **AI decision layer** for your email.
 
 Email inboxes are designed for volume, not decisions. You get hundreds of messages a day, but only a handful actually require action.
 
-MailMind sits on top of your Gmail and answers one question:
+MailMind sits on top of your Gmail and IMAP accounts and answers one question:
 
 > **What should I do today?**
 
@@ -103,12 +103,19 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 
 **Frontend**
 - Next.js 15 dashboard-first design with TypeScript and ESLint
-- 4 themes: Amber Focus, Noir Pulse, Paper Calm, Dense Minimal
+- 6 theme presets with full light/dark mode support: Neon Cyber, Glass Aurora, Gradient Flow, Soft Clay, Noir Pulse, Dense Minimal
+- Pre-hydration theme application — no flash of unstyled content
 - i18n foundation with English and Chinese language resources
 - Avatar account menu with sign-out
 - Digest dashboard with generate/refresh controls and mailbox scope selector
 - Action history page with filters and pagination
 - Mailbox settings with Gmail connection, disconnect, and sync
+
+**UI/UX Polish (v0.5.1)**
+- Dramatic visual effects with CSS animations (fadeSlideUp, pulseGlow, neonFlicker)
+- Responsive design with sidebar collapse at 780px breakpoint
+- Theme-switching with `prefers-reduced-motion` support
+- Playwright-verified screenshots across all 12 theme/mode combinations
 
 ### 🧭 Planned
 
@@ -140,6 +147,7 @@ flowchart LR
 
     subgraph External
         GMAIL["Gmail API"]
+        IMAP["IMAP Servers"]
         AI["AI Provider Chain<br/>Mock · OpenAI-compatible"]
     end
 
@@ -149,8 +157,11 @@ flowchart LR
     WORKER --> SVC
     WORKER <-->|"Broker / Result"| RD
     SVC --> GMAIL
+    SVC --> IMAP
     SVC --> AI
 ```
+
+> **Detailed diagrams:** See [`docs/architecture/DIAGRAMS.md`](docs/architecture/DIAGRAMS.md) for 6 rendered architecture diagrams covering system context, provider/mailbox architecture, Celery job dispatch sequence, digest scope flow, data model ERD, and frontend architecture.
 
 ---
 
@@ -167,6 +178,7 @@ MailMind's AI layer is designed for traceability, not just output.
 | Parsed digest items | ✅ Done | Structured `digest_items` instead of ephemeral model text |
 | Prompt versioning | ✅ Done | Schema and prompt version metadata per run |
 | Error redaction | ✅ Done | Tokens, keys, and raw prompts never leak to logs or API |
+| Defensive LLM parsing | ✅ Done | Handles malformed JSON, aliased enums, missing fields |
 | In-app provider UI | 🧭 Planned | AI provider management through the frontend |
 
 ---
@@ -299,6 +311,8 @@ npm run build
 | v0.4 Job Experience | Frontend job UI, async sync/digest experience, retry, recent jobs |
 | v0.4.1 Config Sync Containment | Local config hardening, duplicate job prevention, retry backoff, frontend trigger hardening |
 | v0.5 Provider Mailbox Foundation | Multi-mailbox support, IMAP provider MVP, Celery reliability, digest scope |
+| v0.5.1 UI/UX Polish | 6 theme presets, light/dark mode, dramatic visual effects, Playwright verification |
+| v0.5.2 Demo Readiness | Architecture diagrams, demo script, project walkthrough, documentation refresh |
 
 ### 🧭 Next
 
@@ -325,19 +339,26 @@ npm run build
 
 | Document | Path |
 |----------|------|
-| Product Requirements | `docs/product/PRD.md` |
-| System Design | `docs/architecture/SYSTEM_DESIGN.md` |
-| Database Design | `docs/database/DATABASE_DESIGN.md` |
-| API Design | `docs/api/API_DESIGN.md` |
-| AI Pipeline | `docs/ai/AI_PIPELINE.md` |
-| Security Model | `docs/security/SECURITY.md` |
-| Frontend Design | `docs/frontend/FRONTEND_DESIGN.md` |
-| Task Breakdown | `docs/engineering/TASK_BREAKDOWN.md` |
-| Local Development | `docs/engineering/LOCAL_DEVELOPMENT.md` |
-| v0.3 Release Notes | `docs/release-notes/v0.3.0-async-redesign.md` |
-| v0.4 Release Notes | `docs/release-notes/v0.4.0-job-experience.md` |
-| v0.4.1 Release Notes | `docs/release-notes/v0.4.1-config-sync-containment.md` |
-| v0.5 Release Notes | `docs/release-notes/v0.5.0-provider-mailbox-foundation.md` |
+| Product Requirements | [`docs/product/PRD.md`](docs/product/PRD.md) |
+| System Design | [`docs/architecture/SYSTEM_DESIGN.md`](docs/architecture/SYSTEM_DESIGN.md) |
+| Architecture Diagrams | [`docs/architecture/DIAGRAMS.md`](docs/architecture/DIAGRAMS.md) — 6 rendered SVGs |
+| Data Model ERD | [`docs/architecture/mermaid/05-data-model-erd.mmd`](docs/architecture/mermaid/05-data-model-erd.mmd) |
+| Database Design | [`docs/database/DATABASE_DESIGN.md`](docs/database/DATABASE_DESIGN.md) |
+| API Design | [`docs/api/API_DESIGN.md`](docs/api/API_DESIGN.md) |
+| AI Pipeline | [`docs/ai/AI_PIPELINE.md`](docs/ai/AI_PIPELINE.md) |
+| Security Model | [`docs/security/SECURITY.md`](docs/security/SECURITY.md) |
+| Frontend Design | [`docs/frontend/FRONTEND_DESIGN.md`](docs/frontend/FRONTEND_DESIGN.md) |
+| Task Breakdown | [`docs/engineering/TASK_BREAKDOWN.md`](docs/engineering/TASK_BREAKDOWN.md) |
+| Local Development | [`docs/engineering/LOCAL_DEVELOPMENT.md`](docs/engineering/LOCAL_DEVELOPMENT.md) |
+| Demo Script | [`docs/demo/DEMO_SCRIPT.md`](docs/demo/DEMO_SCRIPT.md) |
+| Project Walkthrough | [`docs/portfolio/PROJECT_WALKTHROUGH.md`](docs/portfolio/PROJECT_WALKTHROUGH.md) |
+| UI Polish Report | [`docs/ui/V051_UI_POLISH_SUMMARY.md`](docs/ui/V051_UI_POLISH_SUMMARY.md) |
+| Theme Fix Report | [`docs/ui/V051_THEME_MODE_FIX_REPORT.md`](docs/ui/V051_THEME_MODE_FIX_REPORT.md) |
+| v0.3 Release Notes | [`docs/release-notes/v0.3.0-async-redesign.md`](docs/release-notes/v0.3.0-async-redesign.md) |
+| v0.4 Release Notes | [`docs/release-notes/v0.4.0-job-experience.md`](docs/release-notes/v0.4.0-job-experience.md) |
+| v0.4.1 Release Notes | [`docs/release-notes/v0.4.1-config-sync-containment.md`](docs/release-notes/v0.4.1-config-sync-containment.md) |
+| v0.5 Release Notes | [`docs/release-notes/v0.5.0-provider-mailbox-foundation.md`](docs/release-notes/v0.5.0-provider-mailbox-foundation.md) |
+| v0.5.1 Release Notes | [`docs/release-notes/v0.5.1-ui-ux-polish.md`](docs/release-notes/v0.5.1-ui-ux-polish.md) |
 
 ---
 
@@ -349,8 +370,8 @@ Apache-2.0
 
 <div align="center">
 
-**v0.5.0-provider-mailbox-foundation** · Local MVP · Not a production SaaS
+**v0.5.2-demo-readiness** · Local-first AI email copilot · Multi-mailbox · Gmail + IMAP
 
-[Release Notes](docs/release-notes/v0.5.0-provider-mailbox-foundation.md) · [Roadmap](docs/ROADMAP.md) · [API Docs](docs/api/CURRENT_API_SUMMARY.md)
+[Release Notes](docs/release-notes/) · [Roadmap](docs/ROADMAP.md) · [Architecture Diagrams](docs/architecture/DIAGRAMS.md) · [Demo Script](docs/demo/DEMO_SCRIPT.md)
 
 </div>

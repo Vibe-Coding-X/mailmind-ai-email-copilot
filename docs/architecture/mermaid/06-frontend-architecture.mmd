@@ -1,0 +1,69 @@
+---
+title: "Frontend Architecture"
+description: "Next.js App Router page structure, context providers, and component hierarchy"
+---
+
+graph TD
+    subgraph Pages["App Router Pages"]
+        Root["/ → redirect to /dashboard"]
+        Dashboard["/dashboard<br/><b>Daily Digest Decision Board</b>"]
+        Emails["/emails<br/><b>Email List</b>"]
+        EmailDetail["/emails/:id<br/><b>Email Detail</b>"]
+        Actions["/actions<br/><b>Action History</b>"]
+        Login["/login"]
+        Register["/register"]
+        SettingsMailboxes["/settings/mailboxes<br/><b>Mailbox Management</b>"]
+        SettingsProfile["/settings/profile"]
+        SettingsSecurity["/settings/security"]
+    end
+
+    subgraph Layout["Layout & Providers"]
+        RootLayout["Root Layout<br/><b>layout.tsx</b>"]
+        AuthProvider["🔐 AuthProvider<br/><i>Session · Login · Logout</i>"]
+        ThemeProvider["🎨 ThemeProvider<br/><i>6 Presets · Light/Dark</i>"]
+        I18nProvider["🌍 MailMindI18nProvider<br/><i>EN · ZH</i>"]
+        AppShell["📱 AppShell<br/><b>Sidebar + Header</b>"]
+    end
+
+    subgraph Components["Page Components"]
+        DigestDashboard["DigestDashboard<br/><b>Scope Selector · Metric Cards</b><br/><i>Generate · Refresh · Item Actions</i>"]
+        EmailList["EmailList<br/><b>Search · Filters · Pagination</b><br/><i>Mailbox Sidebar · Read/Unread</i>"]
+        EmailDetailComp["EmailDetailView<br/><b>Full Email Body</b><br/><i>Mark Read/Unread</i>"]
+        ActionList["ActionList<br/><b>Action History</b>"]
+        MailboxSettings["MailboxSettings<br/><b>Gmail · IMAP · Outlook</b><br/><i>Connect · Disconnect · Sync</i>"]
+        JobProgress["JobProgress<br/><b>Status Badge · Progress Bar</b><br/><i>Error Panel · Retry Button</i>"]
+    end
+
+    subgraph Hooks["Shared Hooks & API"]
+        useAuth["useAuth()"]
+        useI18n["useI18n()"]
+        useJobPolling["useJobPolling()"]
+        useRecentJobs["useRecentJobs()"]
+        ApiClient["api-client.ts<br/><b>Typed Fetch Wrapper</b>"]
+        ApiRoutes["api-routes.ts<br/><b>Route Constants</b>"]
+        ApiTypes["api-types.ts<br/><b>Request/Response Types</b>"]
+    end
+
+    Root --> Dashboard
+    RootLayout --> AuthProvider --> ThemeProvider --> I18nProvider --> AppShell
+    AppShell --> Dashboard & Emails & Actions & SettingsMailboxes & SettingsProfile & SettingsSecurity
+    Dashboard --> DigestDashboard
+    Emails --> EmailList
+    EmailDetail --> EmailDetailComp
+    Actions --> ActionList
+    SettingsMailboxes --> MailboxSettings
+    DigestDashboard & EmailList --> JobProgress
+    DigestDashboard & EmailList & ActionList & MailboxSettings --> ApiClient
+    ApiClient --> ApiRoutes & ApiTypes
+    DigestDashboard & EmailList & MailboxSettings --> useJobPolling & useRecentJobs
+    Dashboard & Emails & Actions & SettingsMailboxes --> useAuth & useI18n
+
+    classDef page fill:#4f46e5,stroke:#3730a3,color:#fff
+    classDef layout fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef component fill:#059669,stroke:#047857,color:#fff
+    classDef hook fill:#d97706,stroke:#b45309,color:#fff
+
+    class Root,Dashboard,Emails,EmailDetail,Actions,Login,Register,SettingsMailboxes,SettingsProfile,SettingsSecurity page
+    class RootLayout,AuthProvider,ThemeProvider,I18nProvider,AppShell layout
+    class DigestDashboard,EmailList,EmailDetailComp,ActionList,MailboxSettings,JobProgress component
+    class useAuth,useI18n,useJobPolling,useRecentJobs,ApiClient,ApiRoutes,ApiTypes hook
