@@ -29,3 +29,7 @@ logs/
 .DS_Store
 Thumbs.db
 frontend/tsconfig.tsbuildinfo
+
+# Temporary files
+.playwright-mcp/
+current-dashboard.png
