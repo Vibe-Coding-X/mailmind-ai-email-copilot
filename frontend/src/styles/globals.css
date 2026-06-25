@@ -180,10 +180,29 @@
 }
 
 [data-theme-preset="neon-cyber"][data-theme-mode="light"] {
-  /* Neon Cyber light mode still dark (intentional) */
-  --color-bg: #08080c;
-  --color-surface: #0e0e14;
-  --color-surface-muted: #161620;
+  /* Neon Cyber light mode - brighter cyberpunk */
+  --color-bg: #f0f0ff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #e8e8f8;
+  --color-surface-glass: rgba(255, 255, 255, 0.85);
+  --color-text: #0a0a1a;
+  --color-text-muted: #4a4a6a;
+  --color-text-faint: #8a8aa8;
+  --color-border: #c0c0e0;
+  --color-border-strong: #00cccc;
+  --color-border-glow: rgba(0, 200, 200, 0.6);
+
+  --color-primary: #00cccc;
+  --color-primary-strong: #00aaaa;
+  --color-primary-soft: rgba(0, 200, 200, 0.15);
+  --color-primary-glow: rgba(0, 200, 200, 0.4);
+
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.08),
+                 0 0 20px rgba(0, 200, 200, 0.1);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.1),
+                 0 0 40px rgba(0, 200, 200, 0.15);
+
+  color-scheme: light;
 }
 
 /* ============================================================
@@ -261,6 +280,50 @@
   color-scheme: dark;
 }
 
+[data-theme-preset="glass-aurora"][data-theme-mode="light"] {
+  /* Glass Aurora light mode - bright glassmorphism */
+  --color-bg: #f8f8ff;
+  --color-surface: rgba(255, 255, 255, 0.8);
+  --color-surface-muted: rgba(240, 240, 255, 0.7);
+  --color-surface-glass: rgba(255, 255, 255, 0.75);
+  --color-text: #1a1a2e;
+  --color-text-muted: #5a5a7a;
+  --color-text-faint: #9090b0;
+  --color-border: rgba(139, 92, 246, 0.25);
+  --color-border-strong: rgba(139, 92, 246, 0.5);
+
+  /* Primary: Purple */
+  --color-primary: #7c3aed;
+  --color-primary-strong: #6d28d9;
+  --color-primary-soft: rgba(124, 58, 237, 0.15);
+
+  /* Accent: Blue */
+  --color-accent: #3b82f6;
+  --color-accent-strong: #2563eb;
+  --color-accent-soft: rgba(59, 130, 246, 0.15);
+
+  /* Semantic */
+  --color-danger: #dc2626;
+  --color-danger-strong: #b91c1c;
+  --color-danger-soft: rgba(220, 38, 38, 0.15);
+
+  --color-warning: #d97706;
+  --color-warning-strong: #b45309;
+  --color-warning-soft: rgba(217, 119, 6, 0.15);
+
+  --color-success: #059669;
+  --color-success-strong: #047857;
+  --color-success-soft: rgba(5, 150, 105, 0.15);
+
+  /* Soft shadows for light mode */
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 8px 40px rgba(0, 0, 0, 0.12);
+
+  --color-on-primary: #ffffff;
+
+  color-scheme: light;
+}
+
 /* ============================================================
  * GRADIENT FLOW — Modern SaaS Gradients
  * ============================================================ */
@@ -326,6 +389,51 @@
   --color-on-primary: #ffffff;
 
   color-scheme: dark;
+}
+
+[data-theme-preset="gradient-flow"][data-theme-mode="light"] {
+  /* Gradient Flow light mode - clean modern look */
+  --color-bg: #f5f5fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #ededf5;
+  --color-surface-glass: rgba(255, 255, 255, 0.9);
+  --color-text: #1a1a2e;
+  --color-text-muted: #5a5a7a;
+  --color-text-faint: #8a8aa0;
+  --color-border: #e0e0ea;
+  --color-border-strong: #c0c0d0;
+
+  /* Primary: Gradient base */
+  --color-primary: #5a67d8;
+  --color-primary-strong: #4c51bf;
+  --color-primary-soft: rgba(90, 103, 216, 0.15);
+
+  /* Accent */
+  --color-accent: #d946ef;
+  --color-accent-strong: #c026d3;
+  --color-accent-soft: rgba(217, 70, 239, 0.15);
+
+  /* Semantic */
+  --color-danger: #e53e3e;
+  --color-danger-strong: #c53030;
+  --color-danger-soft: rgba(229, 62, 62, 0.12);
+
+  --color-warning: #d69e2e;
+  --color-warning-strong: #b7791f;
+  --color-warning-soft: rgba(214, 158, 46, 0.12);
+
+  --color-success: #38a169;
+  --color-success-strong: #2f855a;
+  --color-success-soft: rgba(56, 161, 105, 0.12);
+
+  /* Shadows */
+  --shadow-soft: 0 4px 16px rgba(90, 103, 216, 0.08);
+  --shadow-card: 0 8px 32px rgba(90, 103, 216, 0.12);
+  --shadow-glow: 0 0 30px rgba(90, 103, 216, 0.15);
+
+  --color-on-primary: #ffffff;
+
+  color-scheme: light;
 }
 
 /* ============================================================
@@ -477,6 +585,49 @@
   --color-on-primary: #050508;
 
   color-scheme: dark;
+}
+
+[data-theme-preset="noir-pulse"][data-theme-mode="light"] {
+  /* Noir Pulse light mode - clean high contrast */
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0f0f0;
+  --color-surface-glass: rgba(255, 255, 255, 0.95);
+  --color-text: #1a1a1a;
+  --color-text-muted: #4a4a4a;
+  --color-text-faint: #7a7a7a;
+  --color-border: #d0d0d0;
+  --color-border-strong: #d97706;
+
+  /* Primary: Amber */
+  --color-primary: #d97706;
+  --color-primary-strong: #b45309;
+  --color-primary-soft: rgba(217, 119, 6, 0.12);
+  --color-primary-glow: rgba(217, 119, 6, 0.3);
+
+  /* Semantic */
+  --color-danger: #dc2626;
+  --color-danger-strong: #b91c1c;
+  --color-danger-soft: rgba(220, 38, 38, 0.12);
+
+  --color-warning: #d97706;
+  --color-warning-strong: #b45309;
+  --color-warning-soft: rgba(217, 119, 6, 0.12);
+
+  --color-success: #16a34a;
+  --color-success-strong: #15803d;
+  --color-success-soft: rgba(22, 163, 74, 0.12);
+
+  /* Shadows for light mode */
+  --shadow-soft: 0 0 0 1px rgba(217, 119, 6, 0.1),
+                  0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 0 0 1px rgba(217, 119, 6, 0.15),
+                 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 12px rgba(217, 119, 6, 0.2);
+
+  --color-on-primary: #ffffff;
+
+  color-scheme: light;
 }
 
 /* ============================================================
