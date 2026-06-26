@@ -1,8 +1,14 @@
+<div align="right">
+
+**English** | [简体中文](README.zh-CN.md)
+
+</div>
+
 <div align="center">
 
-# MailMind
+<img src="docs/ui/banner.svg" alt="MailMind Banner" width="900" />
 
-**Your inbox, distilled into decisions.**
+<br />
 
 MailMind is a local-first, multi-mailbox AI email copilot for Gmail and IMAP.
 It turns inbox overload into an actionable Daily Digest — prioritized by urgency, scored by confidence, and ready for decisions.
