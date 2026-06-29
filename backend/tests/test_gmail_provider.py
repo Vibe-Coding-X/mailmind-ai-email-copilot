@@ -407,6 +407,32 @@ def test_list_messages_for_window_paginates_and_deduplicates_message_ids() -> No
     ]
 
 
+def test_list_archive_batch_uses_page_token_and_returns_checkpoint() -> None:
+    client = PaginatedHttpClient()
+    provider = GmailProvider(client=client)
+
+    first = provider.list_archive_batch(
+        "fake-access-token",
+        cursor=None,
+        batch_size=2,
+    )
+    second = provider.list_archive_batch(
+        "fake-access-token",
+        cursor=first.cursor,
+        batch_size=2,
+    )
+
+    assert [message.external_id for message in first.messages] == ["page-1"]
+    assert first.cursor == {"page_token": "next-page"}
+    assert first.is_complete is False
+    assert [message.external_id for message in second.messages] == ["page-1", "page-2"]
+    assert second.cursor is None
+    assert second.is_complete is True
+    list_calls = [call for call in client.get_calls if call["url"].endswith("/messages")]
+    assert list_calls[0]["params"]["maxResults"] == 2
+    assert list_calls[1]["params"]["pageToken"] == "next-page"
+
+
 def test_get_message_detail_parses_gmail_message() -> None:
     client = FakeHttpClient()
     provider = GmailProvider(client=client)

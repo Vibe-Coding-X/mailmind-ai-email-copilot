@@ -3,7 +3,7 @@ from __future__ import annotations
 import imaplib
 import socket
 import ssl
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -182,6 +182,25 @@ def test_imap_provider_skips_single_message_fetch_failure(monkeypatch) -> None:
     assert [message.external_id for message in messages] == ["Archive:999:101"]
     assert any("IMAP fetch failed; skipping message" in message for message in warnings)
     assert any("uid=102" in message for message in warnings)
+
+
+def test_imap_archive_batch_moves_window_from_newer_to_older() -> None:
+    client = FakeImapClient("imap.example.com", 993)
+    provider = _provider(client)
+    window_end = datetime(2026, 6, 29, 12, 0, tzinfo=UTC)
+
+    batch = provider.list_archive_batch(
+        "fake-imap-password",
+        cursor={"window_end": window_end.isoformat()},
+        batch_size=10,
+    )
+
+    assert [message.external_id for message in batch.messages] == ["Archive:999:101"]
+    assert batch.cursor == {"window_end": (window_end - timedelta(days=30)).isoformat()}
+    assert batch.is_complete is False
+    search_call = [call for call in client.uid_calls if call[0] == "SEARCH"][0]
+    assert 'SINCE "30-May-2026"' in search_call[2]
+    assert 'BEFORE "30-Jun-2026"' in search_call[2]
 
 
 def test_imap_provider_maps_authentication_failure_to_reauth() -> None:

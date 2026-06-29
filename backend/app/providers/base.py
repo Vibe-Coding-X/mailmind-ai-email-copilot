@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class ProviderError(Exception):
@@ -57,6 +57,15 @@ class MailboxProvider(Protocol):
     ) -> list["ProviderEmailMessage"]:
         raise NotImplementedError
 
+    def list_archive_batch(
+        self,
+        access_token: str,
+        *,
+        cursor: dict[str, Any] | None,
+        batch_size: int,
+    ) -> "ProviderArchiveBatch":
+        raise NotImplementedError
+
     def get_message_detail(
         self,
         access_token: str,
@@ -89,3 +98,10 @@ class ProviderEmailMessage:
     provider_labels: list[str]
     gmail_history_id: str | None
     raw_payload_hash: str
+
+
+@dataclass(slots=True)
+class ProviderArchiveBatch:
+    messages: list[ProviderEmailMessage]
+    cursor: dict[str, Any] | None
+    is_complete: bool

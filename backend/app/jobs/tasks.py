@@ -49,6 +49,47 @@ def run_email_sync_job(self, job_id: str) -> dict[str, object]:
             raise
 
 
+@celery_app.task(
+    bind=True,
+    name="app.jobs.email_archive_backfill",
+)
+def run_email_archive_backfill_job(self, job_id: str) -> dict[str, object]:
+    from app.services.email_archive_service import (
+        EmailArchiveError,
+        execute_queued_archive_job,
+    )
+
+    with SessionLocal() as db:
+        try:
+            result = execute_queued_archive_job(db, job_id=UUID(job_id))
+            db.commit()
+            return {
+                "job_id": str(result.job_id),
+                "mailbox_id": str(result.mailbox_id) if result.mailbox_id else None,
+                "status": result.status,
+                "synced_count": result.synced_count,
+                **(
+                    {"error_code": result.error_code}
+                    if result.error_code is not None
+                    else {}
+                ),
+                **({"message": result.message} if result.message is not None else {}),
+            }
+        except EmailArchiveError as exc:
+            db.commit()
+            return {
+                "job_id": job_id,
+                "mailbox_id": None,
+                "status": "failed",
+                "synced_count": 0,
+                "error_code": exc.code,
+                "message": exc.message,
+            }
+        except Exception:
+            db.rollback()
+            raise
+
+
 @celery_app.task(name="app.jobs.digest")
 def run_digest_job(job_id: str) -> dict[str, object]:
     from app.services.digest_service import DigestServiceError, execute_queued_digest_job

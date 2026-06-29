@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import error_response, get_current_user, get_db
@@ -36,6 +36,9 @@ def get_emails(
     mailbox_id: UUID | None = None,
     received_from: datetime | None = None,
     received_to: datetime | None = None,
+    range_type: str = Query("all_synced", alias="range"),
+    custom_from: date | None = Query(None, alias="from"),
+    custom_to: date | None = Query(None, alias="to"),
     q: str | None = None,
     sort: str = "received_at_desc",
     current_user: User = Depends(get_current_user),
@@ -51,6 +54,9 @@ def get_emails(
             mailbox_id=mailbox_id,
             received_from=received_from,
             received_to=received_to,
+            range_type=range_type,
+            custom_from=custom_from,
+            custom_to=custom_to,
             q=q,
             sort=sort,
         )
@@ -64,8 +70,11 @@ def get_emails(
                 "limit": result.limit,
                 "offset": result.offset,
                 "count": len(result.emails),
+                "total": result.total,
                 "has_more": result.has_more,
             },
+            "range": result.range_type,
+            "archive_state": result.archive_state,
         },
         "meta": {},
     }

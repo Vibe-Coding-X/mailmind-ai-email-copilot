@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.models.email import Email
 from app.db.models.mailbox import Mailbox
+from app.db.models.mailbox_archive_state import MailboxArchiveState
 from app.db.models.mailbox_credential import MailboxCredential
 from app.db.models.user import User
 from app.providers.base import ProviderError
@@ -37,6 +38,9 @@ class EmailQueryResult:
     limit: int
     offset: int
     has_more: bool
+    total: int
+    range_type: str
+    archive_state: dict[str, object]
 
 
 def _not_found() -> EmailServiceError:
@@ -101,32 +105,43 @@ def list_emails(
     mailbox_id: UUID | None = None,
     received_from: datetime | None = None,
     received_to: datetime | None = None,
+    range_type: str = "all_synced",
+    custom_from: date | None = None,
+    custom_to: date | None = None,
     q: str | None = None,
     sort: str = "received_at_desc",
+    now: datetime | None = None,
 ) -> EmailQueryResult:
     resolved_limit = max(1, min(limit, 100))
     resolved_offset = max(0, offset)
     if sort not in {"received_at_desc", "received_at_asc"}:
         raise EmailServiceError("INVALID_REQUEST", "Unsupported email sort.")
 
-    statement = (
-        select(Email)
-        .join(Mailbox, Email.mailbox_id == Mailbox.id)
-        .where(Email.user_id == user.id, Mailbox.status == "active")
-    )
+    filters = [Email.user_id == user.id, Mailbox.status == "active"]
     if mailbox_id is not None:
         _ensure_owned_active_mailbox(db, user=user, mailbox_id=mailbox_id)
-        statement = statement.where(Email.mailbox_id == mailbox_id)
+        filters.append(Email.mailbox_id == mailbox_id)
     if is_read is not None:
-        statement = statement.where(Email.is_read == is_read)
+        filters.append(Email.is_read == is_read)
+    range_start, range_end, resolved_range_type = _email_range_window(
+        user=user,
+        range_type=range_type,
+        custom_from=custom_from,
+        custom_to=custom_to,
+        now=now,
+    )
     if received_from is not None:
-        statement = statement.where(Email.received_at >= _ensure_utc(received_from))
+        range_start = _ensure_utc(received_from)
     if received_to is not None:
-        statement = statement.where(Email.received_at <= _ensure_utc(received_to))
+        range_end = _ensure_utc(received_to)
+    if range_start is not None:
+        filters.append(Email.received_at >= range_start)
+    if range_end is not None:
+        filters.append(Email.received_at <= range_end)
     keyword = (q or "").strip()
     if keyword:
         pattern = f"%{keyword}%"
-        statement = statement.where(
+        filters.append(
             or_(
                 Email.subject.ilike(pattern),
                 Email.from_address.ilike(pattern),
@@ -136,15 +151,28 @@ def list_emails(
         )
 
     order_column = Email.received_at.asc() if sort == "received_at_asc" else Email.received_at.desc()
-    statement = statement.order_by(order_column, Email.id.desc()).offset(resolved_offset).limit(
-        resolved_limit + 1
+    base_statement = select(Email).join(Mailbox, Email.mailbox_id == Mailbox.id).where(*filters)
+    total = int(
+        db.scalar(
+            select(func.count())
+            .select_from(Email)
+            .join(Mailbox, Email.mailbox_id == Mailbox.id)
+            .where(*filters)
+        )
+        or 0
     )
-    rows = list(db.scalars(statement).all())
+    statement = base_statement.order_by(order_column, Email.id.desc()).offset(
+        resolved_offset
+    ).limit(resolved_limit + 1)
+    rows = list(db.scalars(statement).unique().all())
     return EmailQueryResult(
         emails=rows[:resolved_limit],
         limit=resolved_limit,
         offset=resolved_offset,
         has_more=len(rows) > resolved_limit,
+        total=total,
+        range_type=resolved_range_type,
+        archive_state=archive_state_summary(db, user=user, mailbox_id=mailbox_id),
     )
 
 
@@ -172,6 +200,125 @@ def _ensure_owned_active_mailbox(db: Session, *, user: User, mailbox_id: UUID) -
     )
     if mailbox is None:
         raise EmailServiceError("INVALID_REQUEST", "Mailbox not found.", 404)
+
+
+def archive_state_summary(
+    db: Session, *, user: User, mailbox_id: UUID | None = None
+) -> dict[str, object]:
+    statement = (
+        select(MailboxArchiveState)
+        .join(Mailbox, MailboxArchiveState.mailbox_id == Mailbox.id)
+        .where(Mailbox.user_id == user.id)
+    )
+    if mailbox_id is not None:
+        statement = statement.where(MailboxArchiveState.mailbox_id == mailbox_id)
+    states = list(db.scalars(statement).all())
+    if not states:
+        return {
+            "status": "not_started",
+            "is_complete": False,
+            "total_synced_count": 0,
+            "batch_count": 0,
+            "newest_synced_at": None,
+            "oldest_synced_at": None,
+            "message": "Local archive has not started.",
+        }
+    if mailbox_id is not None and len(states) == 1:
+        state = states[0]
+        return {
+            "status": state.status,
+            "is_complete": state.status == "complete",
+            "total_synced_count": state.total_synced_count,
+            "batch_count": state.batch_count,
+            "newest_synced_at": state.newest_synced_at,
+            "oldest_synced_at": state.oldest_synced_at,
+            "last_error_code": state.last_error_code,
+            "last_error_message": state.last_error_message,
+            "message": _archive_message(state.status),
+        }
+    statuses = {state.status for state in states}
+    if "running" in statuses:
+        status = "running"
+    elif "failed" in statuses:
+        status = "failed"
+    elif "partial" in statuses:
+        status = "partial"
+    elif statuses == {"complete"}:
+        status = "complete"
+    else:
+        status = "not_started"
+    newest = max(
+        (state.newest_synced_at for state in states if state.newest_synced_at is not None),
+        default=None,
+    )
+    oldest = min(
+        (state.oldest_synced_at for state in states if state.oldest_synced_at is not None),
+        default=None,
+    )
+    return {
+        "status": status,
+        "is_complete": status == "complete",
+        "total_synced_count": sum(state.total_synced_count for state in states),
+        "batch_count": sum(state.batch_count for state in states),
+        "newest_synced_at": newest,
+        "oldest_synced_at": oldest,
+        "message": _archive_message(status),
+    }
+
+
+def _email_range_window(
+    *,
+    user: User,
+    range_type: str,
+    custom_from: date | None,
+    custom_to: date | None,
+    now: datetime | None,
+) -> tuple[datetime | None, datetime | None, str]:
+    resolved_range = (range_type or "all_synced").strip().lower()
+    if resolved_range == "all":
+        resolved_range = "all_synced"
+    if resolved_range not in {"today", "last_7_days", "last_30_days", "custom", "all_synced"}:
+        raise EmailServiceError("INVALID_REQUEST", "Unsupported email range.")
+    if resolved_range == "all_synced":
+        return None, None, resolved_range
+    resolved_now = _ensure_utc(now or datetime.now(UTC))
+    if resolved_range == "today":
+        start, end = _today_window(user.timezone, resolved_now)
+        return start, end, resolved_range
+    if resolved_range == "last_7_days":
+        return resolved_now - timedelta(days=7), resolved_now, resolved_range
+    if resolved_range == "last_30_days":
+        return resolved_now - timedelta(days=30), resolved_now, resolved_range
+    if custom_from is None or custom_to is None:
+        raise EmailServiceError(
+            "INVALID_REQUEST",
+            "Custom range requires from and to dates.",
+        )
+    if custom_from > custom_to:
+        raise EmailServiceError("INVALID_REQUEST", "Custom range is invalid.")
+    user_zone = _user_zone_for_email(user.timezone)
+    start = datetime.combine(custom_from, time.min, tzinfo=user_zone).astimezone(UTC)
+    end = datetime.combine(custom_to, time.max, tzinfo=user_zone).astimezone(UTC)
+    return start, end, resolved_range
+
+
+def _user_zone_for_email(timezone: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(timezone)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo(get_settings().default_timezone)
+
+
+def _archive_message(status: str) -> str:
+    if status == "running":
+        return "Local archive is still syncing. Results may be incomplete."
+    if status == "partial":
+        return "Local archive is partially synced. Resume to continue backfilling older mail."
+    if status == "failed":
+        return "Local archive sync failed. Retry to continue from the saved checkpoint."
+    if status == "complete":
+        return "Local archive sync is complete."
+    return "Local archive has not started."
 
 
 def mark_email_read_state(

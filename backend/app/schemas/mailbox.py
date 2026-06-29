@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from app.db.models.mailbox import Mailbox
+from app.db.models.mailbox_archive_state import MailboxArchiveState
 from app.providers.registry import get_mailbox_provider
+from app.schemas.email import archive_state_payload
 
 
 def mailbox_status_for_api(status: str) -> str:
@@ -31,6 +33,7 @@ def mailbox_payload(mailbox: Mailbox) -> dict[str, Any]:
         "credential_status": mailbox_credential_status(mailbox),
         "capabilities": mailbox_capabilities_payload(provider),
         "sync_cursor": sync_cursor,
+        "archive_state": archive_state_payload(_mailbox_archive_state(mailbox)),
         "created_at": mailbox.created_at,
         "updated_at": mailbox.updated_at,
     }
@@ -94,3 +97,7 @@ def mailbox_credential_status(mailbox: Mailbox) -> str:
     if provider in {"gmail", "outlook"}:
         return "present" if credential.refresh_token_encrypted else "missing"
     return "present"
+
+
+def _mailbox_archive_state(mailbox: Mailbox) -> MailboxArchiveState | None:
+    return getattr(mailbox, "archive_state", None)

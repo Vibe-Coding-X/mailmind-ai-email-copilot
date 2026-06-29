@@ -73,3 +73,6 @@ class Mailbox(Base):
     credential: Mapped["MailboxCredential"] = relationship(
         back_populates="mailbox", cascade="all, delete-orphan", uselist=False
     )
+    archive_state: Mapped["MailboxArchiveState"] = relationship(
+        back_populates="mailbox", cascade="all, delete-orphan", uselist=False
+    )

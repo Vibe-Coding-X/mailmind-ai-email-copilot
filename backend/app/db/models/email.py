@@ -80,11 +80,23 @@ class Email(Base):
         nullable=False, default=False, server_default="false"
     )
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_read: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    is_starred: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    has_attachments: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     provider_labels: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, default=list, server_default="{}"
     )
+    provider_metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     gmail_history_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    body_cache_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="not_cached", server_default="not_cached"
+    )
+    body_cached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    body_cache_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     first_synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

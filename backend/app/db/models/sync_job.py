@@ -29,6 +29,7 @@ class SyncJob(Base):
         CheckConstraint(
             "job_type IN ("
             "'sync_today_emails', "
+            "'email_archive_backfill', "
             "'generate_daily_digest', "
             "'refresh_daily_digest', "
             "'check_new_emails_after_digest', "

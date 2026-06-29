@@ -6,12 +6,19 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import error_response, get_current_user, get_db
 from app.db.models.mailbox import Mailbox
+from app.db.models.mailbox_archive_state import MailboxArchiveState
 from app.db.models.sync_job import SyncJob
 from app.db.models.user import User
 from app.schemas.job import job_payload
+from app.schemas.email import archive_state_payload
 from app.schemas.mailbox import mailbox_capabilities_payload, mailbox_payload
 from app.schemas.sync_job import sync_job_payload, sync_status_for_api
 from app.services import email_sync_service
+from app.services.email_archive_service import (
+    EmailArchiveError,
+    enqueue_archive_backfill_job,
+    get_or_create_archive_state,
+)
 from app.services.email_sync_service import EmailSyncError
 
 
@@ -155,3 +162,55 @@ def trigger_async_sync(
         ) from exc
     job = db.get(SyncJob, result.job_id)
     return {"data": {"job": job_payload(job)}, "meta": {}}
+
+
+@router.get("/{mailbox_id}/archive-state")
+def get_archive_state(
+    mailbox_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    mailbox = _get_owned_mailbox(db, user=current_user, mailbox_id=mailbox_id)
+    state = db.scalar(
+        select(MailboxArchiveState).where(MailboxArchiveState.mailbox_id == mailbox.id)
+    )
+    return {
+        "data": {
+            "archive_state": {
+                **archive_state_payload(state),
+                "mailbox_id": mailbox.id,
+            }
+        },
+        "meta": {},
+    }
+
+
+@router.post("/{mailbox_id}/archive-jobs")
+def trigger_archive_backfill(
+    mailbox_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    mailbox = _get_owned_mailbox(db, user=current_user, mailbox_id=mailbox_id)
+    try:
+        result = enqueue_archive_backfill_job(
+            db,
+            user_id=current_user.id,
+            mailbox_id=mailbox.id,
+            dispatch=True,
+        )
+    except EmailArchiveError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=error_response(exc.code, exc.message, retryable=False)["error"],
+        ) from exc
+    job = db.get(SyncJob, result.job_id)
+    state = get_or_create_archive_state(db, mailbox=mailbox)
+    db.commit()
+    return {
+        "data": {
+            "job": job_payload(job),
+            "archive_state": archive_state_payload(state),
+        },
+        "meta": {},
+    }

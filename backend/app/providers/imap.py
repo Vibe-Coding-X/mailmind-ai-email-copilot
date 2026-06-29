@@ -15,7 +15,12 @@ from email.utils import getaddresses, parsedate_to_datetime, parseaddr
 from html import unescape
 from typing import Any, Callable
 
-from app.providers.base import ProviderCapabilities, ProviderEmailMessage, ProviderError
+from app.providers.base import (
+    ProviderArchiveBatch,
+    ProviderCapabilities,
+    ProviderEmailMessage,
+    ProviderError,
+)
 
 
 ClientFactory = Callable[[str, int], Any]
@@ -153,6 +158,39 @@ class ImapProvider:
             return messages
         finally:
             _close_client(client)
+
+    def list_archive_batch(
+        self,
+        access_token: str,
+        *,
+        cursor: dict[str, Any] | None,
+        batch_size: int,
+    ) -> ProviderArchiveBatch:
+        raw_window_end = (cursor or {}).get("window_end")
+        if isinstance(raw_window_end, str) and raw_window_end:
+            try:
+                window_end = datetime.fromisoformat(raw_window_end)
+            except ValueError:
+                window_end = datetime.now(UTC)
+        else:
+            window_end = datetime.now(UTC)
+        if window_end.tzinfo is None:
+            window_end = window_end.replace(tzinfo=UTC)
+        window_end = window_end.astimezone(UTC)
+        window_start = window_end - timedelta(days=30)
+        messages = self.list_messages_for_window(
+            access_token,
+            window_start=window_start,
+            window_end=window_end,
+        )
+        messages = sorted(messages, key=lambda message: message.received_at, reverse=True)[
+            : max(1, batch_size)
+        ]
+        return ProviderArchiveBatch(
+            messages=messages,
+            cursor={"window_end": window_start.isoformat()} if messages else None,
+            is_complete=not messages,
+        )
 
     def get_message_detail(
         self,

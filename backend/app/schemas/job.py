@@ -9,6 +9,7 @@ from app.utils.redaction import safe_error_message, sanitize_sensitive_data
 
 PUBLIC_JOB_TYPE_BY_INTERNAL = {
     "sync_today_emails": "email_sync",
+    "email_archive_backfill": "email_archive_backfill",
     "refresh_access_token": "email_sync",
     "generate_daily_digest": "digest_generate",
     "refresh_daily_digest": "digest_refresh",

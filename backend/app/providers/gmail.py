@@ -7,7 +7,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 
 from app.core.config import Settings, get_settings
-from app.providers.base import ProviderCapabilities, ProviderEmailMessage, ProviderError
+from app.providers.base import (
+    ProviderArchiveBatch,
+    ProviderCapabilities,
+    ProviderEmailMessage,
+    ProviderError,
+)
 from app.utils.email_parser import parse_gmail_message
 
 
@@ -98,6 +103,47 @@ class GmailProvider:
             for message in messages
             if window_start <= message.received_at <= window_end
         ]
+
+    def list_archive_batch(
+        self,
+        access_token: str,
+        *,
+        cursor: dict[str, Any] | None,
+        batch_size: int,
+    ) -> ProviderArchiveBatch:
+        params: dict[str, Any] = {
+            "maxResults": max(1, min(batch_size, 500)),
+            "includeSpamTrash": False,
+        }
+        page_token = (cursor or {}).get("page_token")
+        if page_token:
+            params["pageToken"] = str(page_token)
+        try:
+            response = self.client.get(
+                f"{GMAIL_API_BASE_URL}/messages",
+                headers=self._headers(access_token),
+                params=params,
+                timeout=10,
+            )
+        except httpx.HTTPError as exc:
+            raise _provider_error_from_httpx(exc) from exc
+        self._raise_for_response(response)
+        payload = response.json()
+        message_ids = [
+            str(message.get("id") or "")
+            for message in payload.get("messages", [])
+            if str(message.get("id") or "")
+        ]
+        messages = [
+            self.get_message_detail(access_token, message_id)
+            for message_id in message_ids
+        ]
+        next_page_token = payload.get("nextPageToken")
+        return ProviderArchiveBatch(
+            messages=messages,
+            cursor={"page_token": str(next_page_token)} if next_page_token else None,
+            is_complete=not bool(next_page_token),
+        )
 
     def get_message_detail(self, access_token: str, message_id: str) -> ProviderEmailMessage:
         try:
