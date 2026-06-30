@@ -34,3 +34,4 @@ frontend/tsconfig.tsbuildinfo
 .playwright-mcp/
 current-dashboard.png
 package-lock.json
+!desktop/package-lock.json
