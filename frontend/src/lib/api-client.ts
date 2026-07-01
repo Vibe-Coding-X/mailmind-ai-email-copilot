@@ -20,6 +20,7 @@ import {
   type DigestItemActionResponse,
   type DigestScopeRequest,
   type DigestResponse,
+  type EmailBodyCacheResponse,
   type EmailMutationResponse,
   type EmailListQuery,
   type EmailsResponse,
@@ -327,6 +328,12 @@ export function getEmail(emailId: string): Promise<EmailResponse> {
   });
 }
 
+export function cacheEmailBody(emailId: string): Promise<EmailBodyCacheResponse> {
+  return request<EmailBodyCacheResponse>(API_ROUTES.emails.bodyCache(emailId), {
+    method: "POST",
+  });
+}
+
 export function markEmailRead(emailId: string): Promise<EmailMutationResponse> {
   return request<EmailMutationResponse>(API_ROUTES.emails.markRead(emailId), {
     method: "POST",
@@ -420,6 +427,7 @@ export const apiClient = {
       return notImplemented(`GET ${API_ROUTES.emails.new}`);
     },
     byId: getEmail,
+    cacheBody: cacheEmailBody,
     markRead: markEmailRead,
     markUnread: markEmailUnread,
   },

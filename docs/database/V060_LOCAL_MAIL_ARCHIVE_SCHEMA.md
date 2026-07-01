@@ -36,8 +36,9 @@ The `emails` table stores archive-friendly fields:
 - `body_cache_status`
 - `body_cached_at`
 - `body_cache_source`
+- `body_cache_error`
 
-Body cache fields are placeholders for future on-demand body caching. v0.6.0 full-history archive writes `body_cache_status=not_cached`.
+Full-history archive writes `body_cache_status=not_cached` and leaves body fields empty. The email detail body-cache endpoint can later write `body_text`, optional `body_html`, `body_cached_at`, `body_cache_source`, and `body_cache_status=cached`. Provider failures write `body_cache_status=failed` and a safe `body_cache_error` code.
 
 ## Jobs Extension
 
@@ -46,4 +47,3 @@ Body cache fields are placeholders for future on-demand body caching. v0.6.0 ful
 ## Query Indexes
 
 The local archive depends on efficient filters by mailbox, user, read state, and received time. Existing mailbox/user time indexes are reused where present, and the archive migration extends only fields needed by v0.6.0.
-

@@ -152,6 +152,30 @@ def test_imap_provider_lists_messages_with_contract_external_id() -> None:
     assert len(messages[0].raw_payload_hash) == 64
 
 
+def test_imap_provider_get_message_body_fetches_uid_from_external_id() -> None:
+    client = FakeImapClient("imap.example.com", 993)
+    provider = _provider(client)
+
+    body = provider.get_message_body("fake-imap-password", "Archive:999:101")
+
+    assert body.body_text == "Hello from IMAP."
+    assert body.body_html is None
+    assert body.body_text_truncated is False
+    fetch_call = [call for call in client.uid_calls if call[0] == "FETCH"][0]
+    assert fetch_call[1] == "101"
+
+
+def test_imap_provider_get_message_body_rejects_invalid_external_id() -> None:
+    client = FakeImapClient("imap.example.com", 993)
+    provider = _provider(client)
+
+    with pytest.raises(ProviderError) as exc_info:
+        provider.get_message_body("fake-imap-password", "bad-id")
+
+    assert exc_info.value.code == "imap_message_id_invalid"
+    assert exc_info.value.status_code == 400
+
+
 def test_imap_provider_emits_step_logs(monkeypatch) -> None:
     client = FakeImapClient("imap.example.com", 993)
     provider = _provider(client)

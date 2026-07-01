@@ -18,26 +18,40 @@ export function EmailDetailView({
   busy = false,
   actionError,
   backHref = "/emails",
+  bodyBusy = false,
   onMarkRead,
   onMarkUnread,
+  onFetchBody,
 }: {
   email: EmailDetail;
   busy?: boolean;
   actionError?: string | null;
   backHref?: string;
+  bodyBusy?: boolean;
   onMarkRead: () => void;
   onMarkUnread: () => void;
+  onFetchBody: () => void;
 }) {
   const { t } = useI18n();
-  const bodyText = displayBodyText(email.body_text, email.snippet);
+  const cacheStatus = email.body_cache_status ?? "not_cached";
   const hasStoredBody = (email.body_text?.trim() ?? "").length > 0;
+  const bodyText = hasStoredBody
+    ? displayBodyText(email.body_text, null)
+    : displayBodyText(null, cacheStatus === "cached" ? email.snippet : null);
   const labels = email.labels.length > 0 ? email.labels.join(", ") : t("emails.noLabels");
   const mailboxLabel =
     email.mailbox_display_name || email.mailbox_email || email.mailbox_id;
   const bodyStatus =
-    email.body_cache_status === "cached"
+    cacheStatus === "cached"
       ? t("emails.bodyCached")
-      : t("emails.bodyNotCached");
+      : cacheStatus === "fetching"
+        ? t("emails.bodyCacheFetching")
+        : cacheStatus === "failed"
+          ? t("emails.bodyCacheFailed")
+          : t("emails.bodyNotCached");
+  const canFetchBody = cacheStatus !== "cached" || !hasStoredBody;
+  const fetchLabel =
+    cacheStatus === "failed" ? t("emails.retryBodyCache") : t("emails.loadFullBody");
 
   return (
     <div className="mm-stack">
@@ -97,12 +111,55 @@ export function EmailDetailView({
       </section>
 
       <section className="mm-card">
-        <div className="mm-card-title">{t("emails.body")}</div>
+        <div className="mm-spread" style={{ alignItems: "flex-start", gap: 12 }}>
+          <div>
+            <div className="mm-card-title">{t("emails.body")}</div>
+            {email.body_cached_at ? (
+              <p className="mm-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                {t("emails.bodyCachedAt").replace(
+                  "{{time}}",
+                  formatEmailDateTime(email.body_cached_at),
+                )}
+              </p>
+            ) : null}
+          </div>
+          <Badge tone={cacheStatus === "failed" ? "danger" : "neutral"} dot>
+            {bodyStatus}
+          </Badge>
+        </div>
+        {canFetchBody ? (
+          <div style={{ marginTop: 14 }}>
+            <button
+              type="button"
+              className="mm-btn"
+              disabled={bodyBusy || cacheStatus === "fetching"}
+              onClick={onFetchBody}
+            >
+              {bodyBusy || cacheStatus === "fetching"
+                ? t("emails.bodyCacheFetching")
+                : fetchLabel}
+            </button>
+            <p className="mm-muted" style={{ fontSize: 13, marginTop: 8 }}>
+              {cacheStatus === "failed"
+                ? t("emails.bodyCacheFailedHint")
+                : t("emails.bodyCacheHint")}
+            </p>
+            {email.body_cache_error ? (
+              <p className="mm-muted" style={{ fontSize: 13, marginTop: 6 }}>
+                {t("emails.bodyCacheError").replace(
+                  "{{error}}",
+                  email.body_cache_error,
+                )}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div
           style={{
             fontSize: 14,
             lineHeight: 1.65,
             maxWidth: 920,
+            marginTop: 14,
             overflowWrap: "anywhere",
             whiteSpace: "pre-wrap",
             color: hasStoredBody ? "var(--color-text)" : "var(--color-text-muted)",

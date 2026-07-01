@@ -31,5 +31,12 @@ The Emails API reads only local PostgreSQL records. Time ranges are SQL filters 
 
 ## Body and Attachment Policy
 
-Full-history archive stores metadata and snippet. It does not download attachments and does not store full body text or HTML by default. Body cache fields exist for future on-demand caching.
+Full-history archive stores metadata and snippet. It does not download attachments and does not store full body text or HTML by default.
 
+Full body storage is on demand:
+
+1. The user opens an email detail page.
+2. If `body_cache_status` is not `cached`, the UI can call `POST /api/emails/{email_id}/body-cache`.
+3. The backend validates ownership, configures the mailbox provider, fetches the provider message body, and writes `body_text`, optional `body_html`, `body_cached_at`, `body_cache_source`, and `body_cache_status=cached`.
+4. Later detail opens read the cached body from PostgreSQL without calling Gmail or IMAP.
+5. Provider failures write `body_cache_status=failed` and `body_cache_error`; they do not erase existing metadata.

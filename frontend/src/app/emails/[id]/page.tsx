@@ -12,6 +12,7 @@ import { EmailLoadingState } from "@/components/email-loading-state";
 import { EmailErrorState } from "@/components/email-error-state";
 import { useAuth } from "@/lib/auth";
 import {
+  cacheEmailBody,
   getEmail,
   markEmailRead,
   markEmailUnread,
@@ -45,6 +46,7 @@ export default function EmailDetailPage() {
   const [pageError, setPageError] = useState<EmailErrorView | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
+  const [bodyBusy, setBodyBusy] = useState(false);
   const [backHref, setBackHref] = useState("/emails");
 
   useEffect(() => {
@@ -167,6 +169,24 @@ export default function EmailDetailPage() {
     }
   }
 
+  async function fetchBody() {
+    if (!email) {
+      return;
+    }
+
+    setActionError(null);
+    setBodyBusy(true);
+
+    try {
+      const response = await cacheEmailBody(email.id);
+      setEmail(response.data.email);
+    } catch (error) {
+      setActionError(emailErrorView(error).message);
+    } finally {
+      setBodyBusy(false);
+    }
+  }
+
   function renderContent() {
     if (pageState === "loading") {
       return <EmailLoadingState title={t("emails.loadingDetail")} />;
@@ -206,10 +226,12 @@ export default function EmailDetailPage() {
       <EmailDetailView
         email={email}
         busy={marking}
+        bodyBusy={bodyBusy}
         actionError={actionError}
         backHref={backHref}
         onMarkRead={() => void updateReadState(true)}
         onMarkUnread={() => void updateReadState(false)}
+        onFetchBody={() => void fetchBody()}
       />
     );
   }

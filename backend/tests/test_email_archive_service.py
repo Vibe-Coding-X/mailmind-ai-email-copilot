@@ -291,3 +291,82 @@ def test_execute_archive_job_upserts_metadata_only_and_updates_progress(
         assert [email.external_id for email in emails] == ["archive-new", "archive-old"]
         assert all(email.body_text is None for email in emails)
         assert all(email.body_cache_status == "not_cached" for email in emails)
+
+
+def test_archive_upsert_preserves_cached_body(monkeypatch) -> None:
+    user_id, mailbox_id = _create_mailbox()
+    now = datetime(2026, 6, 29, 9, 0, tzinfo=UTC)
+    cached_at = now - timedelta(hours=1)
+    provider = FakeArchiveProvider(
+        [
+            ProviderArchiveBatch(
+                messages=[_message("archive-cached", received_at=now)],
+                cursor=None,
+                is_complete=True,
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        "app.services.email_archive_service.acquire_archive_lock",
+        lambda *, mailbox_id, job_id: DummyLock(),
+    )
+
+    with SessionLocal() as db:
+        db.add(
+            Email(
+                user_id=user_id,
+                mailbox_id=mailbox_id,
+                provider="gmail",
+                external_id="archive-cached",
+                external_thread_id="old-thread",
+                subject="Old subject",
+                from_address="old@example.com",
+                to_addresses=["me@example.com"],
+                cc_addresses=[],
+                snippet="Old snippet",
+                body_text="Cached body",
+                body_text_truncated=False,
+                body_html=None,
+                body_cache_status="cached",
+                body_cached_at=cached_at,
+                body_cache_source="opened",
+                body_cache_error=None,
+                received_at=now - timedelta(days=1),
+                is_read=True,
+                provider_labels=["INBOX"],
+            )
+        )
+        queued = enqueue_archive_backfill_job(
+            db,
+            user_id=user_id,
+            mailbox_id=mailbox_id,
+            dispatch=False,
+            batch_size=2,
+            max_batches=1,
+            now=now,
+        )
+        job = db.get(SyncJob, queued.job_id)
+        assert job is not None
+        job.status = "queued"
+        execute_queued_archive_job(
+            db,
+            job_id=queued.job_id,
+            provider=provider,
+            now=now,
+        )
+        db.commit()
+
+    with SessionLocal() as db:
+        email = db.scalar(
+            select(Email).where(
+                Email.mailbox_id == mailbox_id,
+                Email.external_id == "archive-cached",
+            )
+        )
+        assert email is not None
+        assert email.subject == "Subject archive-cached"
+        assert email.snippet == "Snippet archive-cached"
+        assert email.body_text == "Cached body"
+        assert email.body_cache_status == "cached"
+        assert email.body_cached_at == cached_at
+        assert email.body_cache_source == "opened"

@@ -11,6 +11,7 @@ from app.db.models.mailbox import Mailbox
 from app.db.models.mailbox_credential import MailboxCredential
 from app.db.session import SessionLocal
 from app.main import app
+from app.providers.base import ProviderEmailBody, ProviderError
 from app.services.credential_encryption_service import CredentialEncryptionService
 
 
@@ -66,6 +67,9 @@ def _create_email(
     subject: str | None = None,
     from_address: str = "sender@example.com",
     snippet: str = "preview",
+    body_text: str | None = None,
+    body_cache_status: str = "not_cached",
+    body_cache_error: str | None = None,
 ) -> UUID:
     with SessionLocal() as db:
         email = Email(
@@ -79,8 +83,10 @@ def _create_email(
             to_addresses=["me@example.com"],
             cc_addresses=[],
             snippet=snippet,
-            body_text=f"Body {external_id}",
+            body_text=body_text,
             body_text_truncated=False,
+            body_cache_status=body_cache_status,
+            body_cache_error=body_cache_error,
             received_at=received_at or _current_test_received_at(),
             is_read=is_read,
             provider_labels=["INBOX"] if is_read else ["INBOX", "UNREAD"],
@@ -91,9 +97,21 @@ def _create_email(
 
 
 class FakeProvider:
+    def __init__(self) -> None:
+        self.body_calls = 0
+
     def refresh_access_token(self, refresh_token: str) -> str:
         assert refresh_token == "fake-refresh-token"
         return "fake-access-token"
+
+    def get_message_body(self, access_token: str, message_id: str) -> ProviderEmailBody:
+        assert access_token == "fake-access-token"
+        self.body_calls += 1
+        return ProviderEmailBody(
+            body_text=f"Full body for {message_id}",
+            body_html=None,
+            body_text_truncated=False,
+        )
 
     def mark_as_read(self, access_token: str, message_id: str) -> list[str]:
         assert access_token == "fake-access-token"
@@ -104,6 +122,11 @@ class FakeProvider:
         assert access_token == "fake-access-token"
         assert message_id
         return ["INBOX", "UNREAD"]
+
+
+class FailingBodyProvider(FakeProvider):
+    def get_message_body(self, access_token: str, message_id: str) -> ProviderEmailBody:
+        raise ProviderError("network_timeout", "Provider timed out.", 504)
 
 
 def _current_test_received_at() -> datetime:
@@ -283,7 +306,12 @@ def test_get_email_detail_returns_body_for_owner() -> None:
     client, user_id = _register_client("email-detail-owner")
     mailbox_id = _create_mailbox(user_id, account_prefix="detail-owner")
     email_id = _create_email(
-        user_id, mailbox_id, external_id="detail-owner", is_read=True
+        user_id,
+        mailbox_id,
+        external_id="detail-owner",
+        is_read=True,
+        body_text="Body detail-owner",
+        body_cache_status="cached",
     )
 
     response = client.get(f"/api/emails/{email_id}")
@@ -292,6 +320,110 @@ def test_get_email_detail_returns_body_for_owner() -> None:
     email = response.json()["data"]["email"]
     assert email["id"] == str(email_id)
     assert email["body_text"] == "Body detail-owner"
+    assert email["body_cache_status"] == "cached"
+
+
+def test_cache_email_body_fetches_provider_when_not_cached(monkeypatch) -> None:
+    client, user_id = _register_client("email-body-cache-fetch")
+    mailbox_id = _create_mailbox(user_id, account_prefix="body-cache-fetch")
+    email_id = _create_email(
+        user_id,
+        mailbox_id,
+        external_id="cache-fetch",
+        is_read=True,
+        body_text=None,
+        body_cache_status="not_cached",
+    )
+    provider = FakeProvider()
+    monkeypatch.setattr("app.services.email_service.get_mailbox_provider", lambda _: provider)
+
+    response = client.post(f"/api/emails/{email_id}/body-cache")
+
+    assert response.status_code == 200
+    email = response.json()["data"]["email"]
+    assert email["body_text"] == "Full body for cache-fetch"
+    assert email["body_cache_status"] == "cached"
+    assert email["body_cache_source"] == "opened"
+    assert email["body_cache_error"] is None
+    assert provider.body_calls == 1
+    with SessionLocal() as db:
+        stored = db.get(Email, email_id)
+        assert stored is not None
+        assert stored.body_text == "Full body for cache-fetch"
+        assert stored.body_cache_status == "cached"
+        assert stored.body_cache_error is None
+
+
+def test_cache_email_body_returns_cached_body_without_provider(monkeypatch) -> None:
+    client, user_id = _register_client("email-body-cache-hit")
+    mailbox_id = _create_mailbox(user_id, account_prefix="body-cache-hit")
+    email_id = _create_email(
+        user_id,
+        mailbox_id,
+        external_id="cache-hit",
+        is_read=True,
+        body_text="Already cached",
+        body_cache_status="cached",
+    )
+    monkeypatch.setattr(
+        "app.services.email_service.get_mailbox_provider",
+        lambda _: (_ for _ in ()).throw(AssertionError("provider should not be called")),
+    )
+
+    response = client.post(f"/api/emails/{email_id}/body-cache")
+
+    assert response.status_code == 200
+    email = response.json()["data"]["email"]
+    assert email["body_text"] == "Already cached"
+    assert email["body_cache_status"] == "cached"
+
+
+def test_cache_email_body_provider_failure_sets_failed_status(monkeypatch) -> None:
+    client, user_id = _register_client("email-body-cache-fail")
+    mailbox_id = _create_mailbox(user_id, account_prefix="body-cache-fail")
+    email_id = _create_email(
+        user_id,
+        mailbox_id,
+        external_id="cache-fail",
+        is_read=True,
+        body_text=None,
+        body_cache_status="not_cached",
+    )
+    monkeypatch.setattr(
+        "app.services.email_service.get_mailbox_provider",
+        lambda _: FailingBodyProvider(),
+    )
+
+    response = client.post(f"/api/emails/{email_id}/body-cache")
+
+    assert response.status_code == 200
+    email = response.json()["data"]["email"]
+    assert email["body_text"] is None
+    assert email["body_cache_status"] == "failed"
+    assert email["body_cache_error"] == "network_timeout"
+    with SessionLocal() as db:
+        stored = db.get(Email, email_id)
+        assert stored is not None
+        assert stored.body_cache_status == "failed"
+        assert stored.body_cache_error == "network_timeout"
+
+
+def test_cache_email_body_blocks_other_users_email(monkeypatch) -> None:
+    client, _ = _register_client("email-body-cache-current")
+    _, other_user_id = _register_client("email-body-cache-other")
+    other_mailbox_id = _create_mailbox(other_user_id, account_prefix="body-cache-other")
+    other_email_id = _create_email(
+        other_user_id,
+        other_mailbox_id,
+        external_id="body-cache-other",
+        is_read=True,
+    )
+    monkeypatch.setattr("app.services.email_service.get_mailbox_provider", lambda _: FakeProvider())
+
+    response = client.post(f"/api/emails/{other_email_id}/body-cache")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
 
 
 def test_mark_read_and_unread_update_local_state_after_provider_success(monkeypatch) -> None:

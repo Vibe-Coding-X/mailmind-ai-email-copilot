@@ -14,14 +14,20 @@ from app.db.models.mailbox import Mailbox
 from app.db.models.mailbox_archive_state import MailboxArchiveState
 from app.db.models.mailbox_credential import MailboxCredential
 from app.db.models.user import User
-from app.providers.base import ProviderError
+from app.providers.base import ProviderEmailBody, ProviderError
 from app.providers.gmail import GmailProvider
 from app.providers.registry import (
     ProviderRegistryError,
     get_mailbox_provider as registry_get_mailbox_provider,
 )
 from app.services.credential_encryption_service import CredentialEncryptionService
+from app.services.email_sync_service import (
+    EmailSyncError,
+    _configure_mailbox_provider,
+    _decrypt_provider_secret,
+)
 from app.services.user_action_service import record_completed_action, record_failed_action
+from app.utils.redaction import safe_error_message
 
 
 class EmailServiceError(Exception):
@@ -188,6 +194,95 @@ def get_mailbox_provider(provider_key: str) -> object:
     if normalized == "gmail":
         return GmailProvider()
     return registry_get_mailbox_provider(normalized)
+
+
+def cache_email_body(
+    db: Session,
+    *,
+    user: User,
+    email_id: UUID,
+    source: str = "opened",
+    provider: object | None = None,
+    now: datetime | None = None,
+) -> Email:
+    email = get_owned_email(db, user=user, email_id=email_id)
+    if email.body_cache_status == "cached" and (email.body_text or email.body_html):
+        return email
+
+    mailbox = db.get(Mailbox, email.mailbox_id)
+    if mailbox is None or mailbox.user_id != user.id or mailbox.status != "active":
+        raise _not_found()
+
+    resolved_now = now or datetime.now(UTC)
+    email.body_cache_status = "fetching"
+    email.body_cache_error = None
+    email.updated_at = resolved_now
+    db.flush()
+
+    try:
+        mailbox_provider = provider or get_mailbox_provider(mailbox.provider)
+        mailbox_provider = _configure_mailbox_provider(
+            db,
+            mailbox=mailbox,
+            provider=mailbox_provider,
+        )
+        secret = _decrypt_provider_secret(db, mailbox=mailbox)
+        access_token = mailbox_provider.refresh_access_token(secret)
+        body = _provider_message_body(mailbox_provider, access_token, email.external_id)
+    except ProviderRegistryError as exc:
+        raise EmailServiceError(exc.code, exc.message, exc.status_code) from exc
+    except EmailSyncError as exc:
+        if exc.code == "MAILBOX_REAUTH_REQUIRED":
+            mailbox.status = "reauth_required"
+        _mark_body_cache_failed(email, code=exc.code, source=source, now=resolved_now)
+        db.flush()
+        return email
+    except ProviderError as exc:
+        if exc.code == "MAILBOX_REAUTH_REQUIRED":
+            mailbox.status = "reauth_required"
+        _mark_body_cache_failed(email, code=exc.code, source=source, now=resolved_now)
+        db.flush()
+        return email
+
+    email.body_text = body.body_text
+    email.body_html = body.body_html
+    email.body_text_truncated = body.body_text_truncated
+    email.body_cache_status = "cached"
+    email.body_cached_at = resolved_now
+    email.body_cache_source = source
+    email.body_cache_error = None
+    email.last_synced_at = resolved_now
+    email.updated_at = resolved_now
+    db.flush()
+    return email
+
+
+def _provider_message_body(
+    provider: object,
+    access_token: str,
+    message_id: str,
+) -> ProviderEmailBody:
+    get_message_body = getattr(provider, "get_message_body", None)
+    if not callable(get_message_body):
+        raise ProviderError(
+            "provider_body_fetch_unsupported",
+            "Provider does not support message body fetch.",
+            400,
+        )
+    return get_message_body(access_token, message_id)
+
+
+def _mark_body_cache_failed(
+    email: Email,
+    *,
+    code: str,
+    source: str,
+    now: datetime,
+) -> None:
+    email.body_cache_status = "failed"
+    email.body_cache_source = source
+    email.body_cache_error = safe_error_message(code, max_length=100) or "provider_error"
+    email.updated_at = now
 
 
 def _ensure_owned_active_mailbox(db: Session, *, user: User, mailbox_id: UUID) -> None:

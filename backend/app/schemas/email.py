@@ -30,6 +30,7 @@ def email_summary_payload(email: Email) -> dict[str, Any]:
         "has_attachments": email.has_attachments,
         "labels": email.provider_labels,
         "body_cache_status": email.body_cache_status,
+        "body_cache_error": email.body_cache_error,
     }
 
 

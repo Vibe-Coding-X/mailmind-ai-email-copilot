@@ -11,6 +11,7 @@ from app.db.models.user import User
 from app.schemas.email import email_detail_payload, email_summary_payload
 from app.services.email_service import (
     EmailServiceError,
+    cache_email_body,
     get_owned_email,
     list_emails,
     list_today_emails,
@@ -115,6 +116,19 @@ def get_email_detail(
 ) -> dict[str, object]:
     try:
         email = get_owned_email(db, user=current_user, email_id=email_id)
+    except EmailServiceError as exc:
+        _raise_email_error(exc)
+    return {"data": {"email": email_detail_payload(email)}, "meta": {}}
+
+
+@router.post("/{email_id}/body-cache")
+def cache_email_body_endpoint(
+    email_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        email = cache_email_body(db, user=current_user, email_id=email_id, source="opened")
     except EmailServiceError as exc:
         _raise_email_error(exc)
     return {"data": {"email": email_detail_payload(email)}, "meta": {}}

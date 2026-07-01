@@ -73,6 +73,13 @@ class MailboxProvider(Protocol):
     ) -> "ProviderEmailMessage":
         raise NotImplementedError
 
+    def get_message_body(
+        self,
+        access_token: str,
+        message_id: str,
+    ) -> "ProviderEmailBody":
+        raise NotImplementedError
+
     def mark_as_read(self, access_token: str, message_id: str) -> list[str]:
         raise NotImplementedError
 
@@ -98,6 +105,13 @@ class ProviderEmailMessage:
     provider_labels: list[str]
     gmail_history_id: str | None
     raw_payload_hash: str
+
+
+@dataclass(slots=True)
+class ProviderEmailBody:
+    body_text: str | None
+    body_html: str | None
+    body_text_truncated: bool
 
 
 @dataclass(slots=True)

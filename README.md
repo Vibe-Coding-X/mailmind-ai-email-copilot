@@ -327,12 +327,13 @@ npm run build
 | v0.5 Provider Mailbox Foundation | Multi-mailbox support, IMAP provider MVP, Celery reliability, digest scope |
 | v0.5.1 UI/UX Polish | 6 theme presets, light/dark mode, dramatic visual effects, Playwright verification |
 | v0.5.2 Demo Readiness | Architecture diagrams, demo script, project walkthrough, documentation refresh |
+| v0.6 Local Mail Archive | Full-history local archive for Gmail/IMAP, local email browsing, on-demand body cache |
 
 ### 🧭 Next
 
 | Version | Scope |
 |---------|-------|
-| v0.6 Open Source Ready | CI, Docker polish, public docs review |
+| v0.7 Open Source Ready | CI, Docker polish, public docs review |
 | v1.0 Personal Productivity | Stable daily driver for personal email management |
 
 ---

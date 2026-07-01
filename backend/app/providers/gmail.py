@@ -10,6 +10,7 @@ from app.core.config import Settings, get_settings
 from app.providers.base import (
     ProviderArchiveBatch,
     ProviderCapabilities,
+    ProviderEmailBody,
     ProviderEmailMessage,
     ProviderError,
 )
@@ -157,6 +158,14 @@ class GmailProvider:
             raise _provider_error_from_httpx(exc) from exc
         self._raise_for_response(response)
         return parse_gmail_message(response.json())
+
+    def get_message_body(self, access_token: str, message_id: str) -> ProviderEmailBody:
+        message = self.get_message_detail(access_token, message_id)
+        return ProviderEmailBody(
+            body_text=message.body_text,
+            body_html=None,
+            body_text_truncated=message.body_text_truncated,
+        )
 
     def mark_as_read(self, access_token: str, message_id: str) -> list[str]:
         return self._modify_labels(

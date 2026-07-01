@@ -328,6 +328,7 @@ export interface EmailBase {
   has_attachments?: boolean;
   labels: string[];
   body_cache_status?: string;
+  body_cache_error?: string | null;
 }
 
 export type EmailSummary = EmailBase;
@@ -388,6 +389,7 @@ export interface EmailData {
 }
 
 export type EmailResponse = ApiSuccess<EmailData>;
+export type EmailBodyCacheResponse = EmailResponse;
 
 export interface EmailMutationData {
   email: EmailMutation;

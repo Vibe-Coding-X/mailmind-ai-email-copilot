@@ -444,6 +444,20 @@ def test_get_message_detail_parses_gmail_message() -> None:
     assert message.is_read is False
 
 
+def test_get_message_body_fetches_and_normalizes_gmail_body() -> None:
+    client = FakeHttpClient()
+    provider = GmailProvider(client=client)
+
+    body = provider.get_message_body("fake-access-token", "inside")
+
+    assert body.body_text == "Body"
+    assert body.body_html is None
+    assert body.body_text_truncated is False
+    detail_call = client.get_calls[-1]
+    assert detail_call["url"].endswith("/messages/inside")
+    assert detail_call["params"] == {"format": "full"}
+
+
 def test_mark_as_read_removes_unread_label() -> None:
     client = FakeHttpClient()
     provider = GmailProvider(client=client)

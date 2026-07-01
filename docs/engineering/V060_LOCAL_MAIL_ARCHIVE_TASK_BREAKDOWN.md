@@ -10,6 +10,7 @@
 - Add Gmail archive batch support.
 - Add IMAP archive batch support.
 - Extend Emails query and detail APIs for local archive browsing.
+- Add on-demand body-cache API for one owned email.
 
 ## Frontend
 
@@ -19,6 +20,7 @@
 - Preserve mailbox/read/search/pagination filters.
 - Show source mailbox and attachment indicators in email rows.
 - Show mailbox/provider/labels/snippet/body cache status in detail.
+- Add full-body load/retry action to email detail.
 - Add Local Archive controls to Settings / Mailboxes.
 - Show archive jobs in Job Activity.
 
@@ -37,4 +39,3 @@
 - Single-email AI summary.
 - Attachment download.
 - Full body sync by default.
-

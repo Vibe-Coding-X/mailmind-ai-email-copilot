@@ -361,6 +361,13 @@ def upsert_archive_messages(
                 mailbox_id=mailbox.id,
                 provider=mailbox.provider,
                 external_id=message.external_id,
+                body_text=None,
+                body_text_truncated=False,
+                body_html=None,
+                body_cache_status="not_cached",
+                body_cached_at=None,
+                body_cache_source=None,
+                body_cache_error=None,
                 first_synced_at=synced_at,
                 created_at=synced_at,
             )
@@ -373,12 +380,6 @@ def upsert_archive_messages(
         email.to_addresses = message.to_addresses
         email.cc_addresses = message.cc_addresses
         email.snippet = message.snippet
-        email.body_text = None
-        email.body_text_truncated = False
-        email.body_html = None
-        email.body_cache_status = "not_cached"
-        email.body_cached_at = None
-        email.body_cache_source = None
         email.received_at = message.received_at
         email.sent_at = message.received_at
         email.is_read = message.is_read

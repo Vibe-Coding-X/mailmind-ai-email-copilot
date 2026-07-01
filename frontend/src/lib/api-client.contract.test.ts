@@ -1,5 +1,6 @@
 import { API_ROUTES } from "./api-routes";
 import {
+  cacheEmailBody,
   connectImapMailbox,
   disconnectGmail,
   dismissDigestItem,
@@ -35,6 +36,7 @@ import type {
   DigestItemActionResponse,
   DigestScopeRequest,
   DigestResponse,
+  EmailBodyCacheResponse,
   EmailMutationResponse,
   EmailListQuery,
   EmailsResponse,
@@ -149,6 +151,8 @@ const todayEmailsPath: "/api/emails/today" = API_ROUTES.emails.today;
 const emailsListPath: "/api/emails" = API_ROUTES.emails.list;
 const emailDetailPath: "/api/emails/email-id" =
   API_ROUTES.emails.byId("email-id");
+const emailBodyCachePath: "/api/emails/email-id/body-cache" =
+  API_ROUTES.emails.bodyCache("email-id");
 const emailMarkReadPath: "/api/emails/email-id/mark-read" =
   API_ROUTES.emails.markRead("email-id");
 const emailMarkUnreadPath: "/api/emails/email-id/mark-unread" =
@@ -296,6 +300,12 @@ type GetEmailParameters = Assert<Equal<Parameters<typeof getEmail>, [emailId: st
 type GetEmailSignature = Assert<
   Equal<ReturnType<typeof getEmail>, Promise<EmailResponse>>
 >;
+type CacheEmailBodyParameters = Assert<
+  Equal<Parameters<typeof cacheEmailBody>, [emailId: string]>
+>;
+type CacheEmailBodySignature = Assert<
+  Equal<ReturnType<typeof cacheEmailBody>, Promise<EmailBodyCacheResponse>>
+>;
 type MarkEmailReadParameters = Assert<
   Equal<Parameters<typeof markEmailRead>, [emailId: string]>
 >;
@@ -379,6 +389,8 @@ type ContractAssertions = [
   ListEmailsSignature,
   GetEmailParameters,
   GetEmailSignature,
+  CacheEmailBodyParameters,
+  CacheEmailBodySignature,
   MarkEmailReadParameters,
   MarkEmailReadSignature,
   MarkEmailUnreadParameters,
@@ -395,6 +407,8 @@ type ContractAssertions = [
 ];
 
 const contractAssertions: ContractAssertions = [
+  true,
+  true,
   true,
   true,
   true,
@@ -479,6 +493,7 @@ void digestItemSnoozePath;
 void todayEmailsPath;
 void emailsListPath;
 void emailDetailPath;
+void emailBodyCachePath;
 void emailMarkReadPath;
 void emailMarkUnreadPath;
 void actionsPath;

@@ -13,6 +13,7 @@ Dashboard remains the daily digest surface. Emails becomes a local PostgreSQL ar
 - MailMind stores message metadata and snippets locally.
 - The Emails page can filter locally stored messages by Today, Last 7 Days, Last 30 Days, Custom Range, or All Synced.
 - A user can open an email detail view for metadata, snippet, labels, source mailbox, and body cache status.
+- A user can load full body text on demand from the connected Gmail or IMAP mailbox; MailMind then stores that body locally for later opens.
 - A user can see whether the local archive has not started, is running, is partial, is complete, or failed.
 
 ## Scope
@@ -24,6 +25,7 @@ In scope:
 - Local PostgreSQL email index and snippet storage.
 - Mailbox archive state.
 - Local email query API and UI filters.
+- On-demand full body cache from email detail.
 - Settings / Mailboxes archive controls.
 - Job Activity visibility for archive jobs.
 
@@ -46,3 +48,4 @@ Today, Last 7 Days, Last 30 Days, Custom Range, and All Synced are query filters
 
 Dashboard daily digest behavior is unchanged and remains scoped to today's digest workflow.
 
+Full-history archive does not download full body text or HTML. Body caching is an explicit detail-page action. Once cached, later detail opens read the stored body from PostgreSQL without calling Gmail or IMAP. If provider body fetch fails, the email stores `body_cache_status=failed` and an error code so the user can retry.

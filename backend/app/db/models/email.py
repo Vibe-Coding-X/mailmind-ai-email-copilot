@@ -97,6 +97,7 @@ class Email(Base):
     )
     body_cached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     body_cache_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    body_cache_error: Mapped[str | None] = mapped_column(String(100), nullable=True)
     first_synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

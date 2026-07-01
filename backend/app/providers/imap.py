@@ -18,6 +18,7 @@ from typing import Any, Callable
 from app.providers.base import (
     ProviderArchiveBatch,
     ProviderCapabilities,
+    ProviderEmailBody,
     ProviderEmailMessage,
     ProviderError,
 )
@@ -254,6 +255,47 @@ class ImapProvider:
     ) -> ProviderEmailMessage:
         raise ProviderError("imap_operation_unsupported", "IMAP detail fetch is not supported.", 400)
 
+    def get_message_body(self, access_token: str, message_id: str) -> ProviderEmailBody:
+        folder, uidvalidity, uid = _parse_external_id(message_id)
+        config = self._config
+        if folder != config.folder or (
+            config.uidvalidity is not None and uidvalidity != config.uidvalidity
+        ):
+            raise ProviderError(
+                "imap_message_id_invalid",
+                "IMAP message id does not match this mailbox folder.",
+                400,
+            )
+        logger.info(
+            "IMAP body fetch start %s uid=%s",
+            _log_mailbox_context(config),
+            uid,
+        )
+        client = self._connect()
+        try:
+            self._login(client, access_token)
+            selected_uidvalidity = self._select_folder(client)
+            if uidvalidity != "unknown" and selected_uidvalidity != "unknown" and uidvalidity != selected_uidvalidity:
+                raise ProviderError(
+                    "imap_message_id_invalid",
+                    "IMAP message id is no longer valid for this folder.",
+                    400,
+                )
+            fetched = self._fetch_message(client, uid)
+            if fetched is None:
+                raise ProviderError("imap_message_not_found", "IMAP message was not found.", 404)
+            raw_message, _ = fetched
+            body = _parse_imap_body(raw_message)
+            logger.info(
+                "IMAP body fetch completed %s uid=%s body_cached=%s",
+                _log_mailbox_context(config),
+                uid,
+                bool(body.body_text or body.body_html),
+            )
+            return body
+        finally:
+            _close_client(client)
+
     def mark_as_read(self, access_token: str, message_id: str) -> list[str]:
         raise ProviderError("imap_operation_unsupported", "IMAP mark-read is not wired yet.", 400)
 
@@ -422,6 +464,17 @@ def _parse_imap_message(
     )
 
 
+def _parse_imap_body(raw_message: bytes) -> ProviderEmailBody:
+    parsed = BytesParser(policy=policy.default).parsebytes(raw_message)
+    body_text = _message_body(parsed)
+    body_html = _message_html(parsed)
+    return ProviderEmailBody(
+        body_text=(body_text or "")[:10000] or None,
+        body_html=body_html,
+        body_text_truncated=len(body_text or "") > 10000,
+    )
+
+
 def _message_body(message: Message) -> str | None:
     if isinstance(message, EmailMessage):
         plain = message.get_body(preferencelist=("plain",))
@@ -435,6 +488,20 @@ def _message_body(message: Message) -> str | None:
             if part.get_content_type() == "text/plain":
                 return _payload_text(part)
     return _payload_text(message)
+
+
+def _message_html(message: Message) -> str | None:
+    if isinstance(message, EmailMessage):
+        html = message.get_body(preferencelist=("html",))
+        if html is not None:
+            return _payload_text(html)
+    if message.is_multipart():
+        for part in message.walk():
+            if part.get_content_type() == "text/html":
+                return _payload_text(part)
+    if message.get_content_type() == "text/html":
+        return _payload_text(message)
+    return None
 
 
 def _payload_text(message: Message) -> str | None:
@@ -505,6 +572,17 @@ def _uidvalidity_from_client(client: Any) -> str | None:
 
 def _imap_date(value: datetime) -> str:
     return value.astimezone(UTC).strftime("%d-%b-%Y")
+
+
+def _parse_external_id(message_id: str) -> tuple[str, str, str]:
+    parts = message_id.rsplit(":", 2)
+    if len(parts) != 3 or not parts[0] or not parts[1] or not parts[2].isdigit():
+        raise ProviderError(
+            "imap_message_id_invalid",
+            "IMAP message id is invalid.",
+            400,
+        )
+    return parts[0], parts[1], parts[2]
 
 
 def _status_failed(status: object) -> bool:

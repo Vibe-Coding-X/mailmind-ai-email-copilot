@@ -58,6 +58,7 @@ def test_emails_columns_and_constraints_match_database_design() -> None:
         "body_cache_status",
         "body_cached_at",
         "body_cache_source",
+        "body_cache_error",
         "first_synced_at",
         "last_synced_at",
         "created_at",

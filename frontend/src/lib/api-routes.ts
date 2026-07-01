@@ -58,6 +58,8 @@ export const API_ROUTES = {
     new: "/api/emails/new",
     byId: <TEmailId extends string>(emailId: TEmailId) =>
       `/api/emails/${emailId}` as const,
+    bodyCache: <TEmailId extends string>(emailId: TEmailId) =>
+      `/api/emails/${emailId}/body-cache` as const,
     markRead: <TEmailId extends string>(emailId: TEmailId) =>
       `/api/emails/${emailId}/mark-read` as const,
     markUnread: <TEmailId extends string>(emailId: TEmailId) =>
