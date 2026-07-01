@@ -38,6 +38,7 @@ PUBLIC_STATUS_TO_INTERNAL = {
 }
 PUBLIC_JOB_TYPE_TO_INTERNAL = {
     "email_sync": {"sync_today_emails", "refresh_access_token"},
+    "email_archive_backfill": {"email_archive_backfill"},
     "digest_generate": {"generate_daily_digest"},
     "digest_refresh": {"refresh_daily_digest"},
     "scheduled_email_sync": {"sync_today_emails", "check_new_emails_after_digest"},
@@ -158,6 +159,10 @@ def _dispatch_retry_job(job: SyncJob) -> str:
         from app.services.digest_service import dispatch_digest_job
 
         return dispatch_digest_job(job.id)
+    if job.job_type == "email_archive_backfill":
+        from app.services.email_archive_service import dispatch_archive_backfill_job
+
+        return dispatch_archive_backfill_job(job.id)
     raise JobServiceError("INVALID_REQUEST", "Job type cannot be retried.")
 
 

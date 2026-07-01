@@ -148,6 +148,30 @@ def test_list_jobs_filters_by_public_job_type_status_and_date_range() -> None:
     assert jobs[0]["status"] == "completed"
 
 
+def test_list_jobs_filters_archive_backfill_jobs() -> None:
+    client, user_id = _register_client("jobs-archive-filter")
+    mailbox_id = _create_mailbox(user_id, prefix="jobs-archive-filter")
+    archive_job_id = _create_job(
+        user_id,
+        mailbox_id=mailbox_id,
+        job_type="email_archive_backfill",
+        status="succeeded",
+        payload_json={"synced_count": 25},
+    )
+    _create_job(user_id, mailbox_id=mailbox_id, job_type="sync_today_emails")
+
+    response = client.get(
+        "/api/jobs",
+        params={"job_type": "email_archive_backfill", "status": "completed"},
+    )
+
+    assert response.status_code == 200
+    jobs = response.json()["data"]["jobs"]
+    assert [job["job_id"] for job in jobs] == [str(archive_job_id)]
+    assert jobs[0]["job_type"] == "email_archive_backfill"
+    assert jobs[0]["result"] == {"synced_count": 25}
+
+
 def test_get_job_blocks_other_users_job() -> None:
     client, _ = _register_client("jobs-reader")
     _, other_user_id = _register_client("jobs-owner-detail")
@@ -259,6 +283,42 @@ def test_retry_failed_digest_job_dispatches_digest_worker(monkeypatch) -> None:
         assert retry_job is not None
         assert retry_job.job_type == "refresh_daily_digest"
         assert retry_job.celery_task_id == f"celery-retry-digest-{retry_job.id}"
+    assert dispatched == [UUID(retried["job_id"])]
+
+
+def test_retry_failed_archive_job_dispatches_archive_worker(monkeypatch) -> None:
+    client, user_id = _register_client("jobs-retry-archive")
+    mailbox_id = _create_mailbox(user_id, prefix="jobs-retry-archive")
+    failed_job_id = _create_job(
+        user_id,
+        mailbox_id=mailbox_id,
+        job_type="email_archive_backfill",
+        status="failed",
+        error_message="Archive failed.",
+    )
+    dispatched: list[UUID] = []
+
+    def fake_dispatch(job_id: UUID) -> str:
+        dispatched.append(job_id)
+        return f"celery-retry-archive-{job_id}"
+
+    monkeypatch.setattr(
+        "app.services.email_archive_service.dispatch_archive_backfill_job",
+        fake_dispatch,
+    )
+
+    response = client.post(f"/api/jobs/{failed_job_id}/retry")
+
+    assert response.status_code == 200
+    retried = response.json()["data"]["job"]
+    assert retried["job_type"] == "email_archive_backfill"
+    assert retried["status"] == "queued"
+
+    with SessionLocal() as db:
+        retry_job = db.get(SyncJob, UUID(retried["job_id"]))
+        assert retry_job is not None
+        assert retry_job.job_type == "email_archive_backfill"
+        assert retry_job.celery_task_id == f"celery-retry-archive-{retry_job.id}"
     assert dispatched == [UUID(retried["job_id"])]
 
 

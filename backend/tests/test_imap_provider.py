@@ -3,7 +3,7 @@ from __future__ import annotations
 import imaplib
 import socket
 import ssl
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 
@@ -72,6 +72,21 @@ class PartialFailureImapClient(FakeImapClient):
             return "OK", [(b"101 (FLAGS (\\Seen))", RAW_MESSAGE)]
         if args[0] == "FETCH" and args[1] == "102":
             raise imaplib.IMAP4.error("fetch failed")
+        raise AssertionError(args)
+
+
+class ArchiveUidImapClient(FakeImapClient):
+    def __init__(self, host: str, port: int, *, uids: bytes = b"101 102 103 104") -> None:
+        super().__init__(host, port)
+        self.uids = uids
+
+    def uid(self, *args):
+        self.uid_calls.append(args)
+        if args[0] == "SEARCH":
+            return "OK", [self.uids]
+        if args[0] == "FETCH":
+            uid = str(args[1])
+            return "OK", [(f"{uid} (FLAGS (\\Seen))".encode("ascii"), RAW_MESSAGE)]
         raise AssertionError(args)
 
 
@@ -184,23 +199,59 @@ def test_imap_provider_skips_single_message_fetch_failure(monkeypatch) -> None:
     assert any("uid=102" in message for message in warnings)
 
 
-def test_imap_archive_batch_moves_window_from_newer_to_older() -> None:
-    client = FakeImapClient("imap.example.com", 993)
+def test_imap_archive_batch_uses_uid_cursor_from_newer_to_older() -> None:
+    client = ArchiveUidImapClient("imap.example.com", 993, uids=b"101 102 103 104")
     provider = _provider(client)
-    window_end = datetime(2026, 6, 29, 12, 0, tzinfo=UTC)
 
     batch = provider.list_archive_batch(
         "fake-imap-password",
-        cursor={"window_end": window_end.isoformat()},
-        batch_size=10,
+        cursor=None,
+        batch_size=2,
     )
 
-    assert [message.external_id for message in batch.messages] == ["Archive:999:101"]
-    assert batch.cursor == {"window_end": (window_end - timedelta(days=30)).isoformat()}
+    assert [message.external_id for message in batch.messages] == [
+        "Archive:999:104",
+        "Archive:999:103",
+    ]
+    assert batch.cursor == {"before_uid": "103"}
     assert batch.is_complete is False
     search_call = [call for call in client.uid_calls if call[0] == "SEARCH"][0]
-    assert 'SINCE "30-May-2026"' in search_call[2]
-    assert 'BEFORE "30-Jun-2026"' in search_call[2]
+    assert search_call == ("SEARCH", None, "UID 1:*")
+
+
+def test_imap_archive_batch_continues_before_cursor_uid() -> None:
+    client = ArchiveUidImapClient("imap.example.com", 993, uids=b"101 102")
+    provider = _provider(client)
+
+    batch = provider.list_archive_batch(
+        "fake-imap-password",
+        cursor={"before_uid": "103"},
+        batch_size=2,
+    )
+
+    assert [message.external_id for message in batch.messages] == [
+        "Archive:999:102",
+        "Archive:999:101",
+    ]
+    assert batch.cursor == {"before_uid": "101"}
+    assert batch.is_complete is False
+    search_call = [call for call in client.uid_calls if call[0] == "SEARCH"][0]
+    assert search_call == ("SEARCH", None, "UID 1:102")
+
+
+def test_imap_archive_batch_marks_complete_when_no_older_uids() -> None:
+    client = ArchiveUidImapClient("imap.example.com", 993, uids=b"")
+    provider = _provider(client)
+
+    batch = provider.list_archive_batch(
+        "fake-imap-password",
+        cursor={"before_uid": "101"},
+        batch_size=2,
+    )
+
+    assert batch.messages == []
+    assert batch.cursor is None
+    assert batch.is_complete is True
 
 
 def test_imap_provider_maps_authentication_failure_to_reauth() -> None:

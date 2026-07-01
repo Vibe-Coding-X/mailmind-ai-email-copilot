@@ -166,31 +166,86 @@ class ImapProvider:
         cursor: dict[str, Any] | None,
         batch_size: int,
     ) -> ProviderArchiveBatch:
-        raw_window_end = (cursor or {}).get("window_end")
-        if isinstance(raw_window_end, str) and raw_window_end:
-            try:
-                window_end = datetime.fromisoformat(raw_window_end)
-            except ValueError:
-                window_end = datetime.now(UTC)
-        else:
-            window_end = datetime.now(UTC)
-        if window_end.tzinfo is None:
-            window_end = window_end.replace(tzinfo=UTC)
-        window_end = window_end.astimezone(UTC)
-        window_start = window_end - timedelta(days=30)
-        messages = self.list_messages_for_window(
-            access_token,
-            window_start=window_start,
-            window_end=window_end,
+        logger.info(
+            "IMAP archive batch start %s cursor=%s batch_size=%s",
+            _log_mailbox_context(self._config),
+            _safe_cursor(cursor),
+            batch_size,
         )
-        messages = sorted(messages, key=lambda message: message.received_at, reverse=True)[
-            : max(1, batch_size)
-        ]
-        return ProviderArchiveBatch(
-            messages=messages,
-            cursor={"window_end": window_start.isoformat()} if messages else None,
-            is_complete=not messages,
-        )
+        client = self._connect()
+        try:
+            self._login(client, access_token)
+            uidvalidity = self._select_folder(client)
+            message_uids = self._search_archive_uids(client, cursor=cursor)
+            selected_uids = message_uids[: max(1, batch_size)]
+            messages: list[ProviderEmailMessage] = []
+            for uid in selected_uids:
+                logger.info(
+                    "IMAP archive fetch start %s uid=%s",
+                    _log_mailbox_context(self._config),
+                    uid,
+                )
+                try:
+                    fetched = self._fetch_message(client, uid)
+                    if fetched is None:
+                        logger.info(
+                            "IMAP archive fetch skipped %s uid=%s reason=no_message_payload",
+                            _log_mailbox_context(self._config),
+                            uid,
+                        )
+                        continue
+                    raw_message, flags = fetched
+                    messages.append(
+                        _parse_imap_message(
+                            raw_message,
+                            flags=flags,
+                            folder=self._config.folder,
+                            uidvalidity=uidvalidity,
+                            uid=uid,
+                        )
+                    )
+                    logger.info(
+                        "IMAP archive fetch completed %s uid=%s flags=%s",
+                        _log_mailbox_context(self._config),
+                        uid,
+                        ",".join(flags) if flags else "-",
+                    )
+                except ProviderError as exc:
+                    logger.warning(
+                        "IMAP archive fetch failed; skipping message %s uid=%s code=%s message=%s",
+                        _log_mailbox_context(self._config),
+                        uid,
+                        exc.code,
+                        exc.message,
+                    )
+                    continue
+                except Exception as exc:
+                    logger.warning(
+                        "IMAP archive parse failed; skipping message %s uid=%s error=%s",
+                        _log_mailbox_context(self._config),
+                        uid,
+                        exc,
+                    )
+                    continue
+            next_cursor = (
+                {"before_uid": str(min(int(uid) for uid in selected_uids))}
+                if selected_uids
+                else None
+            )
+            logger.info(
+                "IMAP archive batch completed %s searched_uid_count=%s fetched_count=%s next_cursor=%s",
+                _log_mailbox_context(self._config),
+                len(message_uids),
+                len(messages),
+                _safe_cursor(next_cursor),
+            )
+            return ProviderArchiveBatch(
+                messages=messages,
+                cursor=next_cursor,
+                is_complete=not selected_uids,
+            )
+        finally:
+            _close_client(client)
 
     def get_message_detail(
         self,
@@ -299,6 +354,39 @@ class ImapProvider:
             if isinstance(raw_message, bytes):
                 return raw_message, _flags_from_fetch_meta(meta)
         return None
+
+    def _search_archive_uids(
+        self,
+        client: Any,
+        *,
+        cursor: dict[str, Any] | None,
+    ) -> list[str]:
+        raw_before_uid = (cursor or {}).get("before_uid")
+        before_uid: int | None = None
+        if raw_before_uid is not None:
+            try:
+                before_uid = int(str(raw_before_uid))
+            except ValueError:
+                before_uid = None
+        uid_range = "1:*" if before_uid is None else f"1:{max(0, before_uid - 1)}"
+        try:
+            logger.info(
+                'IMAP archive search start %s uid_range="%s"',
+                _log_mailbox_context(self._config),
+                uid_range,
+            )
+            status, data = client.uid("SEARCH", None, f"UID {uid_range}")
+        except socket.timeout as exc:
+            raise ProviderError("network_timeout", "IMAP archive search timed out.", 504) from exc
+        if _status_failed(status):
+            raise ProviderError("imap_search_failed", "IMAP archive message search failed.", 502)
+        if not data:
+            return []
+        raw = data[0] or b""
+        if isinstance(raw, bytes):
+            raw = raw.decode("ascii", errors="ignore")
+        uids = [uid for uid in str(raw).split() if uid.isdigit()]
+        return sorted(uids, key=lambda uid: int(uid), reverse=True)
 
 
 def _parse_imap_message(
@@ -432,6 +520,16 @@ def _close_client(client: Any) -> None:
         client.logout()
     except Exception:
         pass
+
+
+def _safe_cursor(cursor: dict[str, Any] | None) -> dict[str, str] | None:
+    if not cursor:
+        return None
+    result: dict[str, str] = {}
+    before_uid = cursor.get("before_uid")
+    if before_uid is not None:
+        result["before_uid"] = str(before_uid)
+    return result or None
 
 
 def _log_mailbox_context(config: ImapMailboxConfig) -> str:
