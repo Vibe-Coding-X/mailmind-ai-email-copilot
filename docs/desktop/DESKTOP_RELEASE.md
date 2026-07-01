@@ -32,9 +32,17 @@ The workflow at `.github/workflows/desktop-release.yml` builds installers for al
 
 Each platform uploads its installer as a GitHub Actions artifact. On tag pushes, artifacts are attached to the GitHub Release.
 
+GitHub Actions stores artifacts as `.zip` downloads:
+
+- Windows artifact contains the `.exe` installer
+- macOS artifact contains the `.dmg` installer
+- Linux artifact contains the `.AppImage` installer
+
+The `.zip` file itself is not the final desktop installer.
+
 ## Unsigned Builds
 
-v0.7.0 desktop builds are **unsigned**. Users will encounter:
+v0.7.1 desktop builds are **unsigned**. Users will encounter:
 
 - **Windows**: SmartScreen "Windows protected your PC" warning. Click "More info" → "Run anyway".
 - **macOS**: Gatekeeper "can't be opened because it is from an unidentified developer." Right-click → Open, or go to System Settings → Privacy & Security → Allow.
@@ -42,7 +50,7 @@ v0.7.0 desktop builds are **unsigned**. Users will encounter:
 
 ## Future: Code Signing
 
-Planned for v1.0.0 All-in-one release:
+Planned for v0.8.0 All-in-one release:
 
 - Windows: EV code signing certificate
 - macOS: Apple Developer ID + notarization via `notarytool`

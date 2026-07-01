@@ -142,7 +142,7 @@ It syncs your email, runs it through an AI pipeline, and produces a structured D
 
 ## Desktop Preview
 
-MailMind v0.7.0 provides an **Electron desktop shell** for Windows, macOS, and Linux.
+MailMind v0.7.1 provides an **Electron desktop shell** for Windows, macOS, and Linux.
 
 > **Note**: The desktop app is a thin wrapper around the web UI. It does **not** include the backend, database, or job queue. You must start MailMind services locally before launching the desktop app.
 
@@ -172,7 +172,13 @@ npm run dev
 
 ### Downloads
 
-Windows, macOS, and Linux installers are built automatically by GitHub Actions. Check the [Releases](https://github.com/nicobailon/mailmind-ai-email-copilot/releases) page for download links.
+Windows, macOS, and Linux installers are built automatically by GitHub Actions. Check the [Releases](https://github.com/Vibe-Coding-X/mailmind-ai-email-copilot/releases) page for download links.
+
+GitHub Actions artifacts are downloaded as `.zip` files. The installer is inside the archive:
+
+- Windows: `.zip` -> `.exe`
+- macOS: `.zip` -> `.dmg`
+- Linux: `.zip` -> `.AppImage`
 
 ### Building Installers Locally
 
@@ -184,7 +190,7 @@ npm run dist
 
 See [`docs/desktop/DESKTOP_SHELL.md`](docs/desktop/DESKTOP_SHELL.md) for details.
 
-> **Roadmap**: v0.8 will introduce embedded Python runtime. v1.0 will be a full All-in-one desktop app. See [`docs/desktop/ALL_IN_ONE_ROADMAP.md`](docs/desktop/ALL_IN_ONE_ROADMAP.md).
+> **Roadmap**: v0.7.2 will focus on desktop UX, v0.7.3 on diagnostics, v0.7.4 on Local Runtime Preview, and v0.8.0 on a true All-in-one desktop app. See [`docs/desktop/ALL_IN_ONE_ROADMAP.md`](docs/desktop/ALL_IN_ONE_ROADMAP.md).
 
 ---
 
@@ -375,15 +381,17 @@ npm run build
 | v0.5 Provider Mailbox Foundation | Multi-mailbox support, IMAP provider MVP, Celery reliability, digest scope |
 | v0.5.1 UI/UX Polish | 6 theme presets, light/dark mode, dramatic visual effects, Playwright verification |
 | v0.5.2 Demo Readiness | Architecture diagrams, demo script, project walkthrough, documentation refresh |
-| v0.7 Desktop Shell | Electron desktop shell, multi-platform installers, GitHub Actions auto-build |
+| v0.7.0 Desktop Shell | Electron desktop shell, multi-platform installers, GitHub Actions auto-build |
+| v0.7.1 Release Pipeline | Stable three-platform desktop release pipeline with verified installers |
 
 ### 🧭 Next
 
 | Version | Scope |
 |---------|-------|
-| v0.8 Local Runtime Preview | Embedded Python, SQLite, APScheduler, offline-capable desktop |
-| v0.9 Embedded DB Prototype | Dual-dialect SQLAlchemy, import/export, data retention |
-| v1.0 All-in-one Desktop | Full offline, auto-update, OAuth deep links, code signing |
+| v0.7.2 Desktop UX | Tray, window state persistence, menus, notifications |
+| v0.7.3 Config & Diagnostics | Connection status, logs, config page, diagnostics export |
+| v0.7.4 Local Runtime Preview | Electron-managed backend and worker preview |
+| v0.8.0 All-in-one Desktop | Full offline, auto-update, OAuth deep links, code signing |
 
 ---
 
@@ -427,7 +435,8 @@ npm run build
 | Desktop Release | [`docs/desktop/DESKTOP_RELEASE.md`](docs/desktop/DESKTOP_RELEASE.md) |
 | Desktop Security | [`docs/desktop/DESKTOP_SECURITY.md`](docs/desktop/DESKTOP_SECURITY.md) |
 | All-in-one Roadmap | [`docs/desktop/ALL_IN_ONE_ROADMAP.md`](docs/desktop/ALL_IN_ONE_ROADMAP.md) |
-| v0.7 Release Notes | [`docs/release-notes/v0.7.0-desktop-shell.md`](docs/release-notes/v0.7.0-desktop-shell.md) |
+| v0.7.0 Release Notes | [`docs/release-notes/v0.7.0-desktop-shell.md`](docs/release-notes/v0.7.0-desktop-shell.md) |
+| v0.7.1 Release Notes | [`docs/release-notes/v0.7.1-release-pipeline.md`](docs/release-notes/v0.7.1-release-pipeline.md) |
 
 ---
 

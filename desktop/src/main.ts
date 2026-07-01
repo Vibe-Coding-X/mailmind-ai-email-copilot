@@ -186,13 +186,13 @@ function buildMenu(): void {
       submenu: [
         {
           label: "MailMind Documentation",
-          click: () => shell.openExternal("https://github.com/nicobailon/mailmind-ai-email-copilot"),
+          click: () => shell.openExternal("https://github.com/Vibe-Coding-X/mailmind-ai-email-copilot"),
         },
         {
           label: "Report Issue",
           click: () =>
             shell.openExternal(
-              "https://github.com/nicobailon/mailmind-ai-email-copilot/issues",
+              "https://github.com/Vibe-Coding-X/mailmind-ai-email-copilot/issues",
             ),
         },
       ],

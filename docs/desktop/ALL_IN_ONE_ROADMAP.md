@@ -29,7 +29,29 @@ v0.7.0 avoids these costs by being a thin Electron shell that connects to locall
 - GitHub Actions auto-build
 - No embedded runtime
 
-### v0.8.0 — Local Runtime Preview
+### v0.7.1 — Release Pipeline ✅
+
+- Stable GitHub Actions pipeline for Windows / macOS / Linux
+- Verified installer generation on all three platforms
+- Tag-triggered GitHub Release draft with packaged artifacts
+- Clear artifact expectations (`.zip` download containing platform installer)
+
+### v0.7.2 — Desktop UX
+
+- System tray support
+- Window size / position persistence
+- Better desktop menus
+- Desktop notifications for connection state
+- Close-to-tray behavior
+
+### v0.7.3 — Config & Diagnostics
+
+- Connection diagnostics screen
+- Config editor for app URL and health URL
+- Desktop log files and log directory shortcut
+- Copyable diagnostics bundle for bug reports
+
+### v0.7.4 — Local Runtime Preview
 
 - Bundle a Python embeddable distribution
 - FastAPI starts as a child process of Electron
@@ -38,15 +60,7 @@ v0.7.0 avoids these costs by being a thin Electron shell that connects to locall
 - User data stored in `app.getPath("userData")`
 - Still no auto-update or OAuth deep links
 
-### v0.9.0 — Embedded DB Prototype
-
-- SQLAlchemy dual-dialect support (PostgreSQL + SQLite)
-- Alembic migrations tested against SQLite
-- Local-only mode with no external dependencies
-- Import/export mailbox data
-- Basic data retention controls
-
-### v1.0.0 — All-in-one Desktop App
+### v0.8.0 — All-in-one Desktop App
 
 - Full offline capability
 - Auto-update via electron-updater

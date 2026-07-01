@@ -9,9 +9,11 @@ MailMind Desktop is an **Electron shell** that wraps the existing MailMind web a
 | Version | Scope |
 |---|---|
 | v0.7.0 | Desktop Shell (Electron wrapper) |
-| v0.8.0 | Local Runtime Preview (embedded Python) |
-| v0.9.0 | Embedded DB Prototype (SQLite) |
-| v1.0.0 | All-in-one Desktop App |
+| v0.7.1 | Stable desktop release pipeline |
+| v0.7.2 | Desktop UX improvements |
+| v0.7.3 | Config and diagnostics |
+| v0.7.4 | Local Runtime Preview (embedded Python) |
+| v0.8.0 | All-in-one Desktop App |
 
 ## Prerequisites
 
@@ -65,3 +67,7 @@ Override via environment variables or place a `config.json` in the Electron `use
 - No auto-update
 - No system tray
 - Unsigned builds (SmartScreen / Gatekeeper warnings expected)
+
+## Release Status
+
+As of v0.7.1, the Electron shell packaging pipeline is verified on Windows, macOS, and Linux. GitHub Actions artifacts are downloaded as `.zip` archives, with the platform installer inside the archive.

@@ -142,7 +142,7 @@ MailMind 连接你的 Gmail 和 IMAP 账户，只回答一个问题：
 
 ## 桌面预览
 
-MailMind v0.7.0 提供 **Electron 桌面壳**，支持 Windows、macOS 和 Linux。
+MailMind v0.7.1 提供 **Electron 桌面壳**，支持 Windows、macOS 和 Linux。
 
 > **注意**：桌面应用是 Web UI 的薄壳封装。**不包含**后端、数据库或任务队列。启动桌面应用前，必须先在本地启动 MailMind 服务。
 
@@ -172,7 +172,13 @@ npm run dev
 
 ### 下载
 
-Windows、macOS 和 Linux 安装包由 GitHub Actions 自动构建。请查看 [Releases](https://github.com/nicobailon/mailmind-ai-email-copilot/releases) 页面下载。
+Windows、macOS 和 Linux 安装包由 GitHub Actions 自动构建。请查看 [Releases](https://github.com/Vibe-Coding-X/mailmind-ai-email-copilot/releases) 页面下载。
+
+GitHub Actions artifact 下载下来是 `.zip` 压缩包，安装程序在压缩包内部：
+
+- Windows：`.zip` -> `.exe`
+- macOS：`.zip` -> `.dmg`
+- Linux：`.zip` -> `.AppImage`
 
 ### 本地构建安装包
 
@@ -184,7 +190,7 @@ npm run dist
 
 详见 [`docs/desktop/DESKTOP_SHELL.md`](docs/desktop/DESKTOP_SHELL.md)。
 
-> **路线图**：v0.8 将引入嵌入式 Python 运行时。v1.0 将成为完整的 All-in-one 桌面应用。详见 [`docs/desktop/ALL_IN_ONE_ROADMAP.md`](docs/desktop/ALL_IN_ONE_ROADMAP.md)。
+> **路线图**：v0.7.2 聚焦桌面体验增强，v0.7.3 聚焦诊断与配置，v0.7.4 引入 Local Runtime Preview，v0.8.0 再进入真正的 All-in-one 桌面应用。详见 [`docs/desktop/ALL_IN_ONE_ROADMAP.md`](docs/desktop/ALL_IN_ONE_ROADMAP.md)。
 
 ---
 
@@ -375,15 +381,17 @@ npm run build
 | v0.5 提供者邮箱基础 | 多邮箱支持、IMAP 提供者 MVP、Celery 可靠性、摘要范围 |
 | v0.5.1 UI/UX 打磨 | 6 种主题预设、明暗模式、视觉特效、Playwright 验证 |
 | v0.5.2 Demo 就绪 | 架构图、Demo 脚本、项目导览、文档刷新 |
-| v0.7 桌面壳 | Electron 桌面壳、多平台安装包、GitHub Actions 自动构建 |
+| v0.7.0 桌面壳 | Electron 桌面壳、多平台安装包、GitHub Actions 自动构建 |
+| v0.7.1 发布流水线 | 三平台桌面安装包发布链路稳定并完成验证 |
 
 ### 🧭 下一步
 
 | 版本 | 范围 |
 |------|------|
-| v0.8 本地运行时预览 | 嵌入式 Python、SQLite、APScheduler、离线桌面 |
-| v0.9 嵌入式数据库原型 | 双方言 SQLAlchemy、导入/导出、数据保留 |
-| v1.0 All-in-one 桌面应用 | 完整离线、自动更新、OAuth 深度链接、代码签名 |
+| v0.7.2 桌面体验增强 | 托盘、窗口状态记忆、菜单、通知 |
+| v0.7.3 配置与诊断 | 连接状态、日志、配置页、诊断导出 |
+| v0.7.4 本地运行时预览 | Electron 管理 backend 和 worker 的预览版 |
+| v0.8.0 All-in-one 桌面应用 | 完整离线、自动更新、OAuth 深度链接、代码签名 |
 
 ---
 
@@ -427,7 +435,8 @@ npm run build
 | 桌面发布 | [`docs/desktop/DESKTOP_RELEASE.md`](docs/desktop/DESKTOP_RELEASE.md) |
 | 桌面安全 | [`docs/desktop/DESKTOP_SECURITY.md`](docs/desktop/DESKTOP_SECURITY.md) |
 | All-in-one 路线图 | [`docs/desktop/ALL_IN_ONE_ROADMAP.md`](docs/desktop/ALL_IN_ONE_ROADMAP.md) |
-| v0.7 发布说明 | [`docs/release-notes/v0.7.0-desktop-shell.md`](docs/release-notes/v0.7.0-desktop-shell.md) |
+| v0.7.0 发布说明 | [`docs/release-notes/v0.7.0-desktop-shell.md`](docs/release-notes/v0.7.0-desktop-shell.md) |
+| v0.7.1 发布说明 | [`docs/release-notes/v0.7.1-release-pipeline.md`](docs/release-notes/v0.7.1-release-pipeline.md) |
 
 ---
 
