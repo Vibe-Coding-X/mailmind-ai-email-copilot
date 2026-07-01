@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n/provider";
 
 /**
  * /register — system account registration.
- * Styled for dramatic visual impact with the new theme system.
+ * Registration page for local accounts.
  */
 export default function RegisterPage() {
   const { t } = useI18n();

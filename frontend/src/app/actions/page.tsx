@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { PageFrame } from "@/components/page-frame";
-import { StatusBanner } from "@/components/status-banner";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -414,12 +413,9 @@ export default function ActionsPage() {
 
   return (
     <AppShell>
-      <StatusBanner />
-      <div style={{ height: 20 }} />
       <PageFrame
         title={t("actions.title")}
         description={t("actions.pageDescription")}
-        badge={false}
       >
         {renderContent()}
       </PageFrame>

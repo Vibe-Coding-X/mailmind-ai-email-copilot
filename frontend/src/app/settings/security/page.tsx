@@ -1,7 +1,6 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { SettingsSection, SettingRow } from "@/components/settings-section";
@@ -22,8 +21,6 @@ export default function SecuritySettingsPage() {
 
   return (
     <AppShell>
-      <StatusBanner />
-      <div style={{ height: 20 }} />
       <PageFrame
         title={t("security.title")}
         description={t("security.description")}

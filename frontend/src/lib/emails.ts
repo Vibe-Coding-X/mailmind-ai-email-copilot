@@ -249,7 +249,7 @@ export function displayBodyText(
 
   const trimmedSnippet = snippet?.trim() ?? "";
   if (trimmedSnippet.length > 0) {
-    return `No readable body text was stored for this email.\n\nPreview:\n${trimmedSnippet}`;
+    return `No readable body text was stored for this email.\n\nSnippet:\n${trimmedSnippet}`;
   }
 
   return "No readable body text was stored for this email.";

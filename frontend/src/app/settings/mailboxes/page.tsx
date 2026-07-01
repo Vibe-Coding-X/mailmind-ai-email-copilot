@@ -21,7 +21,6 @@ import {
 import { MailboxProviderBadge } from "@/components/mailbox-provider-badge";
 import { PageFrame } from "@/components/page-frame";
 import { SettingsSection } from "@/components/settings-section";
-import { StatusBanner } from "@/components/status-banner";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n, type TranslationKey } from "@/i18n/provider";
@@ -88,6 +87,11 @@ const imapPresets = [
 ] as const;
 
 type TFunction = (key: TranslationKey) => string;
+type ModuleFeedback = {
+  tone: "info" | "success" | "warning" | "danger";
+  title: string;
+  message: string;
+};
 
 function isSystemAuthError(error: ApiRequestError): boolean {
   return error.status === 401 && error.code === SYSTEM_AUTH_ERROR_CODE;
@@ -331,8 +335,10 @@ export default function MailboxSettingsPage() {
     Record<string, MailboxSyncStatusView>
   >({});
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [addFeedback, setAddFeedback] = useState<ModuleFeedback | null>(null);
+  const [mailboxFeedbackById, setMailboxFeedbackById] = useState<
+    Record<string, ModuleFeedback | undefined>
+  >({});
   const [connectingGmail, setConnectingGmail] = useState(false);
   const [connectingImap, setConnectingImap] = useState(false);
   const [showImapForm, setShowImapForm] = useState(false);
@@ -451,7 +457,16 @@ export default function MailboxSettingsPage() {
           ),
         }));
       }
-      setActionMessage(t("mailboxes.syncJobCompleted"));
+      if (job.related_resource_id) {
+        setMailboxFeedbackById((current) => ({
+          ...current,
+          [job.related_resource_id as string]: {
+            tone: "success",
+            title: t("mailboxes.syncJobTitle"),
+            message: t("mailboxes.syncJobCompleted"),
+          },
+        }));
+      }
       await Promise.all([loadMailboxList(), recentSyncJobs.refresh()]);
     },
     [loadMailboxList, recentSyncJobs, t],
@@ -473,15 +488,23 @@ export default function MailboxSettingsPage() {
           ),
         }));
       }
-      setActionError(job.error_message ?? t("mailboxes.syncJobFailed"));
+      if (job.related_resource_id) {
+        setMailboxFeedbackById((current) => ({
+          ...current,
+          [job.related_resource_id as string]: {
+            tone: "danger",
+            title: t("mailboxes.syncJobTitle"),
+            message: job.error_message ?? t("mailboxes.syncJobFailed"),
+          },
+        }));
+      }
       await recentSyncJobs.refresh();
     },
     [recentSyncJobs, t],
   );
 
   async function onStartGmail() {
-    setActionError(null);
-    setActionMessage(null);
+    setAddFeedback(null);
     setConnectingGmail(true);
 
     try {
@@ -492,7 +515,11 @@ export default function MailboxSettingsPage() {
 
       window.location.href = response.data.authorization_url;
     } catch (error) {
-      setActionError(toErrorMessage(error, t));
+      setAddFeedback({
+        tone: "danger",
+        title: t("mailboxes.actionError"),
+        message: toErrorMessage(error, t),
+      });
       setConnectingGmail(false);
     }
   }
@@ -516,8 +543,7 @@ export default function MailboxSettingsPage() {
 
   async function onConnectImap(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setActionError(null);
-    setActionMessage(null);
+    setAddFeedback(null);
     setConnectingImap(true);
 
     try {
@@ -534,18 +560,25 @@ export default function MailboxSettingsPage() {
       setImapForm(initialImapForm);
       const refreshed = await loadMailboxList();
       if (refreshed) {
-        setActionMessage(t("mailboxes.imapConnected"));
+        setAddFeedback({
+          tone: "success",
+          title: t("mailboxes.updated"),
+          message: t("mailboxes.imapConnected"),
+        });
       }
     } catch (error) {
-      setActionError(toErrorMessage(error, t));
+      setAddFeedback({
+        tone: "danger",
+        title: t("mailboxes.actionError"),
+        message: toErrorMessage(error, t),
+      });
     } finally {
       setConnectingImap(false);
     }
   }
 
   async function onSyncMailbox(mailboxId: string) {
-    setActionError(null);
-    setActionMessage(null);
+    setMailboxFeedbackById((current) => ({ ...current, [mailboxId]: undefined }));
     setSyncingMailboxId(mailboxId);
     setActiveSyncJobsByMailboxId((current) => {
       const next = { ...current };
@@ -563,12 +596,26 @@ export default function MailboxSettingsPage() {
         ...current,
         [mailboxId]: response.data.job,
       }));
-      setActionMessage(t("mailboxes.syncJobQueued"));
+      setMailboxFeedbackById((current) => ({
+        ...current,
+        [mailboxId]: {
+          tone: "info",
+          title: t("mailboxes.syncJobTitle"),
+          message: t("mailboxes.syncJobQueued"),
+        },
+      }));
       await refreshSyncStatuses(mailboxes);
     } catch (error) {
       try {
         const fallbackResponse = await triggerMailboxSync(mailboxId);
-        setActionMessage(syncResultMessage(fallbackResponse.data));
+        setMailboxFeedbackById((current) => ({
+          ...current,
+          [mailboxId]: {
+            tone: "success",
+            title: t("mailboxes.syncJobTitle"),
+            message: syncResultMessage(fallbackResponse.data),
+          },
+        }));
         await loadMailboxList();
       } catch (fallbackError) {
         const message = toErrorMessage(fallbackError, t);
@@ -576,9 +623,14 @@ export default function MailboxSettingsPage() {
           ...current,
           [mailboxId]: { state: "error", message },
         }));
-        setActionError(
-          `${toErrorMessage(error, t)} ${t("mailboxes.syncFallbackFailed")} ${message}`,
-        );
+        setMailboxFeedbackById((current) => ({
+          ...current,
+          [mailboxId]: {
+            tone: "danger",
+            title: t("mailboxes.syncJobTitle"),
+            message: `${toErrorMessage(error, t)} ${t("mailboxes.syncFallbackFailed")} ${message}`,
+          },
+        }));
         if (isGmailReauthError(fallbackError)) {
           await loadMailboxList();
         }
@@ -594,16 +646,29 @@ export default function MailboxSettingsPage() {
       return;
     }
 
-    setActionError(null);
-    setActionMessage(null);
+    setMailboxFeedbackById((current) => ({ ...current, [mailbox.id]: undefined }));
     setArchivingMailboxId(mailbox.id);
 
     try {
       await triggerMailboxArchiveJob(mailbox.id);
-      setActionMessage(t("mailboxes.archiveJobQueued"));
+      setMailboxFeedbackById((current) => ({
+        ...current,
+        [mailbox.id]: {
+          tone: "info",
+          title: t("mailboxes.localArchive"),
+          message: t("mailboxes.archiveJobQueued"),
+        },
+      }));
       await Promise.all([loadMailboxList(), recentSyncJobs.refresh()]);
     } catch (error) {
-      setActionError(toErrorMessage(error, t));
+      setMailboxFeedbackById((current) => ({
+        ...current,
+        [mailbox.id]: {
+          tone: "danger",
+          title: t("mailboxes.localArchive"),
+          message: toErrorMessage(error, t),
+        },
+      }));
     } finally {
       setArchivingMailboxId(null);
     }
@@ -666,6 +731,7 @@ export default function MailboxSettingsPage() {
             archivingMailboxId === mailbox.id ||
             archiveState.status === "running" ||
             archiveState.status === "complete";
+          const mailboxFeedback = mailboxFeedbackById[mailbox.id];
           return (
             <div
               key={mailbox.id}
@@ -756,18 +822,44 @@ export default function MailboxSettingsPage() {
                   onJobCompleted={(job) => void onSyncJobCompleted(job)}
                   onJobFailed={onSyncJobFailed}
                   onJobRetried={(job) => {
-                    setActionError(null);
-                    setActionMessage(t("mailboxes.syncJobQueued"));
                     if (job.related_resource_id) {
                       setActiveSyncJobsByMailboxId((current) => ({
                         ...current,
                         [job.related_resource_id as string]: job,
                       }));
+                      setMailboxFeedbackById((current) => ({
+                        ...current,
+                        [job.related_resource_id as string]: {
+                          tone: "info",
+                          title: t("mailboxes.syncJobTitle"),
+                          message: t("mailboxes.syncJobQueued"),
+                        },
+                      }));
                     }
                   }}
-                  onJobRetryError={(message) => setActionError(message)}
+                  onJobRetryError={(message) =>
+                    setMailboxFeedbackById((current) => ({
+                      ...current,
+                      [mailbox.id]: {
+                        tone: "danger",
+                        title: t("mailboxes.syncJobTitle"),
+                        message,
+                      },
+                    }))
+                  }
                 />
               </div>
+
+              {mailboxFeedback ? (
+                <div style={{ marginTop: 10 }}>
+                  <InlineFeedback
+                    tone={mailboxFeedback.tone}
+                    title={mailboxFeedback.title}
+                  >
+                    {mailboxFeedback.message}
+                  </InlineFeedback>
+                </div>
+              ) : null}
 
               <div
                 style={{
@@ -847,8 +939,6 @@ export default function MailboxSettingsPage() {
 
   return (
     <AppShell>
-      <StatusBanner />
-      <div style={{ height: 20 }} />
       <PageFrame
         title={t("mailboxes.pageTitle")}
         description={t("mailboxes.pageDescription")}
@@ -858,28 +948,20 @@ export default function MailboxSettingsPage() {
           description={t("mailboxes.connectedDescription")}
         >
           {renderMailboxList()}
-
-          {actionError ? (
-            <div style={{ marginTop: 14 }}>
-              <InlineFeedback tone="danger" title={t("mailboxes.actionError")}>
-                {actionError}
-              </InlineFeedback>
-            </div>
-          ) : null}
-
-          {actionMessage ? (
-            <div style={{ marginTop: 14 }}>
-              <InlineFeedback tone="success" title={t("mailboxes.updated")}>
-                {actionMessage}
-              </InlineFeedback>
-            </div>
-          ) : null}
         </SettingsSection>
 
         <SettingsSection
           title={t("mailboxes.addTitle")}
           description={t("mailboxes.addDescription")}
         >
+          {addFeedback ? (
+            <div style={{ marginBottom: 12 }}>
+              <InlineFeedback tone={addFeedback.tone} title={addFeedback.title}>
+                {addFeedback.message}
+              </InlineFeedback>
+            </div>
+          ) : null}
+
           <div
             style={{
               display: "grid",

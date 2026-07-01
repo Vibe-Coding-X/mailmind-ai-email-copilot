@@ -6,7 +6,6 @@ import { useI18n } from "@/i18n/provider";
 
 /**
  * AppShell — product layout frame for MailMind.
- * Enhanced with dramatic visual effects per theme.
  */
 
 interface NavLink {

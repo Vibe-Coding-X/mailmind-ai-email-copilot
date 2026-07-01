@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n/provider";
 
 /**
  * /login — system authentication.
- * Styled for dramatic visual impact with the new theme system.
+ * Login page for password authentication.
  */
 export default function LoginPage() {
   const { t } = useI18n();

@@ -1,7 +1,6 @@
 "use client";
 
 import { AppShell } from "@/components/app-shell";
-import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { AuthStatus } from "@/components/auth-status";
 import { SettingsSection, SettingRow } from "@/components/settings-section";
@@ -19,8 +18,6 @@ export default function ProfileSettingsPage() {
 
   return (
     <AppShell>
-      <StatusBanner />
-      <div style={{ height: 20 }} />
       <PageFrame
         title={t("profile.title")}
         description={t("profile.description")}

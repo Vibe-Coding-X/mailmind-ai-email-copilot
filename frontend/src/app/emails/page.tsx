@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { Badge } from "@/components/ui/badge";
 import { InlineFeedback } from "@/components/inline-feedback";
@@ -274,9 +273,12 @@ export default function EmailsTodayPage() {
     if (pageState !== "loaded" || mailboxes.length === 0 || !archiveState) {
       return null;
     }
+    if (archiveState.status === "complete") {
+      return null;
+    }
 
     return (
-      <div style={{ marginTop: 14 }}>
+      <div style={{ marginTop: 12 }}>
         <InlineFeedback
           tone={archiveStateTone(archiveState)}
           title={t("emails.localArchive")}
@@ -417,12 +419,9 @@ export default function EmailsTodayPage() {
 
   return (
     <AppShell>
-      <StatusBanner />
-      <div style={{ height: 20 }} />
       <PageFrame
         title={t("emails.title")}
         description={t("emails.description")}
-        badge={false}
       >
         <section className="mm-card">
           <div className="mm-spread" style={{ alignItems: "flex-start" }}>
@@ -527,10 +526,6 @@ export default function EmailsTodayPage() {
                 {selectedMailbox.display_name || selectedMailbox.email_address}
               </span>
             </div>
-          ) : mailboxFilter === "" ? (
-            <p className="mm-muted" style={{ fontSize: 13, marginTop: 12 }}>
-              {t("emails.allSourceHint")}
-            </p>
           ) : null}
 
           {renderArchiveBanner()}
@@ -562,8 +557,8 @@ export default function EmailsTodayPage() {
                     <button
                       key={mailbox.id}
                       type="button"
-                        className="mm-btn"
-                        onClick={() => {
+                      className="mm-btn"
+                      onClick={() => {
                         setMailboxFilter(mailbox.id);
                       }}
                       style={{
@@ -648,7 +643,6 @@ function archiveStateMessage(
   state: MailboxArchiveState,
   t: TFunction,
 ): string {
-  const synced = String(state.total_synced_count ?? 0);
   const base =
     state.message ??
     (state.status === "not_started"
@@ -662,6 +656,13 @@ function archiveStateMessage(
             : state.status === "complete"
               ? t("emails.archiveComplete")
               : t("emails.archiveUnknown"));
+  if (state.status === "not_started") {
+    return base;
+  }
+
+  const synced = t("emails.archiveSynced")
+    .replace("{{count}}", String(state.total_synced_count ?? 0))
+    .replace("{{batches}}", String(state.batch_count ?? 0));
   const range =
     state.oldest_synced_at || state.newest_synced_at
       ? ` ${t("emails.archiveRange")
@@ -670,9 +671,7 @@ function archiveStateMessage(
       : "";
   const error = state.last_error_message ? ` ${state.last_error_message}` : "";
 
-  return `${base} ${t("emails.archiveSynced")
-    .replace("{{count}}", synced)
-    .replace("{{batches}}", String(state.batch_count ?? 0))}${range}${error}`;
+  return `${base} ${synced}${range}${error}`;
 }
 
 function emptyArchiveCopy(

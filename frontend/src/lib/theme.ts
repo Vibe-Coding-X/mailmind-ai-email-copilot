@@ -5,8 +5,8 @@
  *   - preset: the visual personality (color language, density, elevation)
  *   - mode:   light / dark
  *
- * v2 brings dramatic visual effects: neon-cyber as default, glass-aurora,
- * gradient-flow, soft-clay, plus preserved noir-pulse and dense-minimal.
+ * v2 keeps a small set of optional presets, while the default stays a calm
+ * dense-minimal workspace suited to email and archive workflows.
  *
  * This module is pure data + helpers — NO React, NO DOM side effects beyond the
  * small reader/writer helpers, and it persists ONLY the theme preference.
@@ -27,11 +27,10 @@ export interface ThemeChoice {
   mode: ThemeMode;
 }
 
-/** Neon Cyber is now the DEFAULT theme for maximum visual impact. */
-export const DEFAULT_THEME: ThemeChoice = {
-  preset: "neon-cyber",
-  mode: "dark",
-};
+export const DEFAULT_THEME = {
+  preset: "dense-minimal",
+  mode: "light",
+} as const satisfies ThemeChoice;
 
 export const THEME_PRESETS: ThemePreset[] = [
   "neon-cyber",
@@ -51,27 +50,27 @@ export const PRESET_META: Record<
 > = {
   "neon-cyber": {
     label: "Neon Cyber",
-    hint: "Cyberpunk neon glow, deep black, cyan/magenta accents",
+    hint: "High contrast dark theme with bright cyan accents",
   },
   "glass-aurora": {
     label: "Glass Aurora",
-    hint: "Frosted glass, soft gradients, aurora-like colors",
+    hint: "Soft translucent surfaces with a light blue accent",
   },
   "gradient-flow": {
     label: "Gradient Flow",
-    hint: "Modern SaaS gradients, purple-blue flow",
+    hint: "Brighter accent styling for marketing-style demos",
   },
   "soft-clay": {
     label: "Soft Clay",
-    hint: "Neumorphic clay, soft shadows, organic shapes",
+    hint: "Warm surfaces with softer elevation",
   },
   "noir-pulse": {
     label: "Noir Pulse",
-    hint: "Dark contrast, amber signal, sharp edges",
+    hint: "Dark mode with amber status color",
   },
   "dense-minimal": {
     label: "Dense Minimal",
-    hint: "Compact, flat, minimal decoration",
+    hint: "Compact, quiet workspace for daily use",
   },
 };
 
@@ -82,6 +81,9 @@ export const MODE_META: Record<ThemeMode, { label: string }> = {
 
 /** localStorage key — theme preference only. */
 export const THEME_STORAGE_KEY = "mailmind-theme";
+export const THEME_STORAGE_VERSION_KEY = "mailmind-theme-version";
+export const THEME_STORAGE_VERSION = "2026-07-ui-polish";
+const LEGACY_DEFAULT_THEME_STORAGE_VALUES = new Set(["neon-cyber:dark"]);
 
 function isThemePreset(value: unknown): value is ThemePreset {
   return (
@@ -117,6 +119,17 @@ export function parseThemeChoice(raw: string | null): ThemeChoice | null {
   return null;
 }
 
+function shouldMigrateLegacyDefaultTheme(
+  raw: string | null,
+  version: string | null,
+): boolean {
+  return (
+    version !== THEME_STORAGE_VERSION &&
+    raw !== null &&
+    LEGACY_DEFAULT_THEME_STORAGE_VALUES.has(raw)
+  );
+}
+
 /** Serialize a choice for storage / data attributes. */
 export function serializeThemeChoice(choice: ThemeChoice): string {
   return `${choice.preset}:${choice.mode}`;
@@ -132,9 +145,14 @@ export function resolveInitialTheme(): ThemeChoice {
   }
 
   try {
-    const stored = parseThemeChoice(
-      window.localStorage.getItem(THEME_STORAGE_KEY),
-    );
+    const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const version = window.localStorage.getItem(THEME_STORAGE_VERSION_KEY);
+    if (shouldMigrateLegacyDefaultTheme(raw, version)) {
+      persistThemeChoice(DEFAULT_THEME);
+      return DEFAULT_THEME;
+    }
+
+    const stored = parseThemeChoice(raw);
     if (stored) {
       return stored;
     }
@@ -156,6 +174,7 @@ export function persistThemeChoice(choice: ThemeChoice): void {
   }
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, serializeThemeChoice(choice));
+    window.localStorage.setItem(THEME_STORAGE_VERSION_KEY, THEME_STORAGE_VERSION);
   } catch {
     // Ignore storage failures.
   }

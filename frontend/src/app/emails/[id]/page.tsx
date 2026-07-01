@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
-import { StatusBanner } from "@/components/status-banner";
 import { PageFrame } from "@/components/page-frame";
 import { EmailDetailView } from "@/components/email-detail-view";
 import { EmailLoadingState } from "@/components/email-loading-state";
@@ -238,12 +237,9 @@ export default function EmailDetailPage() {
 
   return (
     <AppShell>
-      <StatusBanner />
-      <div style={{ height: 20 }} />
       <PageFrame
         title={email ? displaySubject(email.subject) : t("emails.detailTitle")}
         description={t("emails.detailDescription")}
-        badge={false}
       >
         {renderContent()}
       </PageFrame>
