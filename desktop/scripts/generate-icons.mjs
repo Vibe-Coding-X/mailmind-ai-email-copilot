@@ -17,8 +17,8 @@ const assetsDir = join(__dirname, "..", "assets");
 
 mkdirSync(assetsDir, { recursive: true });
 
-const width = 256;
-const height = 256;
+const width = 512;
+const height = 512;
 
 // Create RGBA pixel data
 const pixels = Buffer.alloc(width * height * 4);
@@ -33,9 +33,9 @@ for (let y = 0; y < height; y++) {
     let b = 0xf1;
     let a = 255;
 
-    // Rounded rectangle with 40px corner radius
-    const margin = 16;
-    const cr = 40;
+    // Rounded rectangle with 80px corner radius
+    const margin = 32;
+    const cr = 80;
     const lx = x - margin;
     const ly = y - margin;
     const rx = width - margin - 1 - x;
@@ -63,11 +63,11 @@ for (let y = 0; y < height; y++) {
         // Draw "M" letter in white
         const cx = width / 2;
         const cy = height / 2;
-        const lw = 90;
-        const lh = 90;
+        const lw = 180;
+        const lh = 180;
         const left = cx - lw / 2;
         const top = cy - lh / 2;
-        const t = 12; // stroke thickness
+        const t = 24; // stroke thickness
 
         const inLeft = x >= left && x < left + t && y >= top && y < top + lh;
         const inRight = x >= left + lw - t && x < left + lw && y >= top && y < top + lh;
@@ -112,7 +112,7 @@ const iend = pngChunk("IEND", Buffer.alloc(0));
 const png = Buffer.concat([signature, ihdr, idat, iend]);
 
 writeFileSync(join(assetsDir, "icon.png"), png);
-console.log("Created assets/icon.png (256x256 placeholder)");
+console.log("Created assets/icon.png (512x512 placeholder)");
 console.log("electron-builder will auto-convert to .ico/.icns as needed.");
 console.log("Replace with a proper icon for production builds.");
 

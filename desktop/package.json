@@ -3,8 +3,12 @@
   "version": "0.7.0",
   "description": "MailMind Desktop - AI Email Copilot",
   "main": "dist/main.js",
-  "author": "MailMind Team",
+  "author": "moye12325",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vibe-Coding-X/mailmind-ai-email-copilot.git"
+  },
   "scripts": {
     "dev": "npm run build && electron .",
     "build": "tsc",
