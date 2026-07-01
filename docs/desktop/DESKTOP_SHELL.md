@@ -65,9 +65,17 @@ Override via environment variables or place a `config.json` in the Electron `use
 - No embedded database or job queue
 - No OAuth deep links
 - No auto-update
-- No system tray
 - Unsigned builds (SmartScreen / Gatekeeper warnings expected)
 
 ## Release Status
 
 As of v0.7.1, the Electron shell packaging pipeline is verified on Windows, macOS, and Linux. GitHub Actions artifacts are downloaded as `.zip` archives, with the platform installer inside the archive.
+
+## v0.7.2 Desktop UX
+
+The current desktop shell adds the first desktop-native UX layer:
+
+- Window size, position, and maximized state are persisted in `userData/window-state.json`
+- Closing the main window hides the app to the system tray on Windows and Linux
+- The tray icon can show or hide the main window
+- The app can notify when local services disconnect or recover

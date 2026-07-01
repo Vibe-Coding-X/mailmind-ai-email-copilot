@@ -1,11 +1,18 @@
-import { app, BrowserWindow, shell, Menu, ipcMain } from "electron";
+import { app, BrowserWindow, shell, Menu, ipcMain, Notification, Tray, nativeImage } from "electron";
 import * as path from "path";
 import { loadConfig } from "./config";
+import { getConnectionTransition } from "./connection-state";
+import { loadWindowState, saveWindowState, type WindowBounds } from "./window-state";
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let forceQuit = false;
+let hasShownTrayHint = false;
+let connectionHealthy: boolean | null = null;
 
 const APP_VERSION = app.getVersion();
 const APP_NAME = app.getName();
+const TRAY_TOOLTIP = "MailMind";
 
 // ---------------------------------------------------------------------------
 // Health check
@@ -24,27 +31,19 @@ async function checkHealth(healthUrl: string, timeoutMs: number): Promise<boolea
   }
 }
 
-async function waitForBackend(
-  healthUrl: string,
-  timeoutMs: number,
-  intervalMs: number,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await checkHealth(healthUrl, 3000)) return true;
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  return false;
-}
-
 // ---------------------------------------------------------------------------
 // Window creation
 // ---------------------------------------------------------------------------
 
 function createWindow(appUrl: string, healthUrl: string): void {
+  const userDataPath = app.getPath("userData");
+  const persistedState = loadWindowState(userDataPath);
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    width: persistedState.width,
+    height: persistedState.height,
+    x: persistedState.x,
+    y: persistedState.y,
     minWidth: 900,
     minHeight: 600,
     title: "MailMind",
@@ -81,7 +80,36 @@ function createWindow(appUrl: string, healthUrl: string): void {
 
   // Show when ready
   mainWindow.once("ready-to-show", () => {
+    if (persistedState.isMaximized) {
+      mainWindow?.maximize();
+    }
     mainWindow?.show();
+  });
+
+  mainWindow.on("resize", () => {
+    persistWindowState();
+  });
+
+  mainWindow.on("move", () => {
+    persistWindowState();
+  });
+
+  mainWindow.on("maximize", () => {
+    persistWindowState();
+  });
+
+  mainWindow.on("unmaximize", () => {
+    persistWindowState();
+  });
+
+  mainWindow.on("close", (event) => {
+    if (forceQuit || process.platform === "darwin") {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.hide();
+    showTrayHint();
   });
 
   // Clean up on close
@@ -97,6 +125,7 @@ async function loadApp(appUrl: string, healthUrl: string): Promise<void> {
   if (!mainWindow) return;
 
   const healthy = await checkHealth(healthUrl, 5000);
+  notifyConnectionTransition(healthy);
   if (healthy) {
     mainWindow.loadURL(appUrl);
   } else {
@@ -124,9 +153,11 @@ function registerIpcHandlers(appUrl: string, healthUrl: string): void {
     if (!mainWindow) return false;
     const healthy = await checkHealth(healthUrl, 5000);
     if (healthy) {
+      notifyConnectionTransition(true);
       mainWindow.loadURL(appUrl);
       return true;
     }
+    notifyConnectionTransition(false);
     return false;
   });
 
@@ -145,11 +176,27 @@ function registerIpcHandlers(appUrl: string, healthUrl: string): void {
 // Application menu
 // ---------------------------------------------------------------------------
 
-function buildMenu(): void {
+function buildMenu(appUrl: string): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: "File",
-      submenu: [{ role: "quit" }],
+      submenu: [
+        {
+          label: "Show MailMind",
+          click: () => showMainWindow(),
+        },
+        {
+          label: "Hide MailMind",
+          click: () => mainWindow?.hide(),
+        },
+        { type: "separator" },
+        {
+          label: "Open Web App",
+          click: () => shell.openExternal(appUrl),
+        },
+        { type: "separator" },
+        { role: "quit" },
+      ],
     },
     {
       label: "Edit",
@@ -179,7 +226,14 @@ function buildMenu(): void {
     },
     {
       label: "Window",
-      submenu: [{ role: "minimize" }, { role: "close" }],
+      submenu: [
+        { role: "minimize" },
+        {
+          label: "Hide to Tray",
+          click: () => mainWindow?.hide(),
+        },
+        { role: "close" },
+      ],
     },
     {
       label: "Help",
@@ -202,6 +256,103 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function buildTray(appUrl: string): void {
+  if (tray) {
+    return;
+  }
+
+  const iconPath = path.join(__dirname, "..", "assets", "icon.png");
+  const icon = nativeImage.createFromPath(iconPath);
+  tray = new Tray(icon);
+  tray.setToolTip(TRAY_TOOLTIP);
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Show MailMind",
+        click: () => showMainWindow(),
+      },
+      {
+        label: "Open Web App",
+        click: () => shell.openExternal(appUrl),
+      },
+      {
+        label: "Quit",
+        click: () => {
+          forceQuit = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+  tray.on("click", () => {
+    if (mainWindow?.isVisible()) {
+      mainWindow.hide();
+    } else {
+      showMainWindow();
+    }
+  });
+}
+
+function showMainWindow(): void {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function persistWindowState(): void {
+  if (!mainWindow) {
+    return;
+  }
+
+  const bounds = mainWindow.getBounds();
+  const state: WindowBounds = {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    isMaximized: mainWindow.isMaximized(),
+  };
+
+  saveWindowState(app.getPath("userData"), state);
+}
+
+function showNotification(title: string, body: string): void {
+  if (!Notification.isSupported()) {
+    return;
+  }
+
+  new Notification({ title, body }).show();
+}
+
+function showTrayHint(): void {
+  if (hasShownTrayHint) {
+    return;
+  }
+
+  hasShownTrayHint = true;
+  showNotification("MailMind is still running", "The app was hidden to the system tray.");
+}
+
+function notifyConnectionTransition(healthy: boolean): void {
+  const transition = getConnectionTransition(connectionHealthy, healthy);
+  connectionHealthy = healthy;
+
+  if (transition === "recovered") {
+    showNotification("MailMind connected", "Local services are reachable again.");
+  }
+
+  if (transition === "lost") {
+    showNotification("MailMind disconnected", "Local services are no longer reachable.");
+  }
+}
+
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
@@ -209,22 +360,29 @@ function buildMenu(): void {
 app.whenReady().then(async () => {
   const config = loadConfig();
 
-  buildMenu();
+  buildMenu(config.appUrl);
   registerIpcHandlers(config.appUrl, config.healthUrl);
+  buildTray(config.appUrl);
   createWindow(config.appUrl, config.healthUrl);
 
   // macOS: re-create window when dock icon clicked
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow(config.appUrl, config.healthUrl);
+    } else {
+      showMainWindow();
     }
   });
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (forceQuit && process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  forceQuit = true;
 });
 
 // Security: prevent new WebContents creation
